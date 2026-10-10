@@ -1,0 +1,17 @@
+{
+  "kind": "NEXUS_EDUSCOL_SITEWIDE_BROWSER_CAPTURE_V1",
+  "requested_url": "https://eduscol.education.gouv.fr/4656/mentions-legales",
+  "final_url": "https://eduscol.education.gouv.fr/4656/mentions-legales",
+  "http_status": 200,
+  "observed_at_utc": "2026-10-10T05:33:18.840Z",
+  "browser": "chromium",
+  "browser_version": "145.0.7632.6",
+  "playwright_version": "1.58.2",
+  "capture_script_sha256": "4818dbc0120acf403e5c5bd365baa5fccc9f169e94433c8f17967ddd4252c3f6",
+  "normalized_html_file": "eduscol_legal_notice.normalized.html",
+  "normalized_html_sha256": "8e7b11607c65dc614e4db6395ec16a44b3b7370d8651c0f9d07ce4e3f1df29b5",
+  "extracted_text_file": "eduscol_legal_notice.extracted.txt",
+  "extracted_text_sha256": "69846697794d2c0ddebc85e3b904fd4e86bd7f2a221efce7bedc8f6f533548cc",
+  "screenshot_file": "eduscol_legal_notice.png",
+  "screenshot_sha256": "437223c9e907e8462d806cdeeee917bf3631722bdc63072e89e9317007f48a68"
+}

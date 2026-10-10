@@ -1,0 +1,70 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "da4e120a8d6b2e6f.extracted.txt",
+  "extracted_text_sha256": "5257b0f37ba41abefe7efd30ed4c949156b9a5c04ef50a4ec37903c2f20b4db4",
+  "final_url": "https://eduscol.education.gouv.fr/6150/ressources-pour-l-etude-de-la-constitution",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "da4e120a8d6b2e6f.normalized.html",
+  "normalized_html_sha256": "753bb347b8248f6922fb333b28399c2aab1d1807bca8a9348a443dc445037129",
+  "observed_at_utc": "2026-10-10T06:03:41.894Z",
+  "pdf_link_count": 10,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-christoiphelavialle-sespdf-69771.pdf",
+      "label": "Présentation",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-frankburbage-philosophiepdf-69768.pdf",
+      "label": "Présentation",
+      "occurrence_index": 1
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-jeromegrondeux-emcpdf-69777.pdf",
+      "label": "Présentation",
+      "occurrence_index": 2
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-moniquedupuis-eddpdf-69780.pdf",
+      "label": "Présentation",
+      "occurrence_index": 3
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-jeromegrondeux-histoirepdf-69765.pdf",
+      "label": "Présentation",
+      "occurrence_index": 4
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-annegansier-ecogestionpdf-69762.pdf",
+      "label": "Présentation",
+      "occurrence_index": 5
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-moniquedupuis-stvstpdf-69774.pdf",
+      "label": "Présentation",
+      "occurrence_index": 6
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-frankburbage-annegasnier-christophelavialle-dgemc-pdf-69849.pdf",
+      "label": "Présentation",
+      "occurrence_index": 7
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-fichethematique-lecontratpdf-69879.pdf",
+      "label": "Fiche thématique",
+      "occurrence_index": 8
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/constitution-fichethematique-lalibreconcurrencepdf-69882.pdf",
+      "label": "Fiche thématique",
+      "occurrence_index": 9
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/6150/ressources-pour-l-etude-de-la-constitution",
+  "screenshot_file": "da4e120a8d6b2e6f.png",
+  "screenshot_sha256": "fa72ae4d2dbbe91a0c68376866739e9c5f1ba1ba622ac76cd3c9ee87dbc05d9b"
+}

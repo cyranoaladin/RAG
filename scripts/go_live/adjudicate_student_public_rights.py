@@ -61,6 +61,10 @@ SHEET_COLUMNS = (
     "decision_evidence_pages", "decision_reason", "human_reviewer", "reviewed_at_utc",
     "decision_executor", "delegation_id", "evidence_sha256",
 )
+DERIVATIVE_SHEET_COLUMNS = SHEET_COLUMNS + (
+    "source_disposition", "derivative_disposition", "derivative_content_sha256",
+    "derivative_receipt_sha256", "rights_authority_id", "rights_authority_sha256",
+)
 SOURCE_MANIFESTS = (
     ("v4_non_hggsp", "services/rag-pedago/data/releases/prerentree_2026_2027/"
      "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate"),
@@ -435,16 +439,30 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--scan-checkpoints", type=Path, required=True)
     parser.add_argument("--source-checkpoints", type=Path, required=True)
-    parser.add_argument("--review-checkpoints", type=Path, required=True)
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--review-checkpoints", type=Path)
+    input_group.add_argument("--derivative-checkpoints", type=Path)
+    parser.add_argument("--private-candidate-root", type=Path)
     parser.add_argument("--decided-at-utc", required=True)
     args = parser.parse_args(argv)
     try:
-        result = materialize_pack(
-            args.root, scan_checkpoints=args.scan_checkpoints,
-            source_checkpoints=args.source_checkpoints,
-            review_checkpoints=args.review_checkpoints,
-            decided_at_utc=args.decided_at_utc,
-        )
+        if args.derivative_checkpoints is not None:
+            if args.private_candidate_root is None:
+                raise ValueError("PRIVATE_CANDIDATE_ROOT_REQUIRED")
+            result = materialize_derivative_pack(
+                args.root, scan_checkpoints=args.scan_checkpoints,
+                source_checkpoints=args.source_checkpoints,
+                derivative_checkpoints=args.derivative_checkpoints,
+                private_candidate_root=args.private_candidate_root,
+                decided_at_utc=args.decided_at_utc,
+            )
+        else:
+            result = materialize_pack(
+                args.root, scan_checkpoints=args.scan_checkpoints,
+                source_checkpoints=args.source_checkpoints,
+                review_checkpoints=args.review_checkpoints,
+                decided_at_utc=args.decided_at_utc,
+            )
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(json.dumps({"verdict": "FAIL_CLOSED", "reason": str(error)}, ensure_ascii=False))
         return 1
@@ -489,6 +507,56 @@ def render_decision_sheet(items: list[tuple[dict, dict, str]]) -> bytes:
             ",".join(sorted(record.get("reason_codes") or [])), "",
             record.get("decided_at_utc", ""), record.get("decision_executor", ""),
             record.get("delegation_id", ""), evidence_sha,
+        ))
+    return output.getvalue().encode("utf-8")
+
+
+def render_derivative_decision_sheet(items: list[tuple[dict, dict, str]]) -> bytes:
+    """Feuille 315 PDF : la colonne historique est un alias de la source privée."""
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter="\t", lineterminator="\n")
+    writer.writerow(DERIVATIVE_SHEET_COLUMNS)
+    for record, packet, evidence_sha in sorted(items, key=lambda item: item[0]["content_sha256"]):
+        source_disposition = record.get("source_disposition")
+        derivative_disposition = record.get("derivative_disposition")
+        if (source_disposition not in {"EXCLUDE", "REPLACE_WITH_NEW_CONTENT"}
+                or derivative_disposition not in {"EXCLUDE", "APPROVE_PUBLIC"}
+                or record.get("final_disposition") != source_disposition):
+            raise ValueError("SHEET_SOURCE_DERIVATIVE_DISPOSITION_INVALID")
+        positive = (source_disposition == "REPLACE_WITH_NEW_CONTENT"
+                    and derivative_disposition == "APPROVE_PUBLIC")
+        signals = packet.get("automated_review_signals") or []
+        signal_pages = ",".join(
+            f"{signal['kind']}:p{signal['page']}" for signal in signals
+        ) if signals else "NONE_DETECTED"
+        evidence_ref = (
+            "https://eduscol.education.gouv.fr/4656/mentions-legales"
+            if record.get("rights_authority_id") == "EDUSCOL_ETALAB_2_0_SITEWIDE"
+            else ""
+        )
+        writer.writerow((
+            record["content_sha256"], packet.get("source_release", ""),
+            ",".join(sorted({p["collection"] for p in packet.get("placements", [])})),
+            packet.get("source_path", ""), packet.get("source_listing_url", ""),
+            packet.get("page_count", ""), packet.get("source_pii_status", ""),
+            packet.get("source_currentness_disposition", ""), signal_pages,
+            str(packet.get("explicit_student_exclusion_signal", False)).lower(),
+            "PUBLIC_DERIVATIVE_RIGHTS_CONFIRMED" if positive else "BLOCKED",
+            "STUDENT_DERIVATIVE_APPROVED" if positive else "STUDENT_BLOCKED",
+            "CLEARED_WITH_EVIDENCE" if positive else "BLOCKED",
+            "PASS_WITH_EVIDENCE" if positive else "FAIL",
+            "PASS_WITH_EVIDENCE" if positive else "FAIL",
+            "PASS_WITH_EVIDENCE" if positive else "FAIL",
+            source_disposition, evidence_ref,
+            ",".join(str(page) for page in sorted(record.get("evidence_pages") or [])),
+            ",".join(sorted(record.get("reason_codes") or [])), "",
+            record.get("decided_at_utc", ""), record.get("decision_executor", ""),
+            record.get("delegation_id", ""), evidence_sha,
+            source_disposition, derivative_disposition,
+            record.get("derivative_content_sha256") or "",
+            record.get("derivative_receipt_sha256") or "",
+            record.get("rights_authority_id") or "NONE",
+            record.get("rights_authority_sha256") or "NONE",
         ))
     return output.getvalue().encode("utf-8")
 
@@ -685,6 +753,598 @@ def _sha256(value: Any) -> bool:
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def adjudicate_derivative_candidate(
+    packet_artifact: Mapping[str, Any],
+    pdf_scan: Mapping[str, Any],
+    provenance_checkpoint: Mapping[str, Any],
+    derivative_receipt: Mapping[str, Any],
+    policy: Mapping[str, Any],
+    *,
+    authority_sha256: str,
+) -> dict[str, Any]:
+    """Décide sur un PDF *source* et son dérivé, sans autoriser la publication.
+
+    Les reçus sont des observations structurées. Le gate indépendant doit
+    relire leurs octets, recalculer les blocs depuis le PDF et vérifier les
+    signatures/digests avant qu'une décision candidate soit opposable.
+    """
+    sha = packet_artifact.get("content_sha256")
+    if sha == CFTR_SHA256:
+        return {
+            "source_disposition": "EXCLUDE",
+            "derivative_disposition": "EXCLUDE",
+            "final_disposition": "EXCLUDE",
+            "replacement": None,
+            "reason_codes": ["TEACHER_NON_DISCLOSURE_INSTRUCTION"],
+        }
+
+    reasons: list[str] = []
+    if (policy.get("authorized_use") != "student_retrieval_excerpt_only"
+            or policy.get("full_pdf_redistribution_allowed") is not False
+            or policy.get("answer_generation_allowed") is not False):
+        reasons.append("POLICY_SCOPE_INVALID")
+    if (not _sha256(sha)
+            or pdf_scan.get("content_sha256") != sha
+            or pdf_scan.get("page_count") != packet_artifact.get("page_count")
+            or pdf_scan.get("exact_bytes_match") is not True
+            or pdf_scan.get("full_document_scan_complete") is not True
+            or pdf_scan.get("annexes_scan_complete") is not True):
+        reasons.append("SOURCE_SCAN_NOT_PROVEN")
+    if (packet_artifact.get("source_pii_status") != "CLEARED"
+            or packet_artifact.get("explicit_student_exclusion_signal") is not False):
+        reasons.append("SOURCE_STUDENT_SAFETY_NOT_CLEARED")
+
+    source = _mapping(provenance_checkpoint.get("source_provenance"))
+    status = source.get("status")
+    accepted_status = status in {"EXACT_CURRENT_SOURCE", "HISTORICAL_OFFICIAL_SNAPSHOT"}
+    if (provenance_checkpoint.get("kind")
+            != "NEXUS-STUDENT-SOURCE-PROVENANCE-CHECKPOINT-V1"
+            or provenance_checkpoint.get("content_sha256") != sha
+            or not accepted_status):
+        reasons.append("SOURCE_PROVENANCE_NOT_PROVEN")
+    if status == "EXACT_CURRENT_SOURCE":
+        fetched = _mapping(source.get("pdf_fetch"))
+        if (fetched.get("http_status") != 200
+                or fetched.get("content_sha256") != sha
+                or not fetched.get("final_url")):
+            reasons.append("SOURCE_CURRENT_PDF_NOT_EXACT")
+    elif status == "HISTORICAL_OFFICIAL_SNAPSHOT":
+        historical = _mapping(source.get("historical_capture"))
+        if historical.get("content_sha256") != sha or not historical.get("official_download_uri"):
+            reasons.append("SOURCE_HISTORICAL_SNAPSHOT_NOT_EXACT")
+    if (source.get("currentness_status") != "PASS"
+            or not _mapping(source.get("currentness_evidence_ref"))
+            or not isinstance(source.get("currentness_observed_at_utc"), str)
+            or not source["currentness_observed_at_utc"].endswith("Z")
+            or source.get("revocation_status") != "PASS_CURRENT_OFFICIAL_PUBLICATION"
+            or not _mapping(source.get("revocation_evidence_ref"))
+            or not isinstance(source.get("revocation_observed_at_utc"), str)
+            or not source["revocation_observed_at_utc"].endswith("Z")):
+        reasons.append("SOURCE_CURRENTNESS_OR_REVOCATION_NOT_PROVEN")
+
+    proof_kind = provenance_checkpoint.get("rights_basis_kind")
+    proof_kinds = _mapping(policy.get("rights_authorities")).get("accepted_proof_kinds")
+    if not isinstance(proof_kinds, list) or proof_kind not in proof_kinds:
+        reasons.append("RIGHTS_BASIS_NOT_ALLOWED")
+    if proof_kind == "INDIVIDUAL_EXPLICIT_LICENCE":
+        # A licence individuelle exige un reçu distinct lié aux octets exacts.
+        # Aucun format positif de ce type n'est encore produit par ce lot.
+        reasons.append("INDIVIDUAL_LICENCE_RECEIPT_MISSING")
+    if proof_kind == "SITEWIDE_DOWNLOAD_AUTHORITY" and (
+        not _sha256(authority_sha256)
+        or provenance_checkpoint.get("authority_yaml_sha256") != authority_sha256
+        or provenance_checkpoint.get("rights_basis_status")
+        != "CANDIDATE_PENDING_FINAL_APPROVAL"
+    ):
+        reasons.append("SITEWIDE_AUTHORITY_NOT_BOUND")
+    updated = _mapping(source.get("source_updated_at"))
+    allowed_dates = _mapping(policy.get("attribution")).get("accepted_date_evidence_kinds")
+    if (not isinstance(allowed_dates, list)
+            or updated.get("kind") not in allowed_dates
+            or not isinstance(updated.get("date"), str)
+            or not updated.get("date")
+            or not _mapping(updated.get("evidence_ref"))):
+        reasons.append("ATTRIBUTION_DATE_NOT_PROVEN")
+
+    derivative_sha = derivative_receipt.get("derivative_content_sha256")
+    if (derivative_receipt.get("kind") != "NEXUS-STUDENT-NATIVE-TEXT-DERIVATIVE-V1"
+            or derivative_receipt.get("source_content_sha256") != sha
+            or derivative_receipt.get("source_page_count") != packet_artifact.get("page_count")
+            or derivative_receipt.get("status") != "PREPARED_PRIVATE"
+            or derivative_receipt.get("publication_authorized") is not False
+            or not _sha256(derivative_sha) or derivative_sha == sha
+            or derivative_receipt.get("derivative_media_type") != "text/plain"
+            or derivative_receipt.get("derivative_encoding") != "utf-8"
+            or type(derivative_receipt.get("derivative_byte_count")) is not int
+            or derivative_receipt["derivative_byte_count"] < 1):
+        reasons.append("DERIVATIVE_IDENTITY_OR_MEDIA_INVALID")
+    if (derivative_receipt.get("ocr_used") is not False
+            or derivative_receipt.get("images_copied") is not False
+            or derivative_receipt.get("graphic_renders_copied") is not False
+            or derivative_receipt.get("all_source_pages_inspected") is not True):
+        reasons.append("DERIVATIVE_GRAPHIC_OR_SCAN_INVALID")
+    attribution = _mapping(derivative_receipt.get("source_attribution"))
+    required_attribution = (
+        "source_uri", "source_label", "source_updated_at", "source_date_kind", "licensor",
+        "licence_id", "derivative_notice",
+    )
+    if (any(not isinstance(attribution.get(key), str) or not attribution[key].strip()
+            for key in required_attribution)
+            or attribution.get("source_updated_at") != updated.get("date")
+            or attribution.get("source_date_kind") != updated.get("kind")
+            or attribution.get("licence_id") != "ETALAB-2.0"
+            or attribution.get("licensor") != _mapping(policy.get("attribution")).get(
+                "licensor_display")):
+        reasons.append("DERIVATIVE_ATTRIBUTION_INCOMPLETE")
+    if updated.get("kind") == "DATED_OFFICIAL_SNAPSHOT":
+        snapshot_time = (
+            _mapping(source.get("pdf_fetch")).get("observed_at_utc")
+            if status == "EXACT_CURRENT_SOURCE"
+            else _mapping(source.get("historical_capture")).get("observed_at_utc")
+        )
+        if (updated.get("date") != snapshot_time
+                or "snapshot" not in str(attribution.get("derivative_notice", "")).lower()):
+            reasons.append("SNAPSHOT_ATTRIBUTION_NOT_LABELLED")
+    if status == "EXACT_CURRENT_SOURCE" and attribution.get("source_uri") != _mapping(
+            source.get("pdf_fetch")).get("final_url"):
+        reasons.append("DERIVATIVE_SOURCE_URL_MISMATCH")
+
+    publisher = _mapping(derivative_receipt.get("publisher_proof"))
+    text_policy = _mapping(policy.get("text_derivative"))
+    accepted_publisher_kinds = text_policy.get("accepted_publisher_proof_kinds")
+    if (text_policy.get("positive_ministry_author_or_publisher_proof_required") is not True
+            or not isinstance(accepted_publisher_kinds, list)
+            or derivative_receipt.get("publisher_status") != "PASS"
+            or publisher.get("status") != "PASS"
+            or publisher.get("kind") not in accepted_publisher_kinds):
+        reasons.append("MINISTRY_PUBLISHER_NOT_PROVEN")
+    elif publisher.get("kind") == "OFFICIAL_CAPTURED_DOWNLOAD_PUBLISHER":
+        if (publisher.get("listing_capture_receipt_sha256")
+                != source.get("listing_capture_receipt_sha256")
+                or not _sha256(publisher.get("listing_capture_receipt_sha256"))
+                or publisher.get("source_provenance_checkpoint_sha256")
+                != provenance_checkpoint.get("checkpoint_sha256")
+                or publisher.get("rights_authority_sha256") != authority_sha256
+                or publisher.get("source_content_sha256") != sha
+                or publisher.get("matched_anchor_href")
+                != _mapping(source.get("matched_anchor")).get("href")
+                or publisher.get("source_pdf_url")
+                != _mapping(source.get("pdf_fetch")).get("final_url")):
+            reasons.append("CAPTURED_PUBLISHER_PROOF_MISMATCH")
+    elif publisher.get("kind") == "OFFICIAL_PDF_AUTHOR_METADATA":
+        if (publisher.get("metadata_field") != "author"
+                or not _sha256(publisher.get("normalized_value_sha256"))):
+            reasons.append("PDF_AUTHOR_PROOF_INVALID")
+    elif publisher.get("kind") == "EXPLICIT_DOCUMENT_IMPRINT":
+        if (type(publisher.get("page_number")) is not int
+                or not 1 <= publisher["page_number"] <= packet_artifact.get("page_count", 0)
+                or type(publisher.get("block_index")) is not int
+                or publisher["block_index"] < 0
+                or not _sha256(publisher.get("normalized_text_sha256"))):
+            reasons.append("PDF_IMPRINT_PROOF_INVALID")
+
+    pages = derivative_receipt.get("pages")
+    expected_pages = packet_artifact.get("page_count")
+    if (not isinstance(pages, list)
+            or type(expected_pages) is not int
+            or len(pages) != expected_pages
+            or any(not isinstance(page, Mapping) for page in pages)
+            or [page.get("page_number") for page in pages if isinstance(page, Mapping)]
+            != list(range(1, expected_pages + 1))):
+        reasons.append("DERIVATIVE_PAGE_COVERAGE_INVALID")
+    else:
+        selected_total = 0
+        for page in pages:
+            blocks = page.get("all_blocks")
+            selected = page.get("selected_block_indices")
+            if not isinstance(blocks, list) or not isinstance(selected, list):
+                reasons.append("DERIVATIVE_BLOCK_MAP_INVALID")
+                continue
+            by_index = {block.get("block_index"): block for block in blocks
+                        if isinstance(block, Mapping)}
+            if len(by_index) != len(blocks) or len(set(selected)) != len(selected):
+                reasons.append("DERIVATIVE_BLOCK_MAP_INVALID")
+                continue
+            for index in selected:
+                block = _mapping(by_index.get(index))
+                expected_citation = {
+                    **attribution, "source_page": page["page_number"],
+                    "source_pdf_sha256": sha,
+                }
+                if (block.get("block_type") != 0
+                        or block.get("block_class") != "SAFE_TEXT_CANDIDATE"
+                        or block.get("citation") != expected_citation):
+                    reasons.append("EXCLUDED_BLOCK_INCLUDED")
+                selected_total += 1
+        if selected_total == 0:
+            reasons.append("DERIVATIVE_EMPTY")
+
+    if reasons:
+        return {
+            "source_disposition": "EXCLUDE",
+            "derivative_disposition": "EXCLUDE",
+            "final_disposition": "EXCLUDE",
+            "replacement": None,
+            "reason_codes": sorted(set(reasons)),
+        }
+    return {
+        "source_disposition": "REPLACE_WITH_NEW_CONTENT",
+        "derivative_disposition": "APPROVE_PUBLIC",
+        "final_disposition": "REPLACE_WITH_NEW_CONTENT",
+        "replacement": {"new_content_sha256": derivative_sha},
+        "reason_codes": [],
+    }
+
+
+def build_derivative_artifact_record(
+    packet_artifact: Mapping[str, Any],
+    pdf_scan: Mapping[str, Any],
+    provenance_checkpoint: Mapping[str, Any],
+    derivative_receipt: Mapping[str, Any],
+    policy: Mapping[str, Any],
+    *,
+    source_checkpoint_sha256: str,
+    derivative_receipt_sha256: str | None,
+    authority_sha256: str,
+    bindings: Mapping[str, Any],
+    decided_at_utc: str,
+) -> dict[str, Any]:
+    """Projette la décision V2 : le SHA source PDF n'est jamais public."""
+    sha = packet_artifact.get("content_sha256")
+    if not _sha256(sha) or pdf_scan.get("content_sha256") != sha:
+        raise ValueError("SOURCE_SCAN_IDENTITY_MISMATCH")
+    verdict = adjudicate_derivative_candidate(
+        packet_artifact, pdf_scan, provenance_checkpoint, derivative_receipt,
+        policy, authority_sha256=authority_sha256,
+    )
+    attribution = _mapping(derivative_receipt.get("source_attribution"))
+    selected_pages = [
+        page.get("page_number") for page in derivative_receipt.get("pages", [])
+        if isinstance(page, Mapping) and page.get("selected_block_indices")
+    ] if isinstance(derivative_receipt.get("pages"), list) else []
+    rights_basis = provenance_checkpoint.get("rights_basis_kind")
+    if rights_basis not in {"SITEWIDE_DOWNLOAD_AUTHORITY", "INDIVIDUAL_EXPLICIT_LICENCE"}:
+        rights_basis = "NONE"
+    return {
+        "record_kind": "NEXUS_AUTOMATED_ARTIFACT_REVIEW_V2",
+        "artifact_id": sha,
+        "content_sha256": sha,
+        "source_uri": attribution.get("source_uri") or packet_artifact.get("source_listing_url"),
+        "page_count": pdf_scan.get("page_count"),
+        "byte_size": pdf_scan.get("file_size_bytes"),
+        "scan_complete": pdf_scan.get("full_document_scan_complete") is True,
+        "images_and_annexes_checked": pdf_scan.get("images_and_annexes_checked") is True,
+        "page_scans": project_page_scans(pdf_scan),
+        "pdf_scan_evidence": dict(pdf_scan),
+        "source_receipt_sha256": source_checkpoint_sha256,
+        "rights_basis": rights_basis,
+        "rights_authority_id": (
+            "EDUSCOL_ETALAB_2_0_SITEWIDE"
+            if rights_basis == "SITEWIDE_DOWNLOAD_AUTHORITY" else None
+        ),
+        "rights_authority_sha256": (
+            authority_sha256 if rights_basis == "SITEWIDE_DOWNLOAD_AUTHORITY" else None
+        ),
+        "derivative_receipt_sha256": derivative_receipt_sha256,
+        "derivative_content_sha256": derivative_receipt.get("derivative_content_sha256"),
+        "student_suitability": (
+            "FAIL" if sha == CFTR_SHA256 else
+            "PASS" if verdict["derivative_disposition"] == "APPROVE_PUBLIC"
+            else "UNVERIFIABLE"
+        ),
+        "evidence_pages": [3] if sha == CFTR_SHA256 else selected_pages,
+        "decision_executor": DECISION_EXECUTOR,
+        "delegation_id": DELEGATION_ID,
+        "individual_human_review_claimed": False,
+        "bindings": {**bindings, "pdf_sha256": sha},
+        "decided_at_utc": decided_at_utc,
+        **verdict,
+    }
+
+
+def build_public_derivative_candidate_manifest(
+    packet_artifacts: list[Mapping[str, Any]],
+    records: list[Mapping[str, Any]],
+    provenance_by_source_sha: Mapping[str, Mapping[str, Any]],
+    derivative_by_source_sha: Mapping[str, Mapping[str, Any]],
+    *,
+    inventory_sha256: str,
+    authority_sha256: str,
+    extraction_policy_sha256: str,
+) -> dict[str, Any]:
+    """Inventorie uniquement les dérivés candidats, jamais les PDF sources.
+
+    Les comptes de chunks ne sont pas prétendus ici : ils appartiennent à la
+    future release successeur et devront être mesurés après son chunking réel.
+    """
+    if not all(_sha256(value) for value in (
+            inventory_sha256, authority_sha256, extraction_policy_sha256)):
+        raise ValueError("CANDIDATE_MANIFEST_BINDING_INVALID")
+    packets = {row.get("content_sha256"): row for row in packet_artifacts}
+    decisions = {row.get("content_sha256"): row for row in records}
+    if (len(packets) != len(packet_artifacts)
+            or len(decisions) != len(records)
+            or set(packets) != set(decisions)
+            or not all(_sha256(sha) for sha in packets)):
+        raise ValueError("CANDIDATE_MANIFEST_SOURCE_SET_INVALID")
+    entries: list[dict[str, Any]] = []
+    excluded: list[str] = []
+    derivative_shas: set[str] = set()
+    collections: set[str] = set()
+    placements = 0
+    segments = 0
+    for sha in sorted(packets):
+        packet, record = packets[sha], decisions[sha]
+        if record.get("source_disposition") == "EXCLUDE":
+            if record.get("derivative_disposition") != "EXCLUDE":
+                raise ValueError("CANDIDATE_MANIFEST_DISPOSITION_INVALID")
+            excluded.append(sha)
+            continue
+        if (record.get("source_disposition") != "REPLACE_WITH_NEW_CONTENT"
+                or record.get("derivative_disposition") != "APPROVE_PUBLIC"):
+            raise ValueError("CANDIDATE_MANIFEST_DISPOSITION_INVALID")
+        derivative = _mapping(derivative_by_source_sha.get(sha))
+        provenance = _mapping(provenance_by_source_sha.get(sha))
+        derivative_sha = record.get("derivative_content_sha256")
+        if (not _sha256(derivative_sha) or derivative_sha == sha
+                or derivative_sha in derivative_shas
+                or derivative.get("derivative_content_sha256") != derivative_sha
+                or not _sha256(record.get("derivative_receipt_sha256"))):
+            raise ValueError("CANDIDATE_MANIFEST_DERIVATIVE_INVALID")
+        derivative_shas.add(derivative_sha)
+        source_placements = packet.get("placements")
+        if (not isinstance(source_placements, list) or not source_placements
+                or any(not isinstance(row, Mapping)
+                       or not isinstance(row.get("collection"), str)
+                       or not row["collection"] for row in source_placements)):
+            raise ValueError("CANDIDATE_MANIFEST_PLACEMENTS_INVALID")
+        placement_collections = sorted({row["collection"] for row in source_placements})
+        collections.update(placement_collections)
+        placements += len(source_placements)
+        pages = derivative.get("pages")
+        if not isinstance(pages, list):
+            raise ValueError("CANDIDATE_MANIFEST_SEGMENTS_INVALID")
+        artifact_segments = sum(
+            len(page.get("review_groups", [])) for page in pages
+            if isinstance(page, Mapping) and isinstance(page.get("review_groups"), list)
+        )
+        if artifact_segments < 1:
+            raise ValueError("CANDIDATE_MANIFEST_SEGMENTS_INVALID")
+        segments += artifact_segments
+        attribution = _mapping(derivative.get("source_attribution"))
+        date_kind = _mapping(_mapping(
+            provenance.get("source_provenance")).get("source_updated_at")
+        ).get("kind")
+        if not isinstance(date_kind, str) or not date_kind:
+            raise ValueError("CANDIDATE_MANIFEST_ATTRIBUTION_DATE_MISSING")
+        entries.append({
+            "source_content_sha256": sha,
+            "derivative_content_sha256": derivative_sha,
+            "derivative_receipt_sha256": record["derivative_receipt_sha256"],
+            "media_type": "text/plain; charset=utf-8",
+            "private_candidate_relpath": f"candidates/{derivative_sha}.txt",
+            "collections": placement_collections,
+            "citation": {**attribution, "source_date_kind": date_kind},
+            "source_disposition": "REPLACE_WITH_NEW_CONTENT",
+            "derivative_disposition": "APPROVE_PUBLIC",
+        })
+    return {
+        "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CANDIDATE_MANIFEST_V1",
+        "status": "PRE_REVIEW_NOT_PROMOTABLE",
+        "inventory_sha256": inventory_sha256,
+        "rights_authority_sha256": authority_sha256,
+        "text_derivative_extraction_policy_sha256": extraction_policy_sha256,
+        "entries": entries,
+        "excluded_source_sha256": excluded,
+        "counts": {
+            "source_pdfs": len(packets),
+            "public_collections": len(collections),
+            "public_derivative_artifacts": len(entries),
+            "public_placements": placements,
+            "public_derivative_segments": segments,
+            "original_pdf_public_count": 0,
+        },
+    }
+
+
+def materialize_derivative_pack(
+    root: Path,
+    *,
+    scan_checkpoints: Path,
+    source_checkpoints: Path,
+    derivative_checkpoints: Path,
+    private_candidate_root: Path,
+    decided_at_utc: str,
+) -> dict[str, Any]:
+    """Projette les 315 décisions depuis les reçus gelés, sans publier de PDF.
+
+    Le gate indépendant recalcule les octets, l'applicabilité de la licence et
+    les exclusions. Ici, tous les chemins de sortie restent locaux au dépôt.
+    """
+    import jsonschema
+    import yaml
+
+    try:
+        decided = datetime.fromisoformat(decided_at_utc.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError("DECISION_TIMESTAMP_INVALID") from None
+    if decided.tzinfo != timezone.utc or not decided_at_utc.endswith("Z"):
+        raise ValueError("DECISION_TIMESTAMP_NOT_UTC")
+    packet_path = root / "docs/reports/go_live/student_public_rights_individual_review_packet_20261009.json"
+    policy_path = root / "governance/student_public_rights/delegated_review_policy_v1.yml"
+    mandate_path = root / "governance/student_public_rights/delegation_abenrhouma_20261009.yml"
+    schema_path = root / "governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json"
+    policy_bytes, mandate_bytes = policy_path.read_bytes(), mandate_path.read_bytes()
+    policy, mandate = yaml.safe_load(policy_bytes), yaml.safe_load(mandate_bytes)
+    if (policy.get("status") != "SEALED_PENDING_FINAL_APPROVAL"
+            or mandate.get("status") != "SEALED_PENDING_FINAL_APPROVAL"
+            or mandate.get("effective_authority") is not False):
+        raise ValueError("POLICY_OR_MANDATE_NOT_SEALED")
+    packet_bytes, schema_bytes = packet_path.read_bytes(), schema_path.read_bytes()
+    packet, schema = json.loads(packet_bytes), json.loads(schema_bytes)
+    jsonschema.Draft202012Validator.check_schema(schema)
+    validator = jsonschema.Draft202012Validator(schema)
+    base = root / "governance/student_public_rights"
+    evidence_dir = root / "docs/reports/go_live/student_rights_evidence"
+    source_refs, source_counts = source_population_refs(root)
+    paths = {
+        "engine_code_sha256": Path(__file__),
+        "scanner_code_sha256": root / "scripts/go_live/student_rights_pdf_scan.py",
+        "source_checker_code_sha256": root / "scripts/go_live/student_rights_source_provenance.py",
+        "reviewer_code_sha256": root / "scripts/go_live/student_rights_reviewers.py",
+        "derivative_builder_code_sha256": root / "scripts/go_live/student_rights_text_derivative.py",
+        "text_derivative_extraction_policy_sha256": base / "text_derivative_extraction_policy_v1.yml",
+        "rights_authority_sha256": base / "authorities/eduscol_etalab_2_0_sitewide_20261010.yml",
+        "independent_verifier_code_sha256": root / "scripts/go_live/check_delegated_student_rights_gate.py",
+    }
+    hashes = {
+        "inventory_sha256": _sha(packet_bytes),
+        "policy_sha256": _sha(policy_bytes),
+        "mandate_sha256": _sha(mandate_bytes),
+        "schema_sha256": _sha(schema_bytes),
+        **{name: _sha(path.read_bytes()) for name, path in paths.items()},
+    }
+    binding = _mapping(mandate.get("source_binding"))
+    binding_names = {"inventory_file_sha256": "inventory_sha256", **{
+        key: key for key in hashes if key not in {"inventory_sha256", "mandate_sha256"}
+    }}
+    for binding_name, hash_name in binding_names.items():
+        if binding.get(binding_name) != hashes[hash_name]:
+            raise ValueError(f"MANDATE_BINDING_INVALID:{binding_name}")
+    artifacts = packet.get("artifacts")
+    if (not isinstance(artifacts, list) or len(artifacts) != 315
+            or len({row.get("content_sha256") for row in artifacts}) != 315
+            or {row["content_sha256"] for row in artifacts} != set(source_counts)):
+        raise ValueError("INVENTORY_NOT_315_UNIQUE")
+    reviewer_pins = _pin_reviewers(root, mandate)
+    prepared: list[tuple[dict[str, Any], dict[str, Any], bytes]] = []
+    provenance: dict[str, dict[str, Any]] = {}
+    derivatives: dict[str, dict[str, Any]] = {}
+    for artifact in sorted(artifacts, key=lambda row: row["content_sha256"]):
+        sha = artifact["content_sha256"]
+        scan = json.loads((scan_checkpoints / f"{sha}.json").read_bytes())
+        source_path = source_checkpoints / f"{sha}.json"
+        source_raw = source_path.read_bytes()
+        source = json.loads(source_raw)
+        sidecar = json.loads((derivative_checkpoints / f"{sha}.json").read_bytes())
+        receipt_digest = sidecar.get("derivative_receipt_sha256")
+        if (sidecar.get("source_content_sha256") != sha
+                or not _sha256(receipt_digest)):
+            raise ValueError(f"DERIVATIVE_CHECKPOINT_INVALID:{sha[:12]}")
+        receipt_path = evidence_dir / "derivative_receipts" / receipt_digest[:2] / f"{receipt_digest}.json"
+        receipt_raw = receipt_path.read_bytes()
+        if _sha(receipt_raw) != receipt_digest:
+            raise ValueError(f"DERIVATIVE_RECEIPT_DIGEST:{sha[:12]}")
+        receipt = json.loads(receipt_raw)
+        if receipt.get("source_content_sha256") != sha:
+            raise ValueError(f"DERIVATIVE_RECEIPT_SOURCE:{sha[:12]}")
+        if receipt.get("status") == "PREPARED_PRIVATE":
+            candidate = private_candidate_root / str(receipt.get("candidate_relpath"))
+            if (not candidate.resolve().is_relative_to(private_candidate_root.resolve())
+                    or _sha(candidate.read_bytes()) != receipt.get("derivative_content_sha256")):
+                raise ValueError(f"DERIVATIVE_CANDIDATE_DIGEST:{sha[:12]}")
+        record = build_derivative_artifact_record(
+            artifact, scan, source, receipt, policy,
+            source_checkpoint_sha256=_sha(source_raw),
+            derivative_receipt_sha256=receipt_digest,
+            authority_sha256=hashes["rights_authority_sha256"],
+            bindings={
+                **{key: value for key, value in hashes.items()
+                   if key != "independent_verifier_code_sha256"},
+                "pdf_sha256": sha,
+            },
+            decided_at_utc=decided_at_utc,
+        )
+        errors = list(validator.iter_errors(record))
+        if errors:
+            raise ValueError(f"EVIDENCE_SCHEMA_INVALID:{sha[:12]}:{errors[0].json_path}")
+        provenance[sha], derivatives[sha] = source, receipt
+        prepared.append((record, artifact, _canonical_file_bytes(record)))
+    sheet = render_derivative_decision_sheet([
+        (record, artifact, _sha(raw)) for record, artifact, raw in prepared
+    ])
+    manifest = build_public_derivative_candidate_manifest(
+        artifacts, [record for record, _, _ in prepared], provenance, derivatives,
+        inventory_sha256=hashes["inventory_sha256"],
+        authority_sha256=hashes["rights_authority_sha256"],
+        extraction_policy_sha256=hashes["text_derivative_extraction_policy_sha256"],
+    )
+    manifest_bytes = _canonical_file_bytes(manifest)
+    candidate_counts = manifest["counts"]
+    population = {
+        "collections": candidate_counts["public_collections"],
+        "artifacts": candidate_counts["public_derivative_artifacts"],
+        "placements": candidate_counts["public_placements"],
+        "derivative_segments": candidate_counts["public_derivative_segments"],
+        "source_pdfs": 315,
+        "original_pdf_public_count": 0,
+    }
+    index = {
+        "schema_version": "NEXUS_DELEGATED_STUDENT_RIGHTS_EVIDENCE_INDEX_V2",
+        **{key: value for key, value in hashes.items()
+           if key != "independent_verifier_code_sha256"},
+        "delegation_sha256": hashes["mandate_sha256"],
+        "reviewer_a": reviewer_pins["a"],
+        "reviewer_b": reviewer_pins["b"],
+        "source_population": source_refs,
+        "artifacts": {
+            record["content_sha256"]: {
+                "path": f"{record['content_sha256']}.json",
+                "sha256": _sha(raw),
+                "source_placement_count": source_counts[record["content_sha256"]]["source_placement_count"],
+                "source_chunk_count": source_counts[record["content_sha256"]]["source_chunk_count"],
+            }
+            for record, _, raw in prepared
+        },
+        "decision_sheet_sha256": _sha(sheet),
+        "public_candidate_manifest_sha256": _sha(manifest_bytes),
+        "final_population": population,
+    }
+    # Écrit seulement après validation de toutes les 315 entrées et des CAS.
+    for record, _, raw in prepared:
+        _write_atomic(evidence_dir / f"{record['content_sha256']}.json", raw)
+    _write_atomic(evidence_dir / "index.json", _canonical_file_bytes(index))
+    _write_atomic(evidence_dir / "public_derivative_candidate_manifest_20261010.json", manifest_bytes)
+    _write_atomic(
+        root / "docs/reports/go_live/student_public_rights_individual_review_sheet_20261009.tsv",
+        sheet,
+    )
+    summary = {
+        "report_kind": "NEXUS_DELEGATED_STUDENT_RIGHTS_ADJUDICATION_V2",
+        "decided_at_utc": decided_at_utc,
+        "inventory_count": 315,
+        "source_decision_count": len(prepared),
+        "pending_count": 0,
+        "population": population,
+        "source_dispositions": {
+            key: sum(record["source_disposition"] == key for record, _, _ in prepared)
+            for key in ("EXCLUDE", "REPLACE_WITH_NEW_CONTENT")
+        },
+        "inventory_sha256": hashes["inventory_sha256"],
+        "rights_authority_sha256": hashes["rights_authority_sha256"],
+        "policy_sha256": hashes["policy_sha256"],
+        "delegation_sha256": hashes["mandate_sha256"],
+        "decision_sheet_sha256": _sha(sheet),
+        "evidence_pack_sha256": _sha(_canonical_file_bytes(index)),
+        "verdict": "AWAITING_INDEPENDENT_GATE_AND_FINAL_EXACT_HEAD_AUTHORITY_APPROVAL",
+    }
+    report_base = root / "docs/reports/go_live/delegated_student_public_rights_adjudication_20261010"
+    _write_atomic(report_base.with_suffix(".json"), _canonical_file_bytes(summary))
+    markdown = (
+        "# Adjudication déléguée — dérivés textuels Éduscol, 10 octobre 2026\n\n"
+        "Ce pack candidat n'autorise aucune publication ni déploiement. Les PDF sources restent internes.\n\n"
+        f"- Horodatage UTC : `{decided_at_utc}`\n"
+        f"- Sources décidées : `{len(prepared)}/315`, PENDING : `0`\n"
+        f"- Dérivés textuels candidats : `{population['artifacts']}` dans "
+        f"`{population['collections']}` collections ; segments : `{population['derivative_segments']}`\n"
+        f"- Sources exclues : `{summary['source_dispositions']['EXCLUDE']}`\n"
+        f"- SHA-256 du registre de preuves : `{summary['evidence_pack_sha256']}`\n"
+        "- Gate indépendant et approbation exact-HEAD d'abenrhouma : requis.\n"
+    )
+    _write_atomic(report_base.with_suffix(".md"), markdown.encode("utf-8"))
+    return summary
 
 
 def _result(reason_codes: list[str]) -> dict[str, Any]:

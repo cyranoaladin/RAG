@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import copy
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,11 @@ from check_delegated_student_rights_gate import (  # noqa: E402
     _reconstruct_review_requests,
     _verify_approval_source_proof,
     _verify_review_receipts,
+    _verify_sitewide_authority,
+    _verify_text_derivative,
+    _verify_candidate_manifest,
+    _verify_source_provenance,
+    _verify_derivative_receipt_cas,
     _rescan_pdf,
     _source_population,
     canonical_json_bytes,
@@ -28,6 +34,437 @@ from check_delegated_student_rights_gate import (  # noqa: E402
     check_gate,
     render_decision_sheet,
 )
+
+
+def test_real_chromium_sitewide_authority_capture_is_integral():
+    root = Path(__file__).resolve().parents[2]
+    authority_path = root / "governance/student_public_rights/authorities/eduscol_etalab_2_0_sitewide_20261010.yml"
+    authority = yaml.safe_load(authority_path.read_bytes())
+    assert _verify_sitewide_authority(root, authority) == []
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        (lambda a: a.pop("browser_capture"), "AUTHORITY_CAPTURE_MISSING"),
+        (lambda a: a.update(legal_notice_url="https://example.org/mentions-legales"),
+         "AUTHORITY_DOMAIN_MISMATCH"),
+        (lambda a: a["browser_capture"]["legal_notice"].update(extracted_text_sha256="0" * 64),
+         "AUTHORITY_CAPTURE_DIGEST"),
+        (lambda a: a.update(attribution_required=["source", "URL"]), "AUTHORITY_ATTRIBUTION_SCOPE"),
+        (lambda a: a.update(excluded_components=[]), "AUTHORITY_THIRD_PARTY_SCOPE"),
+    ],
+)
+def test_sitewide_authority_sabotages_fail_closed(mutation, expected):
+    root = Path(__file__).resolve().parents[2]
+    path = root / "governance/student_public_rights/authorities/eduscol_etalab_2_0_sitewide_20261010.yml"
+    authority = copy.deepcopy(yaml.safe_load(path.read_bytes()))
+    mutation(authority)
+    assert expected in _verify_sitewide_authority(root, authority)
+
+
+def test_independent_text_derivative_reconstruction_matches_real_differential():
+    base = Path("/tmp/rag-derivative-differential-v4")
+    receipt_path = base / ("evidence/derivative_receipts/28/"
+                           "28fcd6d1096fbfdd7d6297e5359cb5cd22317c01bd2e1f0e0b9df0e2f210f3c5.json")
+    if not receipt_path.is_file():
+        pytest.skip("Le témoin différentiel privé du générateur n'est pas présent")
+    receipt = json.loads(receipt_path.read_bytes())
+    packet = {
+        "content_sha256": receipt["source_content_sha256"],
+        "page_count": 1, "source_pii_status": "CLEARED",
+        "automated_review_signals": [], "explicit_student_exclusion_signal": False,
+    }
+    candidate_path = base / "private" / receipt["candidate_relpath"]
+    args = (receipt, base / "source.pdf", packet, candidate_path.read_bytes(),
+            receipt["extraction_policy_sha256"], receipt["adjudication_policy_sha256"],
+            receipt["generator_code_sha256"])
+    assert _verify_text_derivative(*args) == []
+    altered = copy.deepcopy(receipt)
+    altered["pages"][0]["all_blocks"][1]["block_class"] = "SAFE_TEXT_CANDIDATE"
+    assert "DERIVATIVE_BLOCK_MAP_MISMATCH" in _verify_text_derivative(
+        altered, *args[1:])
+    assert "DERIVATIVE_BYTES_MISMATCH" in _verify_text_derivative(
+        receipt, args[1], packet, candidate_path.read_bytes() + b"image", *args[4:])
+    altered = copy.deepcopy(receipt)
+    altered["images_copied"] = True
+    assert "DERIVATIVE_NON_TEXT_PUBLIC" in _verify_text_derivative(altered, *args[1:])
+
+
+def test_derivative_publisher_proof_recomputed_from_exact_pdf(tmp_path: Path):
+    fitz = pytest.importorskip("fitz")
+    from student_rights_text_derivative import build_text_candidate
+
+    pdf = tmp_path / "source.pdf"
+    document = fitz.open()
+    document.set_metadata({"author": "DGESCO"})
+    document.new_page().insert_text((50, 50), "Le cycle hydrologique et les precipitations.")
+    document.save(pdf)
+    document.close()
+    sha = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    packet = {"content_sha256": sha, "page_count": 1,
+              "automated_review_signals": [], "source_pii_status": "CLEARED",
+              "explicit_student_exclusion_signal": False}
+    snapshot = "2026-10-10T00:00:00Z"
+    attribution = {"source_uri": "https://eduscol.education.gouv.fr/doc.pdf",
+                   "source_label": "Test", "source_updated_at": snapshot,
+                   "source_date_kind": "DATED_OFFICIAL_SNAPSHOT",
+                   "licensor": "Ministère de l’Éducation nationale",
+                   "licence_id": "ETALAB-2.0", "derivative_notice": f"snapshot du {snapshot}"}
+    candidate = build_text_candidate(pdf, sha, 1, attribution, packet)
+    assert candidate.content is not None
+    receipt = candidate.evidence
+    receipt["candidate_relpath"] = f"candidates/{receipt['derivative_content_sha256']}.txt"
+    args = (pdf, packet, candidate.content, receipt["extraction_policy_sha256"],
+            receipt["adjudication_policy_sha256"], receipt["generator_code_sha256"])
+    assert _verify_text_derivative(receipt, *args) == []
+    altered = copy.deepcopy(receipt)
+    altered["publisher_proof"] = {"status": "UNPROVEN", "kind": None}
+    altered["publisher_status"] = "UNPROVEN"
+    assert "DERIVATIVE_PUBLISHER_PROOF_MISMATCH" in _verify_text_derivative(altered, *args)
+
+
+def test_first_party_copyright_is_not_treated_as_third_party_credit():
+    from check_delegated_student_rights_gate import _derivative_reason
+
+    assert _derivative_reason("© DGESCO") is None
+    assert _derivative_reason("© Editions Nathan") == "THIRD_PARTY_SIGNAL"
+
+
+def test_third_party_credit_excludes_whole_page_from_derivative(tmp_path: Path):
+    fitz = pytest.importorskip("fitz")
+    from student_rights_text_derivative import build_text_candidate
+
+    pdf = tmp_path / "source.pdf"
+    document = fitz.open()
+    document.set_metadata({"author": "DGESCO"})
+    document.new_page().insert_text((50, 50), "Le cycle de l'eau est une notion étudiée.")
+    second = document.new_page()
+    second.insert_text((50, 50), "Un énoncé potentiellement utile.")
+    second.insert_text((50, 80), "© Editions Nathan")
+    document.save(pdf)
+    document.close()
+    sha = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    packet = {"content_sha256": sha, "page_count": 2,
+              "automated_review_signals": [], "source_pii_status": "CLEARED",
+              "explicit_student_exclusion_signal": False}
+    date = "2026-10-10T00:00:00Z"
+    attribution = {"source_uri": "https://eduscol.education.gouv.fr/doc.pdf",
+                   "source_label": "Test", "source_updated_at": date,
+                   "source_date_kind": "DATED_OFFICIAL_SNAPSHOT",
+                   "licensor": "Ministère de l’Éducation nationale",
+                   "licence_id": "ETALAB-2.0", "derivative_notice": f"snapshot du {date}"}
+    candidate = build_text_candidate(pdf, sha, 2, attribution, packet)
+    assert candidate.content is not None
+    receipt = candidate.evidence
+    receipt["candidate_relpath"] = f"candidates/{receipt['derivative_content_sha256']}.txt"
+    assert receipt["pages"][1]["third_party_page_signal"] is True
+    assert receipt["pages"][1]["selected_block_indices"] == []
+    args = (pdf, packet, candidate.content, receipt["extraction_policy_sha256"],
+            receipt["adjudication_policy_sha256"], receipt["generator_code_sha256"])
+    assert _verify_text_derivative(receipt, *args) == []
+    altered = copy.deepcopy(receipt)
+    altered["pages"][1]["third_party_page_signal"] = False
+    assert "DERIVATIVE_BLOCK_MAP_MISMATCH" in _verify_text_derivative(altered, *args)
+
+
+def test_independent_derivative_regexes_match_sealed_extraction_policy():
+    import check_delegated_student_rights_gate as gate
+
+    root = Path(__file__).resolve().parents[2]
+    policy = yaml.safe_load((root / "governance/student_public_rights/"
+                                  "text_derivative_extraction_policy_v1.yml").read_bytes())
+    rules = policy["classification"]
+    for key, name in (
+        ("publisher_name_regex", "_OFFICIAL_PUBLISHER"),
+        ("first_party_copyright_regex", "_FIRST_PARTY_COPYRIGHT"),
+        ("third_party_block_regex", "_DERIVATIVE_THIRD"),
+        ("third_party_page_regex", "_DERIVATIVE_THIRD_PAGE"),
+        ("long_quotation_regex", "_DERIVATIVE_LONG_QUOTE"),
+    ):
+        assert rules[key] == getattr(gate, name).pattern
+    imprint = (rules["publisher_imprint_marker_regex"]
+               + r"\s*[:\-]?\s*[^\n]{0,80}?"
+               + rules["publisher_name_regex"])
+    assert imprint == gate._PUBLISHER_IMPRINT.pattern
+
+
+def test_public_candidate_manifest_rejects_empty_and_pdf_surface():
+    template = {
+        "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CANDIDATE_MANIFEST_V1",
+        "status": "PRE_REVIEW_NOT_PROMOTABLE", "inventory_sha256": H("1"),
+        "rights_authority_sha256": H("2"),
+        "text_derivative_extraction_policy_sha256": H("3"),
+        "entries": [], "excluded_source_sha256": [SHA],
+        "counts": {"source_pdfs": 1, "public_collections": 0,
+                   "public_derivative_artifacts": 0, "public_placements": 0,
+                   "public_derivative_segments": 0, "original_pdf_public_count": 0},
+    }
+    records = {SHA: _v2_record()}
+    packets = {SHA: _packet_artifact()}
+    errors, _ = _verify_candidate_manifest(
+        template, records, packets, {}, H("1"), H("2"), H("3"),
+        {"rag_nexus_test"}, required_collections=1,
+    )
+    assert "PUBLIC_RELEASE_EMPTY_COLLECTION" in errors
+    derivative_sha = H("4")
+    manifest = copy.deepcopy(template)
+    manifest["entries"] = [{
+        "source_content_sha256": SHA, "derivative_content_sha256": derivative_sha,
+        "derivative_receipt_sha256": H("5"), "media_type": "application/pdf",
+        "private_candidate_relpath": f"candidates/{derivative_sha}.txt",
+        "collections": ["rag_nexus_test"], "citation": {},
+        "source_disposition": "REPLACE_WITH_NEW_CONTENT",
+        "derivative_disposition": "APPROVE_PUBLIC",
+    }]
+    manifest["excluded_source_sha256"] = []
+    manifest["counts"].update(public_collections=1, public_derivative_artifacts=1,
+                              public_placements=1, public_derivative_segments=1)
+    records[SHA].update(source_disposition="REPLACE_WITH_NEW_CONTENT",
+                        final_disposition="REPLACE_WITH_NEW_CONTENT",
+                        derivative_disposition="APPROVE_PUBLIC",
+                        derivative_content_sha256=derivative_sha,
+                        derivative_receipt_sha256=H("5"))
+    receipts = {SHA: {"pages": [{"review_groups": [{}]}], "source_attribution": {}}}
+    errors, _ = _verify_candidate_manifest(
+        manifest, records, packets, receipts, H("1"), H("2"), H("3"),
+        {"rag_nexus_test"}, required_collections=1,
+    )
+    assert "PUBLIC_MANIFEST_PDF_EXPOSED" in errors
+    manifest["entries"][0]["media_type"] = "text/plain; charset=utf-8"
+    manifest["entries"][0]["public_pdf_download_url"] = "https://example.org/original.pdf"
+    errors, _ = _verify_candidate_manifest(
+        manifest, records, packets, receipts, H("1"), H("2"), H("3"),
+        {"rag_nexus_test"}, required_collections=1,
+    )
+    assert "PUBLIC_MANIFEST_PDF_EXPOSED" in errors
+
+
+def test_public_candidate_manifest_rejects_omitted_approved_derivative():
+    derivative_sha = H("4")
+    manifest = {
+        "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CANDIDATE_MANIFEST_V1",
+        "status": "PRE_REVIEW_NOT_PROMOTABLE", "inventory_sha256": H("1"),
+        "rights_authority_sha256": H("2"),
+        "text_derivative_extraction_policy_sha256": H("3"),
+        "entries": [], "excluded_source_sha256": [SHA],
+        "counts": {"source_pdfs": 1, "public_collections": 0,
+                   "public_derivative_artifacts": 0, "public_placements": 0,
+                   "public_derivative_segments": 0, "original_pdf_public_count": 0},
+    }
+    record = _v2_record()
+    record.update(source_disposition="REPLACE_WITH_NEW_CONTENT",
+                  final_disposition="REPLACE_WITH_NEW_CONTENT",
+                  derivative_disposition="APPROVE_PUBLIC",
+                  derivative_content_sha256=derivative_sha,
+                  derivative_receipt_sha256=H("5"))
+    errors, _ = _verify_candidate_manifest(
+        manifest, {SHA: record}, {SHA: _packet_artifact()}, {},
+        H("1"), H("2"), H("3"), {"rag_nexus_test"}, required_collections=1,
+    )
+    assert "PUBLIC_MANIFEST_APPROVAL_SET_MISMATCH" in errors
+
+
+def test_source_provenance_does_not_convert_http403_into_rights(tmp_path: Path):
+    record = _v2_record()
+    packet = _packet_artifact()
+    evidence = tmp_path / "docs/reports/go_live/student_rights_evidence"
+    path = evidence / "provenance/checkpoints" / f"{SHA}.json"
+    path.parent.mkdir(parents=True)
+    checkpoint = {
+        "kind": "NEXUS-STUDENT-SOURCE-PROVENANCE-CHECKPOINT-V1",
+        "content_sha256": SHA, "inventory_sha256": H("1"),
+        "authority_yaml_sha256": H("2"),
+        "source_checker_code_sha256": H("3"),
+        "source_listing_url": packet["source_listing_url"],
+        "checked_at_utc": UTC, "raw_http_status_diagnostic": 403,
+        "source_provenance": {"status": "SOURCE_UNPROVEN", "matched_anchor": None,
+                              "pdf_fetch": None, "source_updated_at": None,
+                              "historical_capture": None,
+                              "listing_capture_receipt_relpath": None,
+                              "listing_capture_receipt_sha256": None,
+                              "reason_codes": ["LISTING_CAPTURE_MISSING"]},
+        "rights_basis_kind": "NONE", "rights_basis_status": "SOURCE_UNPROVEN",
+    }
+    checkpoint["checkpoint_sha256"] = hashlib.sha256(canonical_json_bytes(checkpoint)).hexdigest()
+    raw = canonical_json_bytes(checkpoint)
+    path.write_bytes(raw)
+    record["source_receipt_sha256"] = hashlib.sha256(raw).hexdigest()
+    errors, _ = _verify_source_provenance(
+        record, packet, tmp_path, evidence, tmp_path, H("1"), H("2"), H("3"),
+        fetch=lambda _uri, _limit: b"%PDF-1.4\n",
+    )
+    assert "SOURCE_PROVENANCE_NOT_EXACT" in errors
+
+
+def test_exact_source_provenance_rechecks_anchor_pdf_and_snapshot_date(tmp_path: Path):
+    from student_rights_source_provenance import build_listing_capture_receipt
+
+    packet = _packet_artifact()
+    packet["source_listing_url"] = "https://eduscol.education.gouv.fr/resource"
+    pdf_url = "https://eduscol.education.gouv.fr/exact.pdf"
+    pdf = b"%PDF-1.4\nsynthetic exact identity\n%%EOF\n"
+    sha = hashlib.sha256(pdf).hexdigest()
+    packet["content_sha256"] = sha
+    record = _v2_record(sha)
+    record.update(source_uri=pdf_url, byte_size=len(pdf))
+    mirror_path = tmp_path / "mirror" / packet["source_path"]
+    mirror_path.parent.mkdir(parents=True)
+    mirror_path.write_bytes(pdf)
+    evidence = tmp_path / "docs/reports/go_live/student_rights_evidence"
+    listing_root = evidence / "provenance/listings"
+    listing_root.mkdir(parents=True)
+    html = f'<html><a href="{pdf_url}">Document exact</a></html>\n'.encode()
+    text = b"Document exact\n"
+    png = b"\x89PNG\r\n\x1a\nsynthetic"
+    receipt = build_listing_capture_receipt(
+        requested_url=packet["source_listing_url"], final_url=packet["source_listing_url"],
+        http_status=200, observed_at_utc=UTC, normalized_html=html,
+        extracted_text=text, screenshot=png, browser_version="test-chromium",
+        playwright_version="test-playwright", capture_script_sha256=H("3"),
+        normalized_html_file="listing.normalized.html",
+        extracted_text_file="listing.extracted.txt", screenshot_file="listing.png",
+    )
+    for name, content in (("listing.normalized.html", html),
+                          ("listing.extracted.txt", text), ("listing.png", png)):
+        (listing_root / name).write_bytes(content)
+    capture_path = listing_root / "listing.receipt.json"
+    capture_path.write_bytes(canonical_json_bytes(receipt))
+    capture_script = tmp_path / "scripts/go_live/capture_eduscol_source_listings.py"
+    capture_script.parent.mkdir(parents=True)
+    capture_script.write_text("# synthetic listing capture\n")
+    receipt["capture_script_sha256"] = hashlib.sha256(capture_script.read_bytes()).hexdigest()
+    capture_path.write_bytes(canonical_json_bytes(receipt))
+    checkpoint = {
+        "kind": "NEXUS-STUDENT-SOURCE-PROVENANCE-CHECKPOINT-V1",
+        "content_sha256": sha, "inventory_sha256": H("1"),
+        "authority_yaml_sha256": H("2"),
+        "source_checker_code_sha256": H("3"),
+        "source_listing_url": packet["source_listing_url"],
+        "checked_at_utc": UTC, "raw_http_status_diagnostic": 403,
+        "source_provenance": {
+            "status": "EXACT_CURRENT_SOURCE",
+            "listing_capture_receipt_relpath": "provenance/listings/listing.receipt.json",
+            "listing_capture_receipt_sha256": hashlib.sha256(capture_path.read_bytes()).hexdigest(),
+            "matched_anchor": receipt["pdf_links"][0],
+            "pdf_fetch": {"requested_url": pdf_url, "final_url": pdf_url,
+                          "http_status": 200, "observed_at_utc": UTC,
+                          "content_sha256": sha, "byte_count": len(pdf),
+                          "etag": None, "last_modified": None},
+            "source_updated_at": {"date": UTC, "kind": "DATED_OFFICIAL_SNAPSHOT",
+                                  "evidence_ref": {"pdf_url": pdf_url,
+                                                   "downloaded_sha256": sha,
+                                                   "http_status": 200,
+                                                   "listing_capture_receipt_sha256":
+                                                   hashlib.sha256(capture_path.read_bytes()).hexdigest()}},
+            "listing_observed_at_utc": UTC,
+            "retraction_notice_associated": False,
+            "currentness_status": "PASS",
+            "currentness_observed_at_utc": UTC,
+            "currentness_evidence_ref": {"pdf_url": pdf_url, "pdf_sha256": sha,
+                                         "listing_capture_receipt_sha256":
+                                         hashlib.sha256(capture_path.read_bytes()).hexdigest()},
+            "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+            "revocation_observed_at_utc": UTC,
+            "revocation_evidence_ref": {"pdf_url": pdf_url, "pdf_sha256": sha,
+                                        "listing_capture_receipt_sha256":
+                                        hashlib.sha256(capture_path.read_bytes()).hexdigest(),
+                                        "notice_scan": "ANCHOR_NEIGHBORHOOD_V1"},
+            "historical_capture": None, "reason_codes": [],
+        },
+        "rights_basis_kind": "SITEWIDE_DOWNLOAD_AUTHORITY",
+        "rights_basis_status": "CANDIDATE_PENDING_FINAL_APPROVAL",
+    }
+    checkpoint_path = evidence / "provenance/checkpoints" / f"{sha}.json"
+    checkpoint_path.parent.mkdir(parents=True)
+
+    def reseal() -> None:
+        checkpoint.pop("checkpoint_sha256", None)
+        checkpoint["checkpoint_sha256"] = hashlib.sha256(canonical_json_bytes(checkpoint)).hexdigest()
+        raw = canonical_json_bytes(checkpoint)
+        checkpoint_path.write_bytes(raw)
+        record["source_receipt_sha256"] = hashlib.sha256(raw).hexdigest()
+
+    reseal()
+    args = (record, packet, tmp_path, evidence, tmp_path / "mirror", H("1"), H("2"), H("3"))
+    def fetch(_uri, _limit):
+        return pdf
+    assert _verify_source_provenance(*args, fetch=fetch)[0] == []
+    checkpoint["source_provenance"]["source_updated_at"]["date"] = "2026-10-01T00:00:00Z"
+    reseal()
+    assert "SOURCE_SNAPSHOT_DATE_MISMATCH" in _verify_source_provenance(*args, fetch=fetch)[0]
+    checkpoint["source_provenance"]["source_updated_at"]["date"] = UTC
+    checkpoint["source_checker_code_sha256"] = H("4")
+    reseal()
+    assert "SOURCE_CHECKPOINT_BINDING" in _verify_source_provenance(*args, fetch=fetch)[0]
+    checkpoint["source_checker_code_sha256"] = H("3")
+    checkpoint["source_provenance"]["revocation_status"] = "PASS_CURRENT_OFFICIAL_PUBLICATION"
+    checkpoint["source_provenance"]["retraction_notice_associated"] = True
+    reseal()
+    assert "SOURCE_REVOCATION_PROOF_MISMATCH" in _verify_source_provenance(*args, fetch=fetch)[0]
+    checkpoint["source_provenance"]["retraction_notice_associated"] = False
+    checkpoint["checked_at_utc"] = "2099-01-01T00:00:00Z"
+    reseal()
+    assert "SOURCE_CHECKPOINT_TIME_INVALID" in _verify_source_provenance(*args, fetch=fetch)[0]
+    checkpoint["checked_at_utc"] = UTC
+    original_listing = packet["source_listing_url"]
+    packet["source_listing_url"] = pdf_url
+    checkpoint["source_listing_url"] = pdf_url
+    checkpoint["source_provenance"]["discovered_official_listing_url"] = original_listing
+    reseal()
+    assert _verify_source_provenance(*args, fetch=fetch)[0] == []
+    checkpoint["source_provenance"]["discovered_official_listing_url"] = (
+        "https://eduscol.education.gouv.fr.evil.org/resource"
+    )
+    reseal()
+    assert "SOURCE_DISCOVERED_LISTING_INVALID" in _verify_source_provenance(
+        *args, fetch=fetch)[0]
+
+
+def test_official_listing_url_requires_https_exact_host():
+    from check_delegated_student_rights_gate import _official_listing_url
+
+    assert _official_listing_url("https://eduscol.education.gouv.fr/ressources")
+    for url in ("http://eduscol.education.gouv.fr/ressources",
+                "https://eduscol.education.gouv.fr.evil.org/ressources",
+                "https://evil.org@eduscol.education.gouv.fr/ressources",
+                "https://eduscol.education.gouv.fr:8443/ressources"):
+        assert not _official_listing_url(url)
+
+
+def test_excluded_derivative_receipt_cas_is_required_and_bound(tmp_path: Path):
+    record = _v2_record()
+    packet = _packet_artifact()
+    evidence = tmp_path / "evidence"
+    receipt = {
+        "kind": "NEXUS-STUDENT-NATIVE-TEXT-DERIVATIVE-V1",
+        "source_content_sha256": SHA, "source_packet_artifact_sha256":
+            hashlib.sha256(_receipt_bytes(packet)).hexdigest(),
+        "adjudication_policy_sha256": H("1"),
+        "extraction_policy_sha256": H("2"), "generator_code_sha256": H("3"),
+        "status": "EXCLUDE", "reason_codes": ["SOURCE_PROVENANCE_INSUFFICIENT"],
+        "derivative_content_sha256": None, "candidate_relpath": None,
+        "publication_authorized": False,
+    }
+    raw = _receipt_bytes(receipt)
+    digest = hashlib.sha256(raw).hexdigest()
+    path = evidence / "derivative_receipts" / digest[:2] / f"{digest}.json"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw)
+    checkpoint = {"kind": "NEXUS-STUDENT-DERIVATIVE-CHECKPOINT-V1",
+                  "source_content_sha256": SHA, "derivative_content_sha256": None,
+                  "derivative_receipt_sha256": digest, "status": "EXCLUDE",
+                  "candidate_relpath": None}
+    sidecar = evidence / "derivatives" / f"{SHA}.json"
+    sidecar.parent.mkdir()
+    sidecar.write_bytes(_receipt_bytes(checkpoint))
+    record["derivative_receipt_sha256"] = digest
+    assert _verify_derivative_receipt_cas(
+        record, packet, evidence, H("1"), H("2"), H("3"))[0] == []
+    receipt["candidate_relpath"] = "candidates/forged.txt"
+    path.write_bytes(_receipt_bytes(receipt))
+    assert "DERIVATIVE_RECEIPT_DIGEST" in _verify_derivative_receipt_cas(
+        record, packet, evidence, H("1"), H("2"), H("3"))[0]
 
 CFTR = "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6"
 SHA = "a" * 64
@@ -193,6 +630,61 @@ def _errors(record: dict, packet: dict | None = None) -> list[str]:
                           _policy(), _mandate(), record["bindings"])
 
 
+def _v2_record(sha: str = SHA) -> dict:
+    record = _record(sha)
+    record.update(
+        record_kind="NEXUS_AUTOMATED_ARTIFACT_REVIEW_V2",
+        source_disposition="EXCLUDE", final_disposition="EXCLUDE",
+        derivative_disposition="EXCLUDE", derivative_content_sha256=None,
+        derivative_receipt_sha256=None, rights_authority_id=None,
+        rights_authority_sha256=None, rights_basis="NONE",
+        reason_codes=["RIGHTS_NOT_PROVEN"],
+    )
+    return record
+
+
+def test_v2_source_pdf_can_never_be_approved_public():
+    record = _v2_record()
+    record.update(source_disposition="APPROVE_PUBLIC", final_disposition="APPROVE_PUBLIC")
+    assert "SOURCE_PDF_PUBLIC_FORBIDDEN" in _errors(record)
+
+
+def test_v2_final_disposition_is_strict_alias_of_source():
+    record = _v2_record()
+    record["final_disposition"] = "REPLACE_WITH_NEW_CONTENT"
+    assert "SOURCE_DISPOSITION_ALIAS_MISMATCH" in _errors(record)
+
+
+def test_v2_source_replacement_requires_approved_derivative():
+    record = _v2_record()
+    record.update(source_disposition="REPLACE_WITH_NEW_CONTENT",
+                  final_disposition="REPLACE_WITH_NEW_CONTENT",
+                  derivative_disposition="EXCLUDE")
+    assert "SOURCE_REPLACEMENT_WITHOUT_APPROVED_DERIVATIVE" in _errors(record)
+
+
+def test_v2_derivative_cannot_approve_without_distinct_sha_and_receipt():
+    record = _v2_record()
+    record.update(source_disposition="REPLACE_WITH_NEW_CONTENT",
+                  final_disposition="REPLACE_WITH_NEW_CONTENT",
+                  derivative_disposition="APPROVE_PUBLIC")
+    errors = _errors(record)
+    assert "DERIVATIVE_IDENTITY_MISSING" in errors
+    assert "DERIVATIVE_RIGHTS_UNPROVEN" in errors
+
+
+def test_v2_exclusion_still_requires_source_and_derivative_cas_receipts():
+    record = _v2_record()
+    assert "SOURCE_RECEIPT_MISSING" in _errors(record)
+    assert "DERIVATIVE_RECEIPT_MISSING" in _errors(record)
+
+
+def test_v2_cftr_remains_excluded_even_with_derivative_claim():
+    record = _v2_record(CFTR)
+    record.update(derivative_disposition="APPROVE_PUBLIC")
+    assert "CFTR_NOT_EXCLUDED" in _errors(record)
+
+
 def test_valid_complete_record_has_no_errors():
     assert _errors(_record()) == []
 
@@ -253,6 +745,38 @@ def test_sheet_render_is_deterministic_and_never_claims_human_review():
     assert rows[0]["human_reviewer"] == ""
     assert rows[0]["student_public_disposition"] == "APPROVE_PUBLIC"
     assert rows[0]["decision_executor"] == record["decision_executor"]
+
+
+def test_v2_sheet_matches_source_and_derivative_decisions():
+    record = _v2_record()
+    record.update(source_disposition="REPLACE_WITH_NEW_CONTENT",
+                  final_disposition="REPLACE_WITH_NEW_CONTENT",
+                  derivative_disposition="APPROVE_PUBLIC",
+                  derivative_content_sha256=H("4"),
+                  derivative_receipt_sha256=H("5"),
+                  rights_basis="SITEWIDE_DOWNLOAD_AUTHORITY",
+                  rights_authority_id="EDUSCOL_ETALAB_2_0_SITEWIDE",
+                  rights_authority_sha256=H("6"))
+    content = render_decision_sheet([(record, _packet_artifact(), H("0"))])
+    row = next(csv.DictReader(content.decode("utf-8").splitlines(), delimiter="\t"))
+    assert row["rights_review"] == "PUBLIC_DERIVATIVE_RIGHTS_CONFIRMED"
+    assert row["student_suitability"] == "STUDENT_DERIVATIVE_APPROVED"
+    assert row["third_party_exception_review"] == "CLEARED_WITH_EVIDENCE"
+    assert row["pii_recheck"] == "PASS_WITH_EVIDENCE"
+    assert row["currentness_recheck"] == "PASS_WITH_EVIDENCE"
+    assert row["revocation_recheck"] == "PASS_WITH_EVIDENCE"
+    assert row["rights_evidence_ref"] == "https://eduscol.education.gouv.fr/4656/mentions-legales"
+    assert row["student_public_disposition"] == "REPLACE_WITH_NEW_CONTENT"
+    assert row["human_reviewer"] == ""
+
+
+def test_v2_excluded_sheet_uses_explicit_none_in_terminal_authority_columns():
+    record = _v2_record()
+    content = render_decision_sheet([(record, _packet_artifact(), H("0"))])
+    row = next(csv.DictReader(content.decode("utf-8").splitlines(), delimiter="\t"))
+    assert row["rights_authority_id"] == "NONE"
+    assert row["rights_authority_sha256"] == "NONE"
+    assert not content.splitlines()[1].endswith(b"\t")
 
 
 def test_gate_fails_closed_without_315_records(tmp_path: Path):
@@ -435,7 +959,7 @@ def test_real_pdf_request_hashes_reconstruct_and_resealed_receipt_tamper_fails(t
     raw = _receipt_bytes(forged)
     forged_sha = hashlib.sha256(raw).hexdigest()
     forged_path = receipt_dir / forged_sha[:2] / f"{forged_sha}.json"
-    forged_path.parent.mkdir()
+    forged_path.parent.mkdir(exist_ok=True)
     forged_path.write_bytes(raw)
     record["reviewer_a"]["evidence_refs"][0] = f"sha256:{forged_sha}"
     assert "REVIEWER_A_RECEIPT_REQUEST_MISMATCH" in _verify_review_receipts(
@@ -661,9 +1185,11 @@ def test_v5_page_render_pixel_cap_reconstructs_image_hashes(
     )
 
 
-def test_gate_requires_source_mirror_even_for_otherwise_sealed_pack(sealed_pack):
-    root, _ = sealed_pack
-    result = check_gate(root, expected_count=2)
+def test_gate_requires_source_mirror_for_existing_index(tmp_path: Path):
+    index = tmp_path / DEFAULTS["index"]
+    index.parent.mkdir(parents=True)
+    index.write_text("{}\n")
+    result = check_gate(tmp_path, expected_count=2)
     assert result["errors"] == ["SOURCE_MIRROR_ROOT_REQUIRED"]
 
 
@@ -740,251 +1266,6 @@ def test_source_projection_cannot_forge_legacy_counts():
     assert f"SOURCE_PROJECTED_COUNTS:{CFTR[:12]}" in errors
 
 
-@pytest.fixture
-def sealed_pack(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, dict]:
-    """Deux vrais enregistrements structurés dans un pack synthétique scellé."""
-    source_root = Path(__file__).resolve().parents[2]
-    paths = {key: tmp_path / value for key, value in DEFAULTS.items()}
-    for path in paths.values():
-        path.parent.mkdir(parents=True, exist_ok=True)
-    paths["schema"].write_bytes((source_root / DEFAULTS["schema"]).read_bytes())
-    paths["engine"].write_text("# test engine\n")
-    paths["scanner"].write_text("# test scanner\n")
-    paths["source_checker"].write_text("# test source checker\n")
-    paths["reviewer"].write_text("# test reviewer\n")
-    prompt_a = tmp_path / "governance/student_public_rights/reviewer_a.txt"
-    prompt_b = tmp_path / "governance/student_public_rights/reviewer_b.txt"
-    prompt_a.write_text("rights prompt\n")
-    prompt_b.write_text("student prompt\n")
-    reviewers = {
-        label: {k: _record()[f"reviewer_{label}"][k] for k in
-                ("identity", "model_id", "model_version")}
-        for label in ("a", "b")
-    }
-    parameters = {"temperature": 0, "seed": 42, "num_ctx": 4096, "num_predict": 512}
-    for label, prompt in (("a", prompt_a), ("b", prompt_b)):
-        reviewers[label]["prompt_sha256"] = hashlib.sha256(prompt.read_bytes()).hexdigest()
-        reviewers[label]["parameters_sha256"] = hashlib.sha256(
-            _receipt_bytes(parameters)
-        ).hexdigest()
-    packet_a = _packet_artifact()
-    packet_cftr = _packet_artifact(CFTR)
-    packet_cftr["page_count"] = 3
-    packet_cftr["placements"][0]["collection"] = "rag_nexus_cftr"
-    packet = {"population": {"content_sha256_set_digest": hashlib.sha256(
-        f"{CFTR}\n{SHA}\n".encode()).hexdigest()},
-        "artifacts": [packet_a, packet_cftr]}
-    paths["packet"].write_bytes(canonical_json_bytes(packet))
-    paths["policy"].write_text(yaml.safe_dump(_policy(), sort_keys=True))
-    digests = {key: hashlib.sha256(paths[key].read_bytes()).hexdigest()
-               for key in ("packet", "policy", "schema", "engine", "scanner",
-                           "source_checker", "reviewer")}
-    mandate = _mandate()
-    now = datetime.now(timezone.utc)
-    mandate["created_at_utc"] = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    mandate["expires_at_utc"] = (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    mandate["source_binding"] = {
-        "source_main_commit_sha": G("1"), "source_main_tree_sha": G("2"),
-        "inventory_file_sha256": digests["packet"],
-        "inventory_content_sha256_set_digest": packet["population"]["content_sha256_set_digest"],
-        "inventory_count": 2, "policy_sha256": digests["policy"],
-        "schema_sha256": digests["schema"], "engine_code_sha256": digests["engine"],
-        "scanner_code_sha256": digests["scanner"],
-        "source_checker_code_sha256": digests["source_checker"],
-        "reviewer_code_sha256": digests["reviewer"],
-        "independent_verifier_code_sha256": hashlib.sha256(
-            (source_root / "scripts/go_live/check_delegated_student_rights_gate.py").read_bytes()
-        ).hexdigest(),
-    }
-    mandate["automated_reviewers"] = {
-        f"reviewer_{label}": {
-            "agent_identity": reviewers[label]["identity"],
-            "model_id": reviewers[label]["model_id"],
-            "model_version": reviewers[label]["model_version"],
-            "prompt_sha256": reviewers[label]["prompt_sha256"],
-            "prompt_path": str(prompt.relative_to(tmp_path)),
-            "deterministic_parameters": parameters,
-        }
-        for label, prompt in (("a", prompt_a), ("b", prompt_b))
-    }
-    paths["mandate"].write_text(yaml.safe_dump(mandate, sort_keys=True))
-    mandate_sha = hashlib.sha256(paths["mandate"].read_bytes()).hexdigest()
-    records = [_record(), _record(CFTR)]
-    records[1].update(
-        page_count=3, final_disposition="EXCLUDE", student_suitability="FAIL",
-        deterministic_policy_verdict="FAIL",
-        reason_codes=["TEACHER_NON_DISCLOSURE_INSTRUCTION"], evidence_pages=[3],
-    )
-    records[1]["page_scans"].append({**records[1]["page_scans"][1], "page_number": 3})
-    records[1]["text_assembly"].append(
-        {**records[1]["text_assembly"][1], "page_number": 3}
-    )
-    records[1]["pdf_scan_evidence"].update(page_count=3, expected_page_count=3)
-    records[1]["pdf_scan_evidence"]["pages"].append(
-        {**records[1]["pdf_scan_evidence"]["pages"][1], "page_number": 3}
-    )
-    records[1]["reviewer_b"].update(verdict="FAIL")
-    for record in records:
-        for label in ("a", "b"):
-            record[f"reviewer_{label}"].update(reviewers[label])
-            if record["content_sha256"] == CFTR:
-                record[f"reviewer_{label}"]["pages_covered"] = [1, 2, 3]
-        record["bindings"] = {
-            "inventory_sha256": digests["packet"], "policy_sha256": digests["policy"],
-            "mandate_sha256": mandate_sha, "schema_sha256": digests["schema"],
-            "engine_code_sha256": digests["engine"],
-            "scanner_code_sha256": digests["scanner"],
-            "source_checker_code_sha256": digests["source_checker"],
-            "reviewer_code_sha256": digests["reviewer"],
-            "pdf_sha256": record["content_sha256"],
-        }
-        record["pdf_scan_evidence"]["content_sha256"] = record["content_sha256"]
-        record["source_verification"]["remote_pdf_sha256"] = record["content_sha256"]
-        replay_results = {}
-        for label in ("a", "b"):
-            reviewer = record[f"reviewer_{label}"]
-            for nonce in ((0, 1) if record["content_sha256"] != CFTR else (0,)):
-                refs = []
-                observations = []
-                for page in range(1, record["page_count"] + 1):
-                    fail = label == "b" and record["content_sha256"] == CFTR and page == 3
-                    observation = {
-                        "page_number": page, "segment_index": 1, "segment_count": 1,
-                        "verdict": "FAIL" if fail else "PASS", "confidence": "HIGH",
-                        "reason_codes": ["TEACHER_NON_DISCLOSURE_INSTRUCTION"] if fail else [],
-                        "evidence_pages": [page], "visual_examined": True,
-                    }
-                    if label == "a":
-                        observation["positive_rights_notice_present"] = True
-                    receipt = {
-                        "kind": "NEXUS-STUDENT-REVIEW-SEGMENT-RECEIPT-V1",
-                        "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5",
-                        "content_sha256": record["content_sha256"],
-                        "reviewer_identity": reviewer["identity"], "page_number": page,
-                        "segment_index": 1, "segment_count": 1, "run_nonce": nonce,
-                        "model_id": reviewer["model_id"],
-                        "model_version": reviewer["model_version"],
-                        "prompt_sha256": reviewer["prompt_sha256"],
-                        "parameters_sha256": reviewer["parameters_sha256"],
-                        "request_sha256": hashlib.sha256(
-                            f"{label}:{record['content_sha256']}:{page}:{nonce}".encode()
-                        ).hexdigest(),
-                        "image_sha256": H("2"),
-                        "observation_sha256": hashlib.sha256(_receipt_bytes(observation)).hexdigest(),
-                        "observation": observation,
-                    }
-                    raw = _receipt_bytes(receipt)
-                    digest = hashlib.sha256(raw).hexdigest()
-                    path = paths["index"].parent / "receipts" / digest[:2] / f"{digest}.json"
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_bytes(raw)
-                    refs.append(f"sha256:{digest}")
-                    observations.append(_receipt_bytes(observation))
-                result = {
-                    "evidence_refs": refs,
-                    "observation_sha256": hashlib.sha256(b"".join(observations)).hexdigest(),
-                    "context_sha256": reviewer["context_sha256"] if nonce == 0
-                    else H("e" if label == "a" else "f"),
-                }
-                if nonce == 0:
-                    reviewer.update(result)
-                else:
-                    replay_results[label] = result
-        if record["content_sha256"] != CFTR:
-            for label in ("a", "b"):
-                for key in ("evidence_refs", "observation_sha256", "context_sha256"):
-                    record["candidate_replays"][0][f"reviewer_{label}_{key}"] = (
-                        record[f"reviewer_{label}"][key]
-                    )
-                    record["candidate_replays"][1][f"reviewer_{label}_{key}"] = (
-                        replay_results[label][key]
-                    )
-    refs = {}
-    items = []
-    for record, artifact in zip(records, (packet_a, packet_cftr), strict=True):
-        raw = canonical_json_bytes(record)
-        sha = record["content_sha256"]
-        (paths["index"].parent / f"{sha}.json").write_bytes(raw)
-        evidence_sha = hashlib.sha256(raw).hexdigest()
-        refs[sha] = {"path": f"{sha}.json", "sha256": evidence_sha,
-                     "source_placement_count": 1, "source_chunk_count": 2}
-        items.append((record, artifact, evidence_sha))
-    sheet = render_decision_sheet(items)
-    paths["sheet"].write_bytes(sheet)
-    index = {
-        "schema_version": "NEXUS_DELEGATED_STUDENT_RIGHTS_EVIDENCE_INDEX_V1",
-        "inventory_sha256": digests["packet"], "policy_sha256": digests["policy"],
-        "delegation_sha256": mandate_sha, "mandate_sha256": mandate_sha,
-        "schema_sha256": digests["schema"], "engine_code_sha256": digests["engine"],
-        "scanner_code_sha256": digests["scanner"],
-        "source_checker_code_sha256": digests["source_checker"],
-        "reviewer_code_sha256": digests["reviewer"],
-        "reviewer_a": reviewers["a"], "reviewer_b": reviewers["b"],
-        "artifacts": refs, "decision_sheet_sha256": hashlib.sha256(sheet).hexdigest(),
-        "final_population": {"collections": 1, "artifacts": 1, "placements": 1,
-                             "chunks": 2, "approve_public": 1, "exclude": 1,
-                             "replace_with_new_content": 0},
-    }
-    paths["index"].write_bytes(canonical_json_bytes(index))
-    counts = {sha: {"source_placement_count": 1, "source_chunk_count": 2,
-                    "collections": {"rag_nexus_test" if sha == SHA else "rag_nexus_cftr"},
-                    "collection_placements": {
-                        "rag_nexus_test" if sha == SHA else "rag_nexus_cftr": 1},
-                    "source_chunks_sha256": H("4")}
-              for sha in (SHA, CFTR)}
-    monkeypatch.setattr("check_delegated_student_rights_gate._source_population",
-                        lambda *_: (counts, {"rag_nexus_test", "rag_nexus_cftr"}, []))
-    monkeypatch.setattr("check_delegated_student_rights_gate._git_source_binding",
-                        lambda *_: [])
-    mirror = tmp_path / "mirror"
-    mirror.mkdir()
-    monkeypatch.setattr("check_delegated_student_rights_gate._rescan_pdf",
-                        lambda *_: [])
-    monkeypatch.setattr("check_delegated_student_rights_gate._verify_approval_source_proof",
-                        lambda *_: [])
-    monkeypatch.setattr(
-        "check_delegated_student_rights_gate._reconstruct_review_requests",
-        lambda record, packet_artifact, _mirror: ({
-            (label, nonce): {
-                "requests": {
-                    (page, 1): {
-                        "request_sha256": hashlib.sha256(
-                            f"{label}:{packet_artifact['content_sha256']}:{page}:{nonce}".encode()
-                        ).hexdigest(),
-                        "image_sha256": H("2"), "segment_count": 1,
-                    } for page in range(1, packet_artifact["page_count"] + 1)
-                },
-                "context_sha256": (
-                    record[f"reviewer_{label}"]["context_sha256"] if nonce == 0
-                    else record["candidate_replays"][1][f"reviewer_{label}_context_sha256"]
-                ),
-            } for label in ("a", "b") for nonce in (0, 1)
-        }, []),
-    )
-    return tmp_path, {"paths": paths, "index": index, "records": records,
-                      "packet": packet, "items": items}
-
-
-def test_sealed_fixture_passes_independent_gate(sealed_pack):
-    root, _ = sealed_pack
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert result["errors"] == []
-    assert result["DELEGATED_RIGHTS_ADJUDICATION_PASS"] is True
-
-
-def test_machine_pack_cannot_claim_active_human_authority(sealed_pack):
-    root, pack = sealed_pack
-    path = pack["paths"]["mandate"]
-    mandate = yaml.safe_load(path.read_text())
-    mandate.update(status="SEALED_ACTIVE", effective_authority=True)
-    path.write_text(yaml.safe_dump(mandate, sort_keys=True))
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert "MANDATE_NOT_SEALED" in result["errors"]
-    assert "PREAPPROVAL_AUTHORITY_MUST_BE_FALSE" in result["errors"]
-
-
 def test_git_source_binding_accepts_real_sha1_and_rejects_dirty_tree(tmp_path: Path):
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     source = tmp_path / "source.txt"
@@ -1004,125 +1285,3 @@ def test_git_source_binding_accepts_real_sha1_and_rejects_dirty_tree(tmp_path: P
     source.write_text("sealed\n")
     (tmp_path / "forged.json").write_text("{}\n")
     assert "CHECKOUT_NOT_CLEAN" in _git_source_binding(tmp_path, mandate, head)
-
-
-def _reseal_records(pack: dict) -> None:
-    """Simule un adversaire qui recalcule les SHA après modification sémantique."""
-    paths = pack["paths"]
-    index = pack["index"]
-    packet = {p["content_sha256"]: p for p in pack["packet"]["artifacts"]}
-    items = []
-    for sha, ref in index["artifacts"].items():
-        record = next(r for r in pack["records"] if r["bindings"]["pdf_sha256"] == sha)
-        raw = canonical_json_bytes(record)
-        digest = hashlib.sha256(raw).hexdigest()
-        (paths["index"].parent / ref["path"]).write_bytes(raw)
-        ref["sha256"] = digest
-        items.append((record, packet[sha], digest))
-    sheet = render_decision_sheet(items)
-    paths["sheet"].write_bytes(sheet)
-    index["decision_sheet_sha256"] = hashlib.sha256(sheet).hexdigest()
-    paths["index"].write_bytes(canonical_json_bytes(index))
-
-
-@pytest.mark.parametrize(
-    ("sabotage", "expected"),
-    [
-        (lambda p: p["records"][0].update(final_disposition="PENDING"), "DISPOSITION_INVALID"),
-        (lambda p: p["records"][0].update(rights_basis="NONE"), "APPROVAL_RIGHTS_BASIS"),
-        (lambda p: p["records"][0].update(evidence_pages=[]), "APPROVAL_EVIDENCE_PAGES"),
-        (lambda p: p["records"][0].update(content_sha256=H("f")), "CONTENT_IDENTITY"),
-        (lambda p: p["records"][1].update(final_disposition="APPROVE_PUBLIC"), "CFTR_NOT_EXCLUDED"),
-        (lambda p: p["records"][0]["reviewer_a"].update(identity=""), "REVIEWER_A_INCOMPLETE"),
-        (lambda p: p["records"][0]["reviewer_a"].update(evidence_refs=[]),
-         "APPROVAL_DUAL_REVIEW"),
-        (lambda p: p["records"][0]["source_verification"].update(
-            final_uri="https://other.example.org/unrelated.pdf"), "APPROVAL_SOURCE_MISMATCH"),
-        (lambda p: p["records"][0].update(rights_basis="officiel_public"), "APPROVAL_RIGHTS_BASIS"),
-        (lambda p: p["records"][0]["page_scans"][1].update(
-            render_inspected=False), "FULL_SCAN_INCOMPLETE"),
-    ],
-)
-def test_resealed_semantic_sabotage_still_fails(sealed_pack, sabotage, expected):
-    root, pack = sealed_pack
-    sabotage(pack)
-    _reseal_records(pack)
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert result["DELEGATED_RIGHTS_ADJUDICATION_PASS"] is False
-    assert any(error.startswith(expected) for error in result["errors"])
-
-
-def test_manual_sheet_change_is_detected(sealed_pack):
-    root, pack = sealed_pack
-    path = pack["paths"]["sheet"]
-    path.write_bytes(path.read_bytes().replace(b"APPROVE_PUBLIC", b"EXCLUDE"))
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert result["DELEGATED_RIGHTS_ADJUDICATION_PASS"] is False
-    assert "DECISION_SHEET_TAMPERED" in result["errors"]
-
-
-@pytest.mark.parametrize("tamper", ["missing", "changed"])
-def test_missing_or_falsified_reviewer_cas_receipt_is_rejected(sealed_pack, tamper: str):
-    root, pack = sealed_pack
-    digest = pack["records"][0]["reviewer_a"]["evidence_refs"][0].split(":", 1)[1]
-    path = pack["paths"]["index"].parent / "receipts" / digest[:2] / f"{digest}.json"
-    if tamper == "missing":
-        path.unlink()
-    else:
-        receipt = json.loads(path.read_bytes())
-        receipt["observation"]["visual_examined"] = False
-        path.write_bytes(_receipt_bytes(receipt))
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert result["DELEGATED_RIGHTS_ADJUDICATION_PASS"] is False
-    assert any(code.startswith("REVIEWER_A_RECEIPT_") for code in result["errors"])
-
-
-def test_replay_cannot_reuse_first_run_receipts(sealed_pack):
-    root, pack = sealed_pack
-    record = pack["records"][0]
-    record["candidate_replays"][1]["reviewer_a_evidence_refs"] = list(
-        record["reviewer_a"]["evidence_refs"]
-    )
-    _reseal_records(pack)
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert result["DELEGATED_RIGHTS_ADJUDICATION_PASS"] is False
-    assert any(error.startswith("APPROVAL_REPLAY_DIVERGENCE")
-               or error.startswith("REPLAY_REVIEWER_A_RECEIPT_")
-               for error in result["errors"])
-
-
-def test_replay_missing_cas_receipt_is_rejected(sealed_pack):
-    root, pack = sealed_pack
-    digest = pack["records"][0]["candidate_replays"][1][
-        "reviewer_a_evidence_refs"][0].split(":", 1)[1]
-    path = pack["paths"]["index"].parent / "receipts" / digest[:2] / f"{digest}.json"
-    path.unlink()
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert result["DELEGATED_RIGHTS_ADJUDICATION_PASS"] is False
-    assert any(error.startswith("REPLAY_REVIEWER_A_RECEIPT_MISSING_OR_INVALID")
-               for error in result["errors"])
-
-
-def test_replay_boolean_nonce_cannot_impersonate_second_run(sealed_pack):
-    root, pack = sealed_pack
-    replay = pack["records"][0]["candidate_replays"][1]
-    digest = replay["reviewer_a_evidence_refs"][0].split(":", 1)[1]
-    path = pack["paths"]["index"].parent / "receipts" / digest[:2] / f"{digest}.json"
-    receipt = json.loads(path.read_bytes())
-    receipt["run_nonce"] = True
-    raw = _receipt_bytes(receipt)
-    forged_digest = hashlib.sha256(raw).hexdigest()
-    forged_path = path.parent.parent / forged_digest[:2] / f"{forged_digest}.json"
-    forged_path.parent.mkdir()
-    forged_path.write_bytes(raw)
-    replay["reviewer_a_evidence_refs"][0] = f"sha256:{forged_digest}"
-    _reseal_records(pack)
-    result = check_gate(root, expected_count=2, expected_head=G("1"),
-                        source_mirror_root=root / "mirror")
-    assert any(error.startswith("REPLAY_REVIEWER_A_RECEIPT_STRUCTURE")
-               for error in result["errors"])

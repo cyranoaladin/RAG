@@ -6,7 +6,7 @@ delegating_authority: abenrhouma
 final_approving_authority: abenrhouma
 decision_executor: nexus-delegated-student-rights-adjudicator-v1
 decision_authority_basis: EXPLICIT_AUTHORITY_INSTRUCTION_2026-10-09_PLUS_FINAL_EXACT_HEAD_APPROVAL
-review_mode: automated_full_document_dual_review
+review_mode: automated_targeted_segment_dual_review
 adjudication_mode: deterministic_fail_closed
 created_at_utc: '2026-10-09T20:52:26Z'
 authority_instruction_date_utc: '2026-10-09'
@@ -23,26 +23,32 @@ source_binding:
   inventory_count: 315
   inventory_identity_rule: sorted_lowercase_sha256_plus_newline
   policy_path: governance/student_public_rights/delegated_review_policy_v1.yml
-  policy_sha256: dc978e171af49f39e87c1380f959b19d65cf76cdf80d3605e467c4cdd7f8ec01
+  policy_sha256: b3e47310712b2a93fe8ddb458eda4a61beae88198274b2deee0113da37cd63d1
+  sitewide_authority_path: governance/student_public_rights/authorities/eduscol_etalab_2_0_sitewide_20261010.yml
+  rights_authority_sha256: 013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1
+  extraction_policy_path: governance/student_public_rights/text_derivative_extraction_policy_v1.yml
+  text_derivative_extraction_policy_sha256: 6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf
   schema_path: governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json
-  schema_sha256: 083787deeee4dbd62003e791e88c03846a4790b401d1310f8f6a9b9c3609f374
+  schema_sha256: d49b326dc350ebc5c7d0c7ad42c59dfd84dcd3b8f6168fc8e87310fc8627c143
   engine_path: scripts/go_live/adjudicate_student_public_rights.py
-  engine_code_sha256: 9a77564dddfedb1eaae501808b011771d256845cf4f6d766075fec4b4ff1e50a
+  engine_code_sha256: f996ff33504c49f067733c79adcc97332798dbeb187cffca63f6874982d35f04
+  derivative_generator_path: scripts/go_live/student_rights_text_derivative.py
+  derivative_builder_code_sha256: 812e1f456cbabf912f20299e34ed9699d025032822c15fe04a976e88451e6e7b
   scanner_path: scripts/go_live/student_rights_pdf_scan.py
   scanner_code_sha256: 2b69a7e10504ea2463af49e2bc1ebe6fc19b638d920dcb904eb262386d7025bb
-  source_checker_path: scripts/go_live/student_rights_source_check.py
-  source_checker_code_sha256: c4918eb4e85ebe0bbb2c96f52168e795e6615fc9d37bb5911641fb09f2597d9f
+  source_checker_path: scripts/go_live/student_rights_source_provenance.py
+  source_checker_code_sha256: f1fcc92d081f564ebf5e4392bef61f35f032e292b9bad225afb8a224190853fd
   reviewer_path: scripts/go_live/student_rights_reviewers.py
   reviewer_code_sha256: 8aa3f1fba52882b26151bad2c9cefbdcebd1be50a118e9d5ca32566019d1ebc9
   independent_verifier_path: scripts/go_live/check_delegated_student_rights_gate.py
-  independent_verifier_code_sha256: 8423d57b4d7d8aee1292390f13007c86135f17859624133355a91bc98ff63a87
+  independent_verifier_code_sha256: 180e89c9fbaef07c6f7fdd5e4d212978b63bacd04c16dfb2e593800ee9cc428b
   final_pr_base_sha: null
   final_pr_head_sha: null
   final_pr_tree_sha: null
 
 automated_reviewers:
   reviewer_a:
-    role: rights_license_restrictions_third_party_currentness_revocation
+    role: targeted_third_party_text_and_uncertain_segment_review
     agent_identity: nexus-reviewer-a-automated-v1
     model_id: granite3.2-vision:2b
     model_version: sha256:3be41a661804ad72cd08269816c5a145f1df6479ad07e2b3a7e29dba575d2669
@@ -50,7 +56,7 @@ automated_reviewers:
     prompt_sha256: 0fb7775b5abb89a03ab66c71c4e6a111b21d2c3f5c73cce4873d65fac202557b
     deterministic_parameters: {temperature: 0, seed: 17, num_ctx: 4096, num_predict: 320}
   reviewer_b:
-    role: student_suitability_pii_images_annexes_teacher_only_answer_keys
+    role: targeted_pii_and_uncertain_segment_review
     agent_identity: nexus-reviewer-b-automated-v1
     model_id: granite3.2-vision:2b
     model_version: sha256:3be41a661804ad72cd08269816c5a145f1df6479ad07e2b3a7e29dba575d2669
@@ -82,16 +88,25 @@ decision_contract:
   pending_allowed: false
   default_disposition: EXCLUDE
   decisions_required: 315
-  individual_positive_rights_evidence_required: true
-  exact_pdf_bytes_and_full_document_review_required: true
-  independent_dual_review_required: true
+  accepted_rights_proof_kinds: [INDIVIDUAL_EXPLICIT_LICENCE, SITEWIDE_DOWNLOAD_AUTHORITY]
+  exact_pdf_bytes_and_full_document_scan_required: true
+  original_pdf_public_allowed: false
+  derivative_text_sha_distinct_required: true
+  suspect_segments_excluded_without_reintegration_in_this_lot: true
+  targeted_independent_dual_review_required_if_reintegration_proposed: true
+  source_disposition_values: [REPLACE_WITH_NEW_CONTENT, EXCLUDE]
+  derivative_disposition_values: [APPROVE_PUBLIC, EXCLUDE]
+  source_sha_never_approve_public: true
+  attribution_and_date_required_per_passage: true
   missing_or_uncertain_evidence_disposition: EXCLUDE
   no_human_individual_pdf_review_claim: true
   output_sheet_generated_from_structured_evidence_only: true
   independent_verification_required: true
 
 final_activation_conditions:
-  - all_315_evidence_records_complete_and_verified
+  - all_315_source_scans_and_provenance_records_complete_and_verified
+  - all_public_derivative_evidence_records_complete_and_verified
+  - eleven_public_collections_nonempty
   - zero_pending_decisions
   - all_required_digests_sealed
   - independent_sabotage_tests_green
@@ -99,9 +114,9 @@ final_activation_conditions:
   - trusted_human_review_head_pinned_success
   - successor_public_release_separately_scoped_and_authorized
 non_authorizing_draft_note: >-
-  Le mandat scellé lie les codes, prompts, modèle et politique, mais sa valeur
-  effective_authority reste false jusqu'à l'approbation terminale exact-HEAD.
-  Les SHA de PR restent null ici pour éviter une auto-référence du commit ; le
-  challenge du vérificateur les lie au pack final. Ce mandat n'accorde aucun
-  droit d'accès étudiant et ne peut être interprété comme une revue humaine
-  des 315 PDF. La publication exige ensuite une release successeur gouvernée.
+  Le mandat lie les codes, la politique, l'autorité et l'extraction par leurs
+  empreintes exactes, mais effective_authority reste false jusqu'à la review
+  finale de l'autorité au HEAD exact de #300. Les SHA de PR restent null pour
+  éviter une auto-référence du commit : le challenge exact-HEAD les liera au
+  pack final. Aucune revue humaine individuelle des 315 PDF n'est revendiquée ;
+  la release publique successeur reste une étape distincte.

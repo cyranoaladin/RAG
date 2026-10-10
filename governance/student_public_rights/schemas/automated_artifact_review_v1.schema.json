@@ -1,386 +1,1108 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json",
-  "title": "Nexus delegated automated student public rights artifact review v1",
-  "description": "Faits et verdicts opposables pour un PDF exact ; aucune chaîne de pensée ni donnée personnelle brute.",
+  "title": "Nexus delegated student public source and text derivative review v2",
+  "description": "Décision sur le PDF source privé et dérivé textuel distinct ; aucune chaîne de pensée ni donnée personnelle brute.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "record_kind", "artifact_id", "content_sha256", "source_uri", "page_count",
-    "byte_size", "scan_complete", "images_and_annexes_checked", "page_scans",
-    "pdf_scan_evidence", "assembly_protocol", "text_assembly",
-    "source_verification", "source_receipt_sha256", "rights_basis", "rights_evidence_uri",
-    "license_or_terms_excerpt_hash", "evidence_pages", "third_party_status",
-    "pii_status", "currentness_status", "revocation_status", "student_suitability",
-    "restriction_signals", "checks", "reviewer_a", "reviewer_b",
-    "candidate_replays", "deterministic_rules_passed", "deterministic_policy_verdict",
-    "final_disposition", "reason_codes", "decision_executor", "delegation_id",
-    "individual_human_review_claimed", "bindings", "decided_at_utc"
+    "record_kind",
+    "artifact_id",
+    "content_sha256",
+    "source_uri",
+    "page_count",
+    "byte_size",
+    "scan_complete",
+    "images_and_annexes_checked",
+    "page_scans",
+    "pdf_scan_evidence",
+    "source_receipt_sha256",
+    "rights_basis",
+    "rights_authority_id",
+    "rights_authority_sha256",
+    "derivative_receipt_sha256",
+    "derivative_content_sha256",
+    "source_disposition",
+    "derivative_disposition",
+    "final_disposition",
+    "reason_codes",
+    "decision_executor",
+    "delegation_id",
+    "individual_human_review_claimed",
+    "bindings",
+    "decided_at_utc"
   ],
   "properties": {
-    "record_kind": {"const": "NEXUS_AUTOMATED_ARTIFACT_REVIEW_V1"},
-    "artifact_id": {"type": "string", "minLength": 1},
-    "content_sha256": {"$ref": "#/$defs/sha256"},
-    "source_uri": {"$ref": "#/$defs/httpsUri"},
-    "page_count": {"type": "integer", "minimum": 1},
-    "byte_size": {"type": "integer", "minimum": 1},
-    "scan_complete": {"type": "boolean"},
-    "images_and_annexes_checked": {"type": "boolean"},
+    "record_kind": {
+      "const": "NEXUS_AUTOMATED_ARTIFACT_REVIEW_V2"
+    },
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_uri": {
+      "$ref": "#/$defs/httpsUri"
+    },
+    "page_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "byte_size": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scan_complete": {
+      "type": "boolean"
+    },
+    "images_and_annexes_checked": {
+      "type": "boolean"
+    },
     "page_scans": {
-      "type": "array", "minItems": 1,
-      "items": {"$ref": "#/$defs/pageScan"}
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/pageScan"
+      }
     },
-    "pdf_scan_evidence": {"$ref": "#/$defs/pdfScanEvidence"},
-    "assembly_protocol": {"const": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"},
+    "pdf_scan_evidence": {
+      "$ref": "#/$defs/pdfScanEvidence"
+    },
+    "assembly_protocol": {
+      "const": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
+    },
     "text_assembly": {
-      "type": "array", "minItems": 1,
-      "items": {"$ref": "#/$defs/textAssemblyPage"}
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/textAssemblyPage"
+      }
     },
-    "source_verification": {"$ref": "#/$defs/sourceVerification"},
-    "source_receipt_sha256": {"$ref": "#/$defs/nullableSha256"},
+    "source_verification": {
+      "$ref": "#/$defs/sourceVerification"
+    },
+    "source_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
     "rights_basis": {
       "enum": [
         "NONE",
-        "NEXUS_FIRST_PARTY_OWNED_WITH_REGISTRY_PROOF",
-        "EXPLICIT_OPEN_LICENSE_WITH_EXACT_NOTICE",
-        "EXPLICIT_REUSE_TERMS_COVERING_THE_AUTHORIZED_USE",
-        "PUBLIC_DOMAIN_OR_EQUIVALENT_WITH_VERIFIABLE_BASIS"
+        "INDIVIDUAL_EXPLICIT_LICENCE",
+        "SITEWIDE_DOWNLOAD_AUTHORITY"
       ]
     },
-    "rights_evidence_uri": {"type": ["string", "null"], "minLength": 1},
-    "license_or_terms_excerpt_hash": {"$ref": "#/$defs/nullableSha256"},
-    "evidence_pages": {
-      "type": "array", "uniqueItems": true,
-      "items": {"type": "integer", "minimum": 1}
+    "rights_evidence_uri": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
     },
-    "third_party_status": {"enum": ["CLEARED_WITH_EVIDENCE", "RESTRICTED", "UNVERIFIABLE"]},
-    "pii_status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE"]},
-    "currentness_status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE"]},
-    "revocation_status": {"enum": ["PASS", "FAIL", "UNVERIFIABLE"]},
-    "student_suitability": {"enum": ["PASS", "FAIL", "UNVERIFIABLE"]},
+    "license_or_terms_excerpt_hash": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "evidence_pages": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "third_party_status": {
+      "enum": [
+        "CLEARED_WITH_EVIDENCE",
+        "RESTRICTED",
+        "UNVERIFIABLE"
+      ]
+    },
+    "pii_status": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "UNVERIFIABLE"
+      ]
+    },
+    "currentness_status": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "UNVERIFIABLE"
+      ]
+    },
+    "revocation_status": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "UNVERIFIABLE"
+      ]
+    },
+    "student_suitability": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "UNVERIFIABLE"
+      ]
+    },
     "restriction_signals": {
       "type": "array",
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["code", "pages"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "pages"
+        ],
         "properties": {
-          "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"},
-          "pages": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "pages": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         }
       }
     },
-    "checks": {"$ref": "#/$defs/checks"},
-    "reviewer_a": {"$ref": "#/$defs/reviewer"},
-    "reviewer_b": {"$ref": "#/$defs/reviewer"},
+    "checks": {
+      "$ref": "#/$defs/checks"
+    },
+    "reviewer_a": {
+      "$ref": "#/$defs/reviewer"
+    },
+    "reviewer_b": {
+      "$ref": "#/$defs/reviewer"
+    },
     "candidate_replays": {
-      "type": "array", "maxItems": 2,
+      "type": "array",
+      "maxItems": 2,
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["run_index", "run_nonce", "reviewer_a_observation_sha256", "reviewer_b_observation_sha256", "reviewer_a_context_sha256", "reviewer_b_context_sha256", "reviewer_a_evidence_refs", "reviewer_b_evidence_refs", "candidate_verdict"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "run_index",
+          "run_nonce",
+          "reviewer_a_observation_sha256",
+          "reviewer_b_observation_sha256",
+          "reviewer_a_context_sha256",
+          "reviewer_b_context_sha256",
+          "reviewer_a_evidence_refs",
+          "reviewer_b_evidence_refs",
+          "candidate_verdict"
+        ],
         "properties": {
-          "run_index": {"type": "integer", "minimum": 1, "maximum": 2},
-          "run_nonce": {"type": "integer", "minimum": 0, "maximum": 1},
-          "reviewer_a_observation_sha256": {"$ref": "#/$defs/sha256"},
-          "reviewer_b_observation_sha256": {"$ref": "#/$defs/sha256"},
-          "reviewer_a_context_sha256": {"$ref": "#/$defs/sha256"},
-          "reviewer_b_context_sha256": {"$ref": "#/$defs/sha256"},
-          "reviewer_a_evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
-          "reviewer_b_evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
-          "candidate_verdict": {"enum": ["PASS", "FAIL"]}
+          "run_index": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "run_nonce": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "reviewer_a_observation_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "reviewer_b_observation_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "reviewer_a_context_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "reviewer_b_context_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "reviewer_a_evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "reviewer_b_evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          },
+          "candidate_verdict": {
+            "enum": [
+              "PASS",
+              "FAIL"
+            ]
+          }
         }
       }
     },
     "deterministic_rules_passed": {
-      "type": "array", "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
-    },
-    "deterministic_policy_verdict": {"enum": ["PASS", "FAIL"]},
-    "final_disposition": {"enum": ["APPROVE_PUBLIC", "EXCLUDE", "REPLACE_WITH_NEW_CONTENT"]},
-    "reason_codes": {
-      "type": "array", "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]*$"}
-    },
-    "replacement": {
-      "type": ["object", "null"], "additionalProperties": false,
-      "required": ["new_content_sha256", "qualified_substitute_evidence_uri", "full_new_artifact_pipeline_pass"],
-      "properties": {
-        "new_content_sha256": {"$ref": "#/$defs/sha256"},
-        "qualified_substitute_evidence_uri": {"type": "string", "minLength": 1},
-        "full_new_artifact_pipeline_pass": {"const": true}
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
       }
     },
-    "decision_executor": {"type": "string", "minLength": 1},
-    "delegation_id": {"const": "nexus-student-public-rights-abenrhouma-20261009-v1"},
-    "individual_human_review_claimed": {"const": false},
-    "bindings": {"$ref": "#/$defs/bindings"},
-    "decided_at_utc": {"$ref": "#/$defs/utcTimestamp"}
+    "deterministic_policy_verdict": {
+      "enum": [
+        "PASS",
+        "FAIL"
+      ]
+    },
+    "final_disposition": {
+      "enum": [
+        "EXCLUDE",
+        "REPLACE_WITH_NEW_CONTENT"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      }
+    },
+    "replacement": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "new_content_sha256"
+      ],
+      "properties": {
+        "new_content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qualified_substitute_evidence_uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "full_new_artifact_pipeline_pass": {
+          "type": "boolean"
+        }
+      }
+    },
+    "decision_executor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "delegation_id": {
+      "const": "nexus-student-public-rights-abenrhouma-20261009-v1"
+    },
+    "individual_human_review_claimed": {
+      "const": false
+    },
+    "bindings": {
+      "$ref": "#/$defs/bindings"
+    },
+    "decided_at_utc": {
+      "$ref": "#/$defs/utcTimestamp"
+    },
+    "rights_authority_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "rights_authority_sha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "derivative_receipt_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "derivative_content_sha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "source_disposition": {
+      "enum": [
+        "EXCLUDE",
+        "REPLACE_WITH_NEW_CONTENT"
+      ]
+    },
+    "derivative_disposition": {
+      "enum": [
+        "EXCLUDE",
+        "APPROVE_PUBLIC"
+      ]
+    }
   },
   "allOf": [
     {
-      "if": {"properties": {"final_disposition": {"const": "APPROVE_PUBLIC"}}, "required": ["final_disposition"]},
-      "then": {
+      "if": {
         "properties": {
-          "rights_evidence_uri": {"type": "string", "minLength": 1},
-          "license_or_terms_excerpt_hash": {"$ref": "#/$defs/sha256"},
-          "evidence_pages": {"minItems": 1},
-          "scan_complete": {"const": true},
-          "images_and_annexes_checked": {"const": true},
-          "rights_basis": {"not": {"const": "NONE"}},
-          "third_party_status": {"const": "CLEARED_WITH_EVIDENCE"},
-          "pii_status": {"const": "PASS"},
-          "currentness_status": {"const": "PASS"},
-          "revocation_status": {"const": "PASS"},
-          "student_suitability": {"const": "PASS"},
-          "deterministic_policy_verdict": {"const": "PASS"},
-          "source_verification": {
-            "properties": {
-              "status": {"const": "VERIFIED"},
-              "exact_pdf_uri": {"$ref": "#/$defs/httpsUri"},
-              "remote_pdf_sha256": {"$ref": "#/$defs/sha256"},
-              "terms_uri": {"$ref": "#/$defs/httpsUri"},
-              "terms_sha256": {"$ref": "#/$defs/sha256"},
-              "source_last_updated_at_utc": {"$ref": "#/$defs/utcTimestamp"},
-              "revocation_evidence_uri": {"type": "string", "minLength": 1}
-            }
-          },
-          "checks": {
-            "properties": {
-              "exact_bytes_match": {"const": true},
-              "full_document_scan_complete": {"const": true},
-              "annexes_scan_complete": {"const": true},
-              "explicit_rights_basis_present": {"const": true},
-              "reuse_scope_covers_student_retrieval_excerpt": {"const": true},
-              "source_exact_document_match": {"const": true},
-              "pii_gate_pass": {"const": true},
-              "currentness_gate_pass": {"const": true},
-              "revocation_gate_pass": {"const": true},
-              "student_suitability_pass": {"const": true},
-              "restrictive_notice_detected": {"const": false},
-              "teacher_only_detected": {"const": false},
-              "non_disclosure_instruction_detected": {"const": false},
-              "unlicensed_third_party_content_detected": {"const": false}
-            }
-          },
-          "reviewer_a": {"properties": {"verdict": {"const": "PASS"}, "complete": {"const": true}, "confidence": {"const": "HIGH"}}},
-          "reviewer_b": {"properties": {"verdict": {"const": "PASS"}, "complete": {"const": true}, "confidence": {"const": "HIGH"}}},
-          "candidate_replays": {"minItems": 2, "maxItems": 2}
+          "source_disposition": {
+            "const": "REPLACE_WITH_NEW_CONTENT"
+          }
+        },
+        "required": [
+          "source_disposition"
+        ]
+      },
+      "then": {
+        "required": [
+          "replacement"
+        ],
+        "properties": {
+          "replacement": {
+            "type": "object"
+          }
         }
       }
     },
     {
-      "if": {"properties": {"final_disposition": {"const": "REPLACE_WITH_NEW_CONTENT"}}, "required": ["final_disposition"]},
-      "then": {"required": ["replacement"], "properties": {"replacement": {"type": "object"}}}
-    },
-    {
-      "if": {"properties": {"final_disposition": {"const": "EXCLUDE"}}, "required": ["final_disposition"]},
-      "then": {"properties": {"reason_codes": {"minItems": 1}}}
-    },
-    {
-      "if": {"properties": {"content_sha256": {"const": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6"}}, "required": ["content_sha256"]},
+      "if": {
+        "properties": {
+          "source_disposition": {
+            "const": "EXCLUDE"
+          }
+        },
+        "required": [
+          "source_disposition"
+        ]
+      },
       "then": {
         "properties": {
-          "final_disposition": {"const": "EXCLUDE"},
-          "student_suitability": {"const": "FAIL"},
-          "evidence_pages": {"contains": {"const": 3}},
-          "reason_codes": {"contains": {"const": "TEACHER_NON_DISCLOSURE_INSTRUCTION"}}
+          "reason_codes": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "derivative_disposition": {
+            "const": "APPROVE_PUBLIC"
+          }
+        },
+        "required": [
+          "derivative_disposition"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_disposition": {
+            "const": "REPLACE_WITH_NEW_CONTENT"
+          },
+          "source_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "derivative_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "derivative_content_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "rights_authority_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rights_authority_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "rights_basis": {
+            "enum": [
+              "INDIVIDUAL_EXPLICIT_LICENCE",
+              "SITEWIDE_DOWNLOAD_AUTHORITY"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "content_sha256": {
+            "const": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6"
+          }
+        },
+        "required": [
+          "content_sha256"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_disposition": {
+            "const": "EXCLUDE"
+          },
+          "derivative_disposition": {
+            "const": "EXCLUDE"
+          },
+          "final_disposition": {
+            "const": "EXCLUDE"
+          },
+          "student_suitability": {
+            "const": "FAIL"
+          },
+          "evidence_pages": {
+            "contains": {
+              "const": 3
+            }
+          },
+          "reason_codes": {
+            "contains": {
+              "const": "TEACHER_NON_DISCLOSURE_INSTRUCTION"
+            }
+          }
         }
       }
     }
   ],
   "$defs": {
-    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "nullableSha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
-    "httpsUri": {"type": "string", "pattern": "^https://[^ ]+$"},
-    "utcTimestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableSha256": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "httpsUri": {
+      "type": "string",
+      "pattern": "^https://[^ ]+$"
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
     "textAssemblyPage": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "page_number", "assembly_protocol", "extracted_text_sha256",
-        "ocr_full_sha256", "ocr_residual_sha256",
-        "ocr_exact_duplicate_lines_removed", "segment_count", "visual_segment_indices"
+        "page_number",
+        "assembly_protocol",
+        "extracted_text_sha256",
+        "ocr_full_sha256",
+        "ocr_residual_sha256",
+        "ocr_exact_duplicate_lines_removed",
+        "segment_count",
+        "visual_segment_indices"
       ],
       "properties": {
-        "page_number": {"type": "integer", "minimum": 1},
-        "assembly_protocol": {"const": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"},
-        "extracted_text_sha256": {"$ref": "#/$defs/sha256"},
-        "ocr_full_sha256": {"$ref": "#/$defs/sha256"},
-        "ocr_residual_sha256": {"$ref": "#/$defs/sha256"},
-        "ocr_exact_duplicate_lines_removed": {"type": "integer", "minimum": 0},
-        "segment_count": {"type": "integer", "minimum": 1},
-        "visual_segment_indices": {
-          "type": "array", "uniqueItems": true,
-          "items": {"type": "integer", "minimum": 1}
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
         },
-        "xmp_full_sha256": {"$ref": "#/$defs/sha256"},
-        "xmp_projection_sha256": {"$ref": "#/$defs/sha256"},
-        "xmp_unique_value_count": {"type": "integer", "minimum": 0},
-        "xmp_duplicate_value_count": {"type": "integer", "minimum": 0},
-        "xmp_embedded_image_count": {"type": "integer", "minimum": 0},
+        "assembly_protocol": {
+          "const": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
+        },
+        "extracted_text_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ocr_full_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ocr_residual_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "ocr_exact_duplicate_lines_removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "segment_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "visual_segment_indices": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "xmp_full_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "xmp_projection_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "xmp_unique_value_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "xmp_duplicate_value_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "xmp_embedded_image_count": {
+          "type": "integer",
+          "minimum": 0
+        },
         "xmp_embedded_image_sha256": {
-          "type": "array", "items": {"$ref": "#/$defs/sha256"}
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
         }
       }
     },
     "pageScan": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "page_number", "text_sha256", "render_sha256", "ocr_sha256",
-        "graphics_detected", "render_required", "render_inspected", "annex_page",
+        "page_number",
+        "text_sha256",
+        "render_sha256",
+        "ocr_sha256",
+        "graphics_detected",
+        "render_required",
+        "render_inspected",
+        "annex_page",
         "scan_complete"
       ],
       "properties": {
-        "page_number": {"type": "integer", "minimum": 1},
-        "text_sha256": {"$ref": "#/$defs/sha256"},
-        "render_sha256": {"$ref": "#/$defs/nullableSha256"},
-        "ocr_sha256": {"$ref": "#/$defs/nullableSha256"},
-        "graphics_detected": {"type": "boolean"},
-        "render_required": {"type": "boolean"},
-        "render_inspected": {"type": "boolean"},
-        "annex_page": {"type": "boolean"},
-        "scan_complete": {"type": "boolean"}
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "render_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "ocr_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "graphics_detected": {
+          "type": "boolean"
+        },
+        "render_required": {
+          "type": "boolean"
+        },
+        "render_inspected": {
+          "type": "boolean"
+        },
+        "annex_page": {
+          "type": "boolean"
+        },
+        "scan_complete": {
+          "type": "boolean"
+        }
       }
     },
     "pdfScanEvidence": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "scanner_kind", "renderer_version", "content_sha256", "exact_bytes_match",
-        "file_size_bytes", "page_count", "expected_page_count",
-        "full_document_scan_complete", "annexes_scan_complete",
-        "images_and_annexes_checked", "embedded_file_count", "metadata_sha256", "pages"
+        "scanner_kind",
+        "renderer_version",
+        "content_sha256",
+        "exact_bytes_match",
+        "file_size_bytes",
+        "page_count",
+        "expected_page_count",
+        "full_document_scan_complete",
+        "annexes_scan_complete",
+        "images_and_annexes_checked",
+        "embedded_file_count",
+        "metadata_sha256",
+        "pages"
       ],
       "properties": {
-        "scanner_kind": {"const": "NEXUS-STUDENT-RIGHTS-PDF-SCAN-V1"},
-        "renderer_version": {"type": "string", "minLength": 1},
-        "content_sha256": {"$ref": "#/$defs/sha256"},
-        "exact_bytes_match": {"const": true},
-        "file_size_bytes": {"type": "integer", "minimum": 1},
-        "page_count": {"type": "integer", "minimum": 1},
-        "expected_page_count": {"type": "integer", "minimum": 1},
-        "full_document_scan_complete": {"const": true},
-        "annexes_scan_complete": {"const": true},
-        "images_and_annexes_checked": {"const": true},
-        "embedded_file_count": {"const": 0},
-        "metadata_sha256": {"$ref": "#/$defs/sha256"},
-        "pages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pdfScanPage"}}
+        "scanner_kind": {
+          "const": "NEXUS-STUDENT-RIGHTS-PDF-SCAN-V1"
+        },
+        "renderer_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "exact_bytes_match": {
+          "const": true
+        },
+        "file_size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "full_document_scan_complete": {
+          "const": true
+        },
+        "annexes_scan_complete": {
+          "const": true
+        },
+        "images_and_annexes_checked": {
+          "const": true
+        },
+        "embedded_file_count": {
+          "const": 0
+        },
+        "metadata_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/pdfScanPage"
+          }
+        }
       }
     },
     "pdfScanPage": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "page_number", "text_sha256", "text_character_count",
-        "raster_image_count", "vector_drawing_count", "annotation_count",
-        "annotations_sha256", "link_count", "links_sha256", "render_sha256",
-        "render_scale", "ocr_required", "ocr_complete", "ocr_sha256", "annex_page"
+        "page_number",
+        "text_sha256",
+        "text_character_count",
+        "raster_image_count",
+        "vector_drawing_count",
+        "annotation_count",
+        "annotations_sha256",
+        "link_count",
+        "links_sha256",
+        "render_sha256",
+        "render_scale",
+        "ocr_required",
+        "ocr_complete",
+        "ocr_sha256",
+        "annex_page"
       ],
       "properties": {
-        "page_number": {"type": "integer", "minimum": 1},
-        "text_sha256": {"$ref": "#/$defs/sha256"},
-        "text_character_count": {"type": "integer", "minimum": 0},
-        "raster_image_count": {"type": "integer", "minimum": 0},
-        "vector_drawing_count": {"type": "integer", "minimum": 0},
-        "annotation_count": {"type": "integer", "minimum": 0},
-        "annotations_sha256": {"$ref": "#/$defs/sha256"},
-        "link_count": {"type": "integer", "minimum": 0},
-        "links_sha256": {"$ref": "#/$defs/sha256"},
-        "render_sha256": {"$ref": "#/$defs/nullableSha256"},
-        "render_scale": {"type": ["number", "null"], "exclusiveMinimum": 0},
-        "ocr_required": {"type": "boolean"},
-        "ocr_complete": {"type": "boolean"},
-        "ocr_sha256": {"$ref": "#/$defs/nullableSha256"},
-        "annex_page": {"type": "boolean"}
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "text_character_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "raster_image_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vector_drawing_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "annotation_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "annotations_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "link_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "links_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "render_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "render_scale": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "ocr_required": {
+          "type": "boolean"
+        },
+        "ocr_complete": {
+          "type": "boolean"
+        },
+        "ocr_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "annex_page": {
+          "type": "boolean"
+        }
       }
     },
     "sourceVerification": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "status", "listing_uri", "exact_pdf_uri", "final_uri", "http_status",
-        "observed_at_utc", "etag", "last_modified", "remote_pdf_sha256",
-        "terms_uri", "terms_sha256", "terms_observed_at_utc",
-        "source_last_updated_at_utc", "revocation_evidence_uri"
+        "status",
+        "listing_uri",
+        "exact_pdf_uri",
+        "final_uri",
+        "http_status",
+        "observed_at_utc",
+        "etag",
+        "last_modified",
+        "remote_pdf_sha256",
+        "terms_uri",
+        "terms_sha256",
+        "terms_observed_at_utc",
+        "source_last_updated_at_utc",
+        "revocation_evidence_uri"
       ],
       "properties": {
-        "status": {"enum": ["VERIFIED", "UNVERIFIABLE", "MISMATCH", "REVOKED"]},
-        "listing_uri": {"$ref": "#/$defs/httpsUri"},
-        "exact_pdf_uri": {"anyOf": [{"$ref": "#/$defs/httpsUri"}, {"type": "null"}]},
-        "final_uri": {"anyOf": [{"$ref": "#/$defs/httpsUri"}, {"type": "null"}]},
-        "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
-        "observed_at_utc": {"$ref": "#/$defs/utcTimestamp"},
-        "etag": {"type": ["string", "null"]},
-        "last_modified": {"type": ["string", "null"]},
-        "remote_pdf_sha256": {"$ref": "#/$defs/nullableSha256"},
-        "terms_uri": {"anyOf": [{"$ref": "#/$defs/httpsUri"}, {"type": "null"}]},
-        "terms_sha256": {"$ref": "#/$defs/nullableSha256"},
-        "terms_observed_at_utc": {"anyOf": [{"$ref": "#/$defs/utcTimestamp"}, {"type": "null"}]},
-        "source_last_updated_at_utc": {"anyOf": [{"$ref": "#/$defs/utcTimestamp"}, {"type": "null"}]},
-        "revocation_evidence_uri": {"type": ["string", "null"], "minLength": 1}
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "UNVERIFIABLE",
+            "MISMATCH",
+            "REVOKED"
+          ]
+        },
+        "listing_uri": {
+          "$ref": "#/$defs/httpsUri"
+        },
+        "exact_pdf_uri": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/httpsUri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "final_uri": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/httpsUri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "http_status": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 100,
+          "maximum": 599
+        },
+        "observed_at_utc": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "etag": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "last_modified": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remote_pdf_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "terms_uri": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/httpsUri"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "terms_sha256": {
+          "$ref": "#/$defs/nullableSha256"
+        },
+        "terms_observed_at_utc": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/utcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_last_updated_at_utc": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/utcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revocation_evidence_uri": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        }
       }
     },
     "checks": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "exact_bytes_match", "full_document_scan_complete", "annexes_scan_complete",
-        "explicit_rights_basis_present", "reuse_scope_covers_student_retrieval_excerpt",
-        "source_exact_document_match", "pii_gate_pass", "currentness_gate_pass",
-        "revocation_gate_pass", "student_suitability_pass", "restrictive_notice_detected",
-        "teacher_only_detected", "non_disclosure_instruction_detected",
+        "exact_bytes_match",
+        "full_document_scan_complete",
+        "annexes_scan_complete",
+        "explicit_rights_basis_present",
+        "reuse_scope_covers_student_retrieval_excerpt",
+        "source_exact_document_match",
+        "pii_gate_pass",
+        "currentness_gate_pass",
+        "revocation_gate_pass",
+        "student_suitability_pass",
+        "restrictive_notice_detected",
+        "teacher_only_detected",
+        "non_disclosure_instruction_detected",
         "unlicensed_third_party_content_detected"
       ],
       "properties": {
-        "exact_bytes_match": {"type": ["boolean", "null"]},
-        "full_document_scan_complete": {"type": ["boolean", "null"]},
-        "annexes_scan_complete": {"type": ["boolean", "null"]},
-        "explicit_rights_basis_present": {"type": ["boolean", "null"]},
-        "reuse_scope_covers_student_retrieval_excerpt": {"type": ["boolean", "null"]},
-        "source_exact_document_match": {"type": ["boolean", "null"]},
-        "pii_gate_pass": {"type": ["boolean", "null"]},
-        "currentness_gate_pass": {"type": ["boolean", "null"]},
-        "revocation_gate_pass": {"type": ["boolean", "null"]},
-        "student_suitability_pass": {"type": ["boolean", "null"]},
-        "restrictive_notice_detected": {"type": ["boolean", "null"]},
-        "teacher_only_detected": {"type": ["boolean", "null"]},
-        "non_disclosure_instruction_detected": {"type": ["boolean", "null"]},
-        "unlicensed_third_party_content_detected": {"type": ["boolean", "null"]}
+        "exact_bytes_match": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "full_document_scan_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "annexes_scan_complete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "explicit_rights_basis_present": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reuse_scope_covers_student_retrieval_excerpt": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "source_exact_document_match": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "pii_gate_pass": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "currentness_gate_pass": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "revocation_gate_pass": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "student_suitability_pass": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "restrictive_notice_detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "teacher_only_detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "non_disclosure_instruction_detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "unlicensed_third_party_content_detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       }
     },
     "reviewer": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "identity", "model_id", "model_version", "prompt_sha256", "parameters_sha256",
-        "verdict", "complete", "confidence", "pages_covered", "context_sha256",
-        "observation_sha256", "evidence_refs"
+        "identity",
+        "model_id",
+        "model_version",
+        "prompt_sha256",
+        "parameters_sha256",
+        "verdict",
+        "complete",
+        "confidence",
+        "pages_covered",
+        "context_sha256",
+        "observation_sha256",
+        "evidence_refs"
       ],
       "properties": {
-        "identity": {"type": "string", "minLength": 1},
-        "model_id": {"type": "string", "minLength": 1},
-        "model_version": {"type": "string", "minLength": 1},
-        "prompt_sha256": {"$ref": "#/$defs/sha256"},
-        "parameters_sha256": {"$ref": "#/$defs/sha256"},
-        "verdict": {"enum": ["PASS", "FAIL"]},
-        "complete": {"type": "boolean"},
-        "confidence": {"enum": ["HIGH", "LOW", "UNKNOWN"]},
-        "pages_covered": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
-        "context_sha256": {"$ref": "#/$defs/sha256"},
-        "observation_sha256": {"$ref": "#/$defs/sha256"},
-        "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prompt_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "parameters_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "enum": [
+            "HIGH",
+            "LOW",
+            "UNKNOWN"
+          ]
+        },
+        "pages_covered": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "context_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
       }
     },
     "bindings": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "inventory_sha256", "policy_sha256", "mandate_sha256", "schema_sha256",
-        "engine_code_sha256", "scanner_code_sha256", "source_checker_code_sha256",
-        "reviewer_code_sha256", "pdf_sha256"
+        "inventory_sha256",
+        "policy_sha256",
+        "mandate_sha256",
+        "schema_sha256",
+        "engine_code_sha256",
+        "scanner_code_sha256",
+        "source_checker_code_sha256",
+        "reviewer_code_sha256",
+        "pdf_sha256",
+        "rights_authority_sha256",
+        "text_derivative_extraction_policy_sha256",
+        "derivative_builder_code_sha256"
       ],
       "properties": {
-        "inventory_sha256": {"$ref": "#/$defs/sha256"},
-        "policy_sha256": {"$ref": "#/$defs/sha256"},
-        "mandate_sha256": {"$ref": "#/$defs/sha256"},
-        "schema_sha256": {"$ref": "#/$defs/sha256"},
-        "engine_code_sha256": {"$ref": "#/$defs/sha256"},
-        "scanner_code_sha256": {"$ref": "#/$defs/sha256"},
-        "source_checker_code_sha256": {"$ref": "#/$defs/sha256"},
-        "reviewer_code_sha256": {"$ref": "#/$defs/sha256"},
-        "pdf_sha256": {"$ref": "#/$defs/sha256"}
+        "inventory_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "policy_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "mandate_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "schema_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "engine_code_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scanner_code_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_checker_code_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reviewer_code_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pdf_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rights_authority_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "text_derivative_extraction_policy_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "derivative_builder_code_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     }
   }

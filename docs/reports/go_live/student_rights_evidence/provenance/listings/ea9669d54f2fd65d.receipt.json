@@ -1,0 +1,40 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "ea9669d54f2fd65d.extracted.txt",
+  "extracted_text_sha256": "54cce46db43ef7d616bfb1b50590c5f80e5f7b43bb5d9bbbb8fe6aac6a76f371",
+  "final_url": "https://eduscol.education.gouv.fr/6660/ressources-pedagogiques-pour-mieux-connaitre-l-europe",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "ea9669d54f2fd65d.normalized.html",
+  "normalized_html_sha256": "d38d014adc8abef068b06f247ffb3b1c113befb6faf56fd7a31431d30dc654ed",
+  "observed_at_utc": "2026-10-10T06:03:46.292Z",
+  "pdf_link_count": 4,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/la-place-de-l-europe-et-de-l-union-europeenne-ue-dans-les-programmes-d-enseignement-70242.pdf",
+      "label": "La place de l’Europe et de l’Union européenne (UE) dans les programmes d’enseignement PDF - 258.18 Ko",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/europe-pistes-pedagogiquesecolepdf-70236.pdf",
+      "label": "Pistes pédagogiques pour l'école PDF - 560.98 Ko",
+      "occurrence_index": 1
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/europe-pistes-pedagogiquescollegepdf-70233.pdf",
+      "label": "Pistes pédagogiques pour le collège PDF - 596.72 Ko",
+      "occurrence_index": 2
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/europe-pistes-pedagogiqueslyceepdf-70239.pdf",
+      "label": "Pistes pédagogiques pour le lycée PDF - 600.54 Ko",
+      "occurrence_index": 3
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/6660/ressources-pedagogiques-pour-mieux-connaitre-l-europe",
+  "screenshot_file": "ea9669d54f2fd65d.png",
+  "screenshot_sha256": "c9692f8592160b130f53d182566e63e1a71969aa899ebffc9a96e4d31e04d957"
+}
