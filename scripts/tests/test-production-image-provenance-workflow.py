@@ -88,7 +88,7 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
         self.assertEqual(cockpit["with"]["file"], "services/cockpit/Dockerfile")
         self.assertIs(cockpit["with"]["push"], True)
 
-    def test_cuda_ingestor_is_opt_in_and_uses_a_distinct_immutable_tag(self) -> None:
+    def test_cuda_ingestor_is_opt_in_and_uses_a_distinct_commit_tag(self) -> None:
         inputs = self.workflow[True]["workflow_dispatch"]["inputs"]
         self.assertEqual(inputs["cuda_ingestor"]["type"], "boolean")
         self.assertIs(inputs["cuda_ingestor"]["default"], False)
