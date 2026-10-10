@@ -281,6 +281,13 @@ def _require_qualified_claim_scope(
 
 
 def main(argv: list[str] | None = None) -> int:
+    effective_argv = sys.argv[1:] if argv is None else argv
+    if "--public-successor-bundle-root" in effective_argv:
+        # A/C a son inventaire de dérivés et ses droits propres ; le chargeur
+        # PDF multi-niveaux historique ne doit jamais interpréter ces octets.
+        from .public_text_publication_resume_cli import main_public
+
+        return main_public(effective_argv)
     args = _build_arg_parser().parse_args(argv)
     try:
         # ADR-0060 : une readiness de STAGING qualifie une release nommée ; la
@@ -464,6 +471,7 @@ def _run_worker_loop(
     iterate: Callable[..., PublicationResumeOutcome] = run_publication_resume_iteration,
     sleep: Callable[[float], None] = time.sleep,
     monotonic: Callable[[], float] = time.monotonic,
+    pre_iteration: Callable[[], None] | None = None,
 ) -> int:
     """La boucle de Worker B, séparée de son démarrage pour être éprouvée.
 
@@ -480,6 +488,10 @@ def _run_worker_loop(
             pause = args.min_job_interval_s - (monotonic() - last_claim_at)
             if pause > 0:
                 sleep(pause)
+        if pre_iteration is not None:
+            # La première mutation de la boucle est le reap du bail. C et la
+            # readiness signée doivent être frais après toute attente.
+            pre_iteration()
         if deps.claim_release_id is None:
             reap_expired_job_leases(conn)
         else:
