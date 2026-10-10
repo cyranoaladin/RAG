@@ -9,9 +9,12 @@ réelle ni digest d'autorité n'a été émis.
 
 1. `capture` observe en lecture seule l'hôte, son machine-id haché, un conteneur
    Docker courant, le `system_identifier` et le nom de la base PostgreSQL
-   atteinte, ainsi que le realpath de destination. Une adresse PostgreSQL native
+   atteinte, ainsi que le realpath, le device et l'inode de destination.
+   Une adresse PostgreSQL native
    de l'hôte, une socket ou un autre conteneur sont refusés. La capture produit
    un JSON canonique de validité maximale 24 h, explicitement **non approuvé**.
+   Le parent de sortie doit exister, sans symlink ; la création utilise
+   `O_NOFOLLOW|O_EXCL` et refuse aussi un symlink cassé.
 2. Le JSON doit être commité sous `governance/staging_target_pins/*.json` dans
    une PR soumise à la review GitHub canonique `trusted_human_review_github`.
    La review `abenrhouma` doit porter sur le base/head/challenge exacts et son
@@ -33,17 +36,31 @@ l'exécution trusted pré-fusion pour appliquer le vérificateur canonique ; le
 reste provient de GitHub actuel. La review, son ID, son challenge, le statut
 trusted réussi avant merge, le run et sa tentative, le tree
 approuvé/fusionné, le blob du pin au HEAD approuvé et dans le `main` actuel
-sont tous relus. Le `main` du checkout doit coïncider avec le `main` GitHub
-live et descendre du merge. La cible hôte/Docker/PostgreSQL est relue enfin.
+sont tous relus. Le parent du squash merge doit être le `base_sha` historique
+qui portait le challenge : une avancée B2 de `main`, même vide et sans changement
+de tree, invalide donc le reçu. Le `main` du checkout doit coïncider avec le
+`main` GitHub live et descendre du merge. La cible hôte/Docker/PostgreSQL et
+son device/inode sont relus enfin, y compris après les appels GitHub avant
+émission du digest. Les fonctions d'identité SQL sont qualifiées par
+`pg_catalog` et la connexion force un search_path sûr.
 Le reçu seul reste explicitement hors autorité de publication.
 
-Vérification locale sur fixtures synthétiques : 91 tests ciblés passent,
+Vérification locale sur fixtures synthétiques : 100 tests ciblés passent,
 `ruff` passe.
 Les sabotages couvrent digest, ancre A, hôte, machine-id, conteneur, base,
 chemin, symlink, expiration, review/HEAD/base/challenge et blob substitué. Ce
 résultat ne vaut pas qualification d'une cible réelle. Le test d'intégration
 Git crée une histoire approuvée→fusionnée→main avancé ; le rejeu conserve le
 `base_sha` historique lié au run même si l'API PR expose une base ultérieure.
+Les cinq sabotages de la contre-revue initiale sont couverts : expiration
+après GitHub, search_path usurpé, squash merge avec B2 vide, remplacement de
+répertoire au même realpath et symlink cassé sur la sortie.
+
+Compatibilité à intégrer dans #325 avant usage : le pin V1 n'a jamais été émis,
+mais son schéma gagne `destination_device` et `destination_inode`. Le parseur
+du transfert qualifié V2 et la vérification C doivent accepter et comparer
+ces champs ; l'ancien parseur doit rester rouge tant que cette mise à jour
+n'est pas fusionnée. `target_identity=docker:<64hex>` ne change pas.
 
 Prochaines conditions factuelles : cible staging finale créée et identifiée,
 DSN read-only vers son PostgreSQL conteneurisé disponible par variable

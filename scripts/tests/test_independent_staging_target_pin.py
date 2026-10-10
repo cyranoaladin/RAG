@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "go_live"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "github"))
 from independent_staging_target_pin import (  # noqa: E402
     LiveTargetObservation,
     PinRefused,
@@ -35,6 +36,7 @@ BASE = "d" * 40
 def fixture(tmp_path: Path) -> tuple[bytes, Path, LiveTargetObservation]:
     destination = tmp_path / "destination"
     destination.mkdir()
+    physical = destination.stat()
     pin = {
         "kind": "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1",
         "content_anchor_sha256": ANCHOR,
@@ -45,6 +47,8 @@ def fixture(tmp_path: Path) -> tuple[bytes, Path, LiveTargetObservation]:
         "postgres_system_identifier": "12345678901234567890",
         "database_name": "nexus_rag",
         "destination_realpath": str(destination),
+        "destination_device": physical.st_dev,
+        "destination_inode": physical.st_ino,
         "pinned_at_utc": (NOW - timedelta(minutes=10)).isoformat().replace("+00:00", "Z"),
         "expires_at_utc": (NOW + timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
     }
@@ -55,6 +59,8 @@ def fixture(tmp_path: Path) -> tuple[bytes, Path, LiveTargetObservation]:
         postgres_system_identifier="12345678901234567890",
         database_name="nexus_rag",
         destination_realpath=str(destination),
+        destination_device=physical.st_dev,
+        destination_inode=physical.st_ino,
     )
     return canonical(pin), destination, observation
 
@@ -101,8 +107,10 @@ def test_pin_matches_live_target_and_approved_head(tmp_path: Path) -> None:
     ("postgres_system_identifier", "1"),
     ("database_name", "native_postgres"),
     ("destination_realpath", "/other/path"),
+    ("destination_device", -1),
+    ("destination_inode", -1),
 ])
-def test_live_identity_sabotage_refused(tmp_path: Path, field: str, value: str) -> None:
+def test_live_identity_sabotage_refused(tmp_path: Path, field: str, value: object) -> None:
     raw, destination, observation = fixture(tmp_path)
     with pytest.raises(PinRefused):
         verify_target_pin(raw, expected_sha256=hashlib.sha256(raw).hexdigest(),
@@ -226,3 +234,103 @@ def test_github_transport_failure_refuses_without_leaking_error(
     assert result == 1
     assert calls == [True]
     assert "private-dsn-never-print" not in captured.err + captured.out
+
+
+def test_replaced_directory_same_realpath_cannot_reuse_pin(tmp_path: Path) -> None:
+    raw, destination, observation = fixture(tmp_path)
+    replacement = tmp_path / "previous"
+    destination.rename(replacement)
+    destination.mkdir()
+    assert destination.stat().st_ino != replacement.stat().st_ino
+    with pytest.raises(PinRefused):
+        verify_target_pin(raw, expected_sha256=hashlib.sha256(raw).hexdigest(),
+                          expected_content_anchor_sha256=ANCHOR,
+                          destination_root=destination, observation=observation, now=NOW)
+
+
+def test_sql_identity_functions_are_schema_qualified() -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    sql = getattr(module, "IDENTITY_SQL", "")
+    assert "pg_catalog.pg_control_system()" in sql
+    assert "pg_catalog.current_database()" in sql
+    assert "pg_catalog.inet_server_addr()" in sql
+    assert "::pg_catalog.text" in sql
+
+
+def test_capture_output_does_not_follow_broken_symlink_or_parent(
+    tmp_path: Path,
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    outside = tmp_path / "outside.json"
+    link = tmp_path / "link.json"
+    link.symlink_to(outside)
+    with pytest.raises(PinRefused):
+        module._write_new_file(link, b"unapproved pin")
+    assert not outside.exists()
+    real_parent = tmp_path / "parent"
+    real_parent.mkdir()
+    parent_link = tmp_path / "parent-link"
+    parent_link.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(PinRefused):
+        module._write_new_file(parent_link / "pin.json", b"unapproved pin")
+    assert not (real_parent / "pin.json").exists()
+
+
+def test_capture_output_is_removed_after_failed_sync(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    output = tmp_path / "pin.json"
+    monkeypatch.setattr(module.os, "fsync", lambda _: (_ for _ in ()).throw(OSError("disk")))
+    with pytest.raises(PinRefused):
+        module._write_new_file(output, b"partial")
+    assert not output.exists()
+
+
+def test_expiry_after_github_replay_refuses_final_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+    from trusted_human_review import TrustedReviewDecision  # noqa: PLC0415
+
+    raw, destination, observation = fixture(tmp_path)
+    root = tmp_path / "repo"
+    pin_path = Path("governance/staging_target_pins/target.json")
+    (root / pin_path).parent.mkdir(parents=True)
+    (root / pin_path).write_bytes(raw)
+    monkeypatch.setenv("NEXUS_TEST_READONLY_DSN", "unused")
+    monkeypatch.setattr(module, "observe_live_target", lambda **_: observation)
+    monkeypatch.setattr(module, "approved_pin_sha256", lambda *_, **__: hashlib.sha256(raw).hexdigest())
+    times = iter((NOW, NOW + timedelta(hours=3)))
+
+    class Clock:
+        @staticmethod
+        def now(_: object) -> datetime:
+            return next(times)
+
+        @staticmethod
+        def fromisoformat(value: str) -> datetime:
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(module, "datetime", Clock)
+    github = types.ModuleType("trusted_human_review_github")
+    github.check_github_review = lambda **_: types.SimpleNamespace(  # type: ignore[attr-defined]
+        decision=TrustedReviewDecision(
+            approved=True, reason="approved", repository="cyranoaladin/RAG",
+            pull_request=999, base_sha=BASE, head_sha=HEAD, reviewer="abenrhouma",
+            review_id=42, submitted_at="2026-10-10T19:00:00Z", challenge="test",
+        ), challenges={"abenrhouma": "test"},
+    )
+    monkeypatch.setitem(sys.modules, "trusted_human_review_github", github)
+    result = main([
+        "verify", "--repository-root", str(root), "--pin-path", str(pin_path),
+        "--content-anchor-sha256", ANCHOR, "--destination-root", str(destination),
+        "--database-dsn-env", "NEXUS_TEST_READONLY_DSN", "--pull-request", "999",
+        "--expected-base-sha", BASE, "--expected-head-sha", HEAD,
+    ])
+    output = capsys.readouterr()
+    assert result == 1
+    assert "EXPECTED_TARGET_PIN_SHA256=" not in output.out

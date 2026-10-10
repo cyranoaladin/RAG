@@ -35,8 +35,14 @@ SYSTEM_IDENTIFIER = re.compile(r"[0-9]{1,20}\Z")
 PIN_FIELDS = frozenset({
     "kind", "content_anchor_sha256", "release_id", "target_identity",
     "hostname", "host_machine_id_sha256", "postgres_system_identifier",
-    "database_name", "destination_realpath", "pinned_at_utc", "expires_at_utc",
+    "database_name", "destination_realpath", "destination_device",
+    "destination_inode", "pinned_at_utc", "expires_at_utc",
 })
+IDENTITY_SQL = (
+    "SELECT system_identifier::pg_catalog.text, "
+    "pg_catalog.current_database(), pg_catalog.inet_server_addr()::pg_catalog.text "
+    "FROM pg_catalog.pg_control_system()"
+)
 
 
 class PinRefused(ValueError):
@@ -51,6 +57,8 @@ class LiveTargetObservation:
     postgres_system_identifier: str
     database_name: str
     destination_realpath: str
+    destination_device: int
+    destination_inode: int
 
 
 def canonical(value: Mapping[str, object]) -> bytes:
@@ -70,18 +78,27 @@ def _utc(value: object) -> datetime:
     return result
 
 
-def _directory_identity(path: Path) -> str:
+def _directory_snapshot(path: Path) -> tuple[str, tuple[tuple[int, int], ...]]:
     if not path.is_absolute() or ".." in path.parts:
         raise PinRefused("destination non absolue ou non normalisée")
     current = Path(path.anchor)
+    chain: list[tuple[int, int]] = []
     try:
         for component in path.parts[1:]:
             current /= component
-            if not stat.S_ISDIR(current.lstat().st_mode):
+            metadata = current.lstat()
+            if not stat.S_ISDIR(metadata.st_mode):
                 raise PinRefused("destination contenant un symlink ou non répertoire")
-        return str(path.resolve(strict=True))
+            chain.append((metadata.st_dev, metadata.st_ino))
+        if not chain:
+            raise PinRefused("destination racine interdite")
+        return str(path.resolve(strict=True)), tuple(chain)
     except OSError as error:
         raise PinRefused("destination indisponible") from error
+
+
+def _directory_identity(path: Path) -> str:
+    return _directory_snapshot(path)[0]
 
 
 def verify_target_pin(
@@ -114,19 +131,27 @@ def verify_target_pin(
             or SYSTEM_IDENTIFIER.fullmatch(pin["postgres_system_identifier"]) is None
             or not isinstance(pin["database_name"], str) or not pin["database_name"]):
         raise PinRefused("identité du pin invalide")
+    if (type(pin["destination_device"]) is not int or pin["destination_device"] < 0
+            or type(pin["destination_inode"]) is not int or pin["destination_inode"] <= 0):
+        raise PinRefused("identité physique du pin invalide")
     pinned = _utc(pin["pinned_at_utc"])
     expires = _utc(pin["expires_at_utc"])
     if now.tzinfo != UTC or not pinned <= now < expires or expires - pinned > MAX_VALIDITY:
         raise PinRefused("pin hors fenêtre UTC courte")
-    destination = _directory_identity(destination_root)
+    snapshot = _directory_snapshot(destination_root)
+    destination, chain = snapshot
     if (pin["destination_realpath"] != destination
             or observation.destination_realpath != destination
+            or (pin["destination_device"], pin["destination_inode"]) != chain[-1]
+            or (observation.destination_device, observation.destination_inode) != chain[-1]
             or pin["hostname"] != observation.hostname
             or pin["host_machine_id_sha256"] != observation.host_machine_id_sha256
             or container_match.group(1) != observation.container_id
             or pin["postgres_system_identifier"] != observation.postgres_system_identifier
             or pin["database_name"] != observation.database_name):
         raise PinRefused("cible observée différente du pin")
+    if _directory_snapshot(destination_root) != snapshot:
+        raise PinRefused("destination remplacée pendant la vérification")
     return expected_sha256
 
 
@@ -193,7 +218,7 @@ def observe_live_target(*, container_id: str, destination_root: Path,
     """Sondes locales lecture seule; PostgreSQL natif et socket sont refusés."""
     if not re.fullmatch(r"[0-9a-f]{64}", container_id) or not database_dsn:
         raise PinRefused("cible conteneur ou DSN de lecture absent")
-    before = _directory_identity(destination_root)
+    before = _directory_snapshot(destination_root)
     try:
         inspection = subprocess.run(
             ["docker", "inspect", "--type", "container", container_id],
@@ -217,13 +242,11 @@ def observe_live_target(*, container_id: str, destination_root: Path,
 
         with psycopg.connect(
             database_dsn, connect_timeout=3,
-            options="-c default_transaction_read_only=on -c statement_timeout=3000",
+            options=("-c default_transaction_read_only=on -c statement_timeout=3000 "
+                     "-c search_path=pg_catalog"),
         ) as connection:
             with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT system_identifier::text, current_database(), "
-                    "inet_server_addr()::text FROM pg_control_system()"
-                )
+                cursor.execute(IDENTITY_SQL)
                 row = cursor.fetchone()
     except Exception as error:
         raise PinRefused("identité PostgreSQL en lecture seule indisponible") from error
@@ -231,7 +254,7 @@ def observe_live_target(*, container_id: str, destination_root: Path,
             or not isinstance(row[0], str) or not isinstance(row[1], str)):
         raise PinRefused("identité PostgreSQL malformée")
     verify_docker_postgres_binding(container, container_id, row[2])
-    after = _directory_identity(destination_root)
+    after = _directory_snapshot(destination_root)
     if after != before:
         raise PinRefused("destination modifiée pendant l'observation")
     return LiveTargetObservation(
@@ -239,8 +262,53 @@ def observe_live_target(*, container_id: str, destination_root: Path,
         host_machine_id_sha256=hashlib.sha256(machine_id).hexdigest(),
         container_id=container_id,
         postgres_system_identifier=row[0], database_name=row[1],
-        destination_realpath=after,
+        destination_realpath=after[0],
+        destination_device=after[1][-1][0],
+        destination_inode=after[1][-1][1],
     )
+
+
+def _write_new_file(path: Path, raw: bytes) -> None:
+    """Créer seulement un nouveau fichier dans un parent stable sans symlink."""
+    if path.name in {"", ".", ".."} or ".." in path.parts:
+        raise PinRefused("chemin de sortie invalide")
+    parent = path.parent if path.is_absolute() else Path.cwd() / path.parent
+    before = _directory_snapshot(parent)
+    directory_fd = -1
+    file_fd = -1
+    created = False
+    try:
+        directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        metadata = os.fstat(directory_fd)
+        if (metadata.st_dev, metadata.st_ino) != before[1][-1]:
+            raise PinRefused("parent de sortie remplacé")
+        file_fd = os.open(
+            path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600, dir_fd=directory_fd,
+        )
+        created = True
+        with os.fdopen(file_fd, "wb", closefd=False) as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(file_fd)
+        if _directory_snapshot(parent) != before:
+            raise PinRefused("parent de sortie remplacé pendant l'écriture")
+    except OSError as error:
+        if created:
+            try:
+                os.unlink(path.name, dir_fd=directory_fd)
+            except OSError:
+                pass
+        raise PinRefused("sortie absente, déjà existante ou symbolique") from error
+    except PinRefused:
+        if created:
+            os.unlink(path.name, dir_fd=directory_fd)
+        raise
+    finally:
+        if file_fd >= 0:
+            os.close(file_fd)
+        if directory_fd >= 0:
+            os.close(directory_fd)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -288,6 +356,8 @@ def main(argv: list[str] | None = None) -> int:
                 "postgres_system_identifier": observed.postgres_system_identifier,
                 "database_name": observed.database_name,
                 "destination_realpath": observed.destination_realpath,
+                "destination_device": observed.destination_device,
+                "destination_inode": observed.destination_inode,
                 "pinned_at_utc": now.isoformat().replace("+00:00", "Z"),
                 "expires_at_utc": (now + timedelta(hours=args.valid_hours)).isoformat().replace("+00:00", "Z"),
             }
@@ -296,10 +366,7 @@ def main(argv: list[str] | None = None) -> int:
                               expected_content_anchor_sha256=args.content_anchor_sha256,
                               destination_root=args.destination_root,
                               observation=observed, now=now)
-            if args.output.exists():
-                raise PinRefused("sortie déjà existante")
-            args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_bytes(raw)
+            _write_new_file(args.output, raw)
             print("PIN_CAPTURED_UNAPPROVED=true")
             print(f"TARGET_PIN_SHA256={hashlib.sha256(raw).hexdigest()}")
             return 0
@@ -332,6 +399,14 @@ def main(argv: list[str] | None = None) -> int:
             expected_head_sha=args.expected_head_sha,
             pull_request=args.pull_request,
         )
+        observed_final = observe_live_target(
+            container_id=match.group(1), destination_root=args.destination_root,
+            database_dsn=dsn,
+        )
+        verify_target_pin(raw, expected_sha256=pin_sha,
+                          expected_content_anchor_sha256=args.content_anchor_sha256,
+                          destination_root=args.destination_root,
+                          observation=observed_final, now=datetime.now(UTC))
         print("INDEPENDENT_STAGING_TARGET_PIN_PASS=true")
         print(f"EXPECTED_TARGET_PIN_SHA256={pin_sha}")
         return 0

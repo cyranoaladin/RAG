@@ -40,6 +40,7 @@ def fixture(tmp_path: Path) -> dict[str, object]:
 
     destination = tmp_path / "destination"
     destination.mkdir()
+    physical = destination.stat()
     pin = {
         "kind": "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1",
         "content_anchor_sha256": ANCHOR,
@@ -48,6 +49,8 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         "hostname": "staging", "host_machine_id_sha256": "2" * 64,
         "postgres_system_identifier": "12345678901234567890",
         "database_name": "nexus_rag", "destination_realpath": str(destination),
+        "destination_device": physical.st_dev,
+        "destination_inode": physical.st_ino,
         "pinned_at_utc": (NOW - timedelta(hours=2, minutes=10)).isoformat().replace("+00:00", "Z"),
         "expires_at_utc": (NOW + timedelta(hours=2)).isoformat().replace("+00:00", "Z"),
     }
@@ -110,6 +113,7 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         hostname="staging", host_machine_id_sha256="2" * 64,
         container_id=CONTAINER, postgres_system_identifier="12345678901234567890",
         database_name="nexus_rag", destination_realpath=str(destination),
+        destination_device=physical.st_dev, destination_inode=physical.st_ino,
     )
     return dict(
         receipt=receipt, pin_raw=raw, destination_root=destination,
@@ -117,7 +121,8 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         observation=observation, expected_content_anchor_sha256=ANCHOR, now=NOW,
         pull_request=pr, review_decision=decision, trusted_status=status,
         workflow_run=run, workflow_attempt=attempt, head_tree_sha=TREE,
-        merge_tree_sha=TREE, reviewed_head_pin_blob=raw, main_pin_blob=raw,
+        merge_tree_sha=TREE, merge_parent_sha=BASE,
+        reviewed_head_pin_blob=raw, main_pin_blob=raw,
         checkout_head_sha=MAIN, github_main_sha=MAIN, merge_is_ancestor=True,
     )
 
@@ -156,6 +161,7 @@ def test_receipt_sabotage_refused(tmp_path: Path, part: str, key: str, value: ob
     ("reviewed_head_pin_blob", b"changed reviewed blob"),
     ("main_pin_blob", b"changed main blob"),
     ("merge_tree_sha", "0" * 40),
+    ("merge_parent_sha", "0" * 40),
     ("github_main_sha", "0" * 40),
     ("merge_is_ancestor", False),
 ])
@@ -182,21 +188,32 @@ def test_receipt_canonicalization_refuses_manual_row_edit(tmp_path: Path) -> Non
         validate_historical_pin_receipt(**evidence)
 
 
+@pytest.mark.parametrize("b2_empty_commit", [False, True])
 def test_historical_replay_reads_live_github_and_main_blob(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, b2_empty_commit: bool,
 ) -> None:
     evidence = fixture(tmp_path)
     root = tmp_path / "repo"
     pin_path = Path("governance/staging_target_pins/target.json")
-    (root / pin_path).parent.mkdir(parents=True)
-    (root / pin_path).write_bytes(evidence["pin_raw"])
-    subprocess.run(["git", "init", "-q", str(root)], check=True)
-    subprocess.run(["git", "-C", str(root), "add", str(pin_path)], check=True)
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
     commit = ["git", "-C", str(root), "-c", "user.name=Fixture",
               "-c", "user.email=fixture@example.invalid", "commit", "-qm"]
+    (root / "README").write_text("base\n")
+    subprocess.run(["git", "-C", str(root), "add", "README"], check=True)
+    subprocess.run([*commit, "approved base"], check=True)
+    base = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    subprocess.run(["git", "-C", str(root), "checkout", "-qb", "feature"], check=True)
+    (root / pin_path).parent.mkdir(parents=True)
+    (root / pin_path).write_bytes(evidence["pin_raw"])
+    subprocess.run(["git", "-C", str(root), "add", str(pin_path)], check=True)
     subprocess.run([*commit, "approved head"], check=True)
     head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
-    subprocess.run([*commit, "merged tree", "--allow-empty"], check=True)
+    subprocess.run(["git", "-C", str(root), "checkout", "-q", "main"], check=True)
+    if b2_empty_commit:
+        subprocess.run([*commit, "B2 empty base", "--allow-empty"], check=True)
+    subprocess.run(["git", "-C", str(root), "checkout", "-q", "feature", "--", str(pin_path)], check=True)
+    subprocess.run([*commit, "squash merge"], check=True)
     merge = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
     subprocess.run([*commit, "main advanced", "--allow-empty"], check=True)
     main_sha = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
@@ -207,12 +224,15 @@ def test_historical_replay_reads_live_github_and_main_blob(
     status = evidence["trusted_status"]
     attempt = evidence["workflow_attempt"]
     decision = evidence["review_decision"]
+    run["head_sha"] = base
+    attempt["head_sha"] = base
+    decision["base_sha"] = base
     decision["head_sha"] = head
     from trusted_human_review import build_challenge  # noqa: PLC0415
 
     decision["challenge"] = build_challenge({
         "protocol": "NEXUS-TRUSTED-REVIEW-V1", "repository": "cyranoaladin/RAG",
-        "pull_request": 999, "base_ref": "main", "base_sha": BASE,
+        "pull_request": 999, "base_ref": "main", "base_sha": base,
         "head_sha": head, "author": "nexus-agent", "reviewer": "abenrhouma",
     })
     by_endpoint = {
@@ -239,13 +259,19 @@ def test_historical_replay_reads_live_github_and_main_blob(
 
     def replay(*, pull_request: dict[str, object], **_: object) -> object:
         assert pull_request["state"] == "open"
-        assert pull_request["base"]["sha"] == BASE
-        assert pr["base"]["sha"] != BASE
+        assert pull_request["base"]["sha"] == base
+        assert pr["base"]["sha"] != base
         from types import SimpleNamespace  # noqa: PLC0415
 
         return SimpleNamespace(decision=TrustedReviewDecision(**decision))
 
     monkeypatch.setattr(github, "_evaluate_snapshot", replay)
+    if b2_empty_commit:
+        with pytest.raises(HistoricalPinRefused):
+            build_historical_pin_receipt(
+                root, pin_path, 999, ANCHOR, evidence["destination_root"], "unused-secret",
+            )
+        return
     receipt = build_historical_pin_receipt(
         root, pin_path, 999, ANCHOR, evidence["destination_root"], "unused-secret",
     )
