@@ -10,7 +10,11 @@ réelle ni digest d'autorité n'a été émis.
 1. `capture` observe en lecture seule l'hôte, son machine-id haché, un conteneur
    Docker courant, le `system_identifier` et le nom de la base PostgreSQL
    atteinte, ainsi que le realpath, le device et l'inode de destination.
-   Une adresse PostgreSQL native
+   Le DSN doit viser un unique port TCP loopback explicitement publié par l'ID
+   Docker épinglé ; le pair du socket libpq, le port interne PostgreSQL et le
+   binding Docker sont comparés, avec réinspection du namespace et des ports.
+   Une IP de bridge seule, même identique à celle d'un autre conteneur sur un
+   réseau distinct, ne suffit pas. Une adresse PostgreSQL native
    de l'hôte, une socket ou un autre conteneur sont refusés. La capture produit
    un JSON canonique de validité maximale 24 h, explicitement **non approuvé**.
    Le parent de sortie doit exister, sans symlink ; la création utilise
@@ -45,7 +49,7 @@ son device/inode sont relus enfin, y compris après les appels GitHub avant
 `pg_catalog` et la connexion force un search_path sûr.
 Le reçu seul reste explicitement hors autorité de publication.
 
-Vérification locale sur fixtures synthétiques : 100 tests ciblés passent,
+Vérification locale sur fixtures synthétiques : 108 tests ciblés passent,
 `ruff` passe.
 Les sabotages couvrent digest, ancre A, hôte, machine-id, conteneur, base,
 chemin, symlink, expiration, review/HEAD/base/challenge et blob substitué. Ce
@@ -55,6 +59,9 @@ Git crée une histoire approuvée→fusionnée→main avancé ; le rejeu conserv
 Les cinq sabotages de la contre-revue initiale sont couverts : expiration
 après GitHub, search_path usurpé, squash merge avec B2 vide, remplacement de
 répertoire au même realpath et symlink cassé sur la sortie.
+Un sabotage supplémentaire place deux conteneurs sur des réseaux distincts
+avec la même IP de bridge : seul le port loopback publié par l'ID épinglé est
+accepté. Une publication wildcard ou un namespace partagé est refusé.
 
 Compatibilité à intégrer dans #325 avant usage : le pin V1 n'a jamais été émis,
 mais son schéma gagne `destination_device` et `destination_inode`. Le parseur
