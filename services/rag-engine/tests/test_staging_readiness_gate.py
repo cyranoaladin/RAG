@@ -457,8 +457,8 @@ CHAINE_DE_PRODUCTION_INTACTE = {
     "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py":
         "a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28",
     "packages/contracts/src/nexus_contracts/production_readiness.py":
-        # ADR-0072 : V2 ajoute les digests A/C signes, sans changer les octets V1.
-        "d337a77ebf2658019e429ccded1ca732d4dfd44ba4b5c544224cde1a28adfa0a",
+        # ADR-0072 / contrat 0.26 : V2 lie A/C au pin signe ; V1 reste identique.
+        "5332e935813398af63c90b3d97677b3f809340c47a722a43e2406815e8e8de6a",
     "governance/trust-anchors/production-readiness-v1.json":
         "f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238",
 }
