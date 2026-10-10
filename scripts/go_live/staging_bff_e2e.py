@@ -75,7 +75,7 @@ def canonical_scope_digest(scope: dict[str, Any]) -> str:
 
 def load_prepared_scope_ids(
     index_path: Path, expected_digest: str, registry_collections: set[str]
-) -> dict[str, str]:
+) -> tuple[dict[str, str], dict[str, str]]:
     """Lier les IDs proposés par #323 sans prendre NOT_ISSUED pour une émission."""
     if not SHA256.fullmatch(expected_digest) or _sha256(index_path) != expected_digest:
         raise ValueError("preparation index digest invalide")
@@ -117,7 +117,15 @@ def load_prepared_scope_ids(
             raise ValueError("scope préparatoire #323 non concordant")
         scope_ids[collection] = scope_id
     assert_scope_registry_parity(set(scope_ids), registry_collections)
-    return scope_ids
+    return scope_ids, refs
+
+
+def assert_immutable_subject_population(
+    prepared_subject_shas: dict[str, str], final_subject_shas: dict[str, str]
+) -> None:
+    """Le scellement externe ne réécrit aucun subject du contenu A (#323)."""
+    if prepared_subject_shas != final_subject_shas:
+        raise ValueError("subject préparatoire immuable divergent")
 
 
 def load_final_scopes(
@@ -176,16 +184,17 @@ def _object(value: Any, label: str) -> dict[str, Any]:
 
 
 def assert_final_successor_release(manifest: dict[str, Any]) -> None:
-    """Ne jamais qualifier le candidat préparatoire ou une rehearsal interne."""
+    """A reste candidate immuable ; C externe n'a pas encore de vérificateur."""
     if (
-        not isinstance(manifest.get("release_id"), str)
-        or not manifest["release_id"].startswith("student-public-successor-")
-        or manifest.get("release_mode") != "production"
-        or manifest.get("promotion_status") != "PROMOTABLE"
-        or manifest.get("activation_status") != "PRODUCTION_ACTIVATION_ALLOWED"
-        or manifest.get("review_status") != "APPROVED"
+        isinstance(manifest.get("release_id"), str)
+        and manifest["release_id"].startswith("student-public-successor-")
+        and manifest.get("release_mode") == "candidate"
+        and manifest.get("promotion_status") == "NOT_PROMOTABLE"
+        and manifest.get("activation_status") == "NO_PRODUCTION_ACTIVATION"
+        and manifest.get("review_status") == "PRE_REVIEW"
     ):
-        raise ValueError("release publique finale non établie")
+        raise ValueError("release finale : activation externe C non vérifiée")
+    raise ValueError("release finale : manifest A immuable ou candidat incorrect")
 
 
 def assert_scope_subject_binding(
@@ -567,7 +576,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("release manifest digest invalide")
     manifest = _object(json.loads(manifest_path.read_text(encoding="utf-8")), "manifest")
     assert_final_successor_release(manifest)
-    expected_scope_ids = load_prepared_scope_ids(
+    expected_scope_ids, prepared_subject_shas = load_prepared_scope_ids(
         preparation_path, args.preparation_index_sha256, registry_collections,
     )
     scopes = load_final_scopes(
@@ -585,6 +594,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     if set(subject_shas) != registry_collections:
         raise ValueError("subjects de release finale hors collection")
+    assert_immutable_subject_population(prepared_subject_shas, subject_shas)
     for collection, final_scope in scopes.items():
         assert_scope_subject_binding(final_scope, collection, subject_shas)
     scope = scopes.get(args.collection)

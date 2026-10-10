@@ -8,17 +8,24 @@ n'a été modifié, et aucune réussite E2E live n'est revendiquée.
 
 Le produit visé est la recherche étudiante des passages **textuels dérivés**,
 avec citation complète. Les PDF originaux V4/V5 restent internes. Le harnais
-`scripts/go_live/staging_bff_e2e.py` exige désormais un registre à onze
-collections et à une seule release `student-public-successor-*`, en mode
-`production`, `PROMOTABLE`, `PRODUCTION_ACTIVATION_ALLOWED` et `APPROVED`.
-Il refuse donc les manifests V4/V5 `rehearsal` et les paquets successeurs
-`candidate/NOT_PROMOTABLE/PRE_REVIEW`. L'index de scopes V3 est fourni
+`scripts/go_live/staging_bff_e2e.py` exige un registre à onze collections
+et à une seule release `student-public-successor-*`. Après coordination avec
+les chantiers #323/#294, le modèle d'activation retenu est A→B→C : A est le
+manifest et les onze subjects préparatoires #323 **immuables**, B les scopes
+et revues externes, C une enveloppe d'activation externe. Le format et le
+vérificateur canonique de C n'existent pas encore. Le garde d'entrée du
+harnais refuse donc actuellement toute qualification HTTP live, y compris
+un manifest A frauduleusement réécrit en `production/PROMOTABLE`. Le
+manifest A `candidate/NOT_PROMOTABLE/PRE_REVIEW` n'est jamais accepté comme
+autorisation. L'index de scopes V3 est fourni
 explicitement par `--scope-index`, doit être dans le checkout final, et doit
 correspondre aux onze artefacts gouvernés de `packages/contracts`. Chaque
-scope est public et lie `source_sha256` aux octets du subject final scellé.
+scope est public et lie `source_sha256` aux octets du subject immuable A.
 Les onze IDs `student_public_*_v1` viennent de l'index préparatoire #323,
 fourni avec `--preparation-index` et son SHA-256 recalculé. Le harnais vérifie
-son manifest, les collections, les IDs et les digests de subjects ; son statut
+son manifest, les collections, les IDs et les digests de subjects. Les onze
+digests de subjects exposés par le registre d'activation devront être
+strictement identiques à ceux de A ; son statut
 `NOT_ISSUED` ne vaut pas autorisation de servir. Chaque artefact V3 final
 doit ensuite porter le même ID, `roles: [student]` et
 `rights: [public_allowed]`, conformément à la proposition #294 encore draft.
@@ -29,7 +36,8 @@ le 403 hors collection avec la session `student` et inscrit
 `teacher_e2e_verified=false`, `teacher_status=null` et
 `NOT_RUN_SCOPE_ROLE_NOT_ISSUED`. Son `verification_status` est alors
 `STUDENT_ONLY_VERIFIED`, la sortie `BFF_E2E_PASS=false` et
-`STUDENT_PUBLIC_BFF_E2E_PASS=true` en mode public. Le statut global `VERIFIED`
+`STUDENT_PUBLIC_BFF_E2E_PASS=true` en mode public **après** levée gouvernée du
+garde C. Le statut global `VERIFIED`
 et `BFF_E2E_PASS=true` exigent aussi le parcours positif `teacher`. Avec les
 scopes student-only de #294, la preuve reste `STUDENT_ONLY_VERIFIED` et le
 statut global reste rouge ; un scope enseignant distinct serait nécessaire
@@ -82,6 +90,10 @@ des placements, ni la politique de droits du runtime.
   aucune preuve positive `teacher` pour cette proposition. La preuve
   enseignant exige une autorité de scope distincte ou une politique finale
   explicitement approuvée couvrant ce rôle.
+- Le contrat canonique de l'enveloppe C et son vérificateur sémantique ne
+  sont pas encore publiés. #319 ne délivre explicitement aucun verdict de
+  promotion. Le garde `assert_final_successor_release` reste rouge jusqu'à
+  cette intégration ; aucun `BFF_E2E_PASS` live ne peut être produit par #293.
 - Le Cockpit de `main` signe et valide encore le pilote
   `libre_terminale_maths_nsi_real_v1`. Le lot de câblage produit doit migrer
   `services/cockpit/src/server/pilot-scope.ts`,
@@ -100,10 +112,10 @@ des placements, ni la politique de droits du runtime.
   final devra exiger `teacher_e2e_verified=true` si son contrat requiert le
   parcours enseignant ; `STUDENT_ONLY_VERIFIED` ne ferme pas ce gate.
 
-Après émission des scopes, approbation de la release et déploiement de la
-cible finale, l'invocation doit fournir le registre et les scopes de la
-**release finale**, ainsi que l'index préparatoire #323 et son empreinte
-recalculée depuis le checkout qualifié :
+Après émission des scopes, validation canonique de C et déploiement de la
+cible finale, l'invocation devra fournir le registre lié à A/C, les scopes
+émis B et l'index préparatoire #323. La commande ci-dessous reste bloquée
+par le garde C jusqu'à l'existence de son vérificateur :
 
 ```bash
 python3 scripts/go_live/staging_bff_e2e.py \
@@ -128,18 +140,20 @@ release, les droits, les scopes, le build et les résultats HTTP doivent tous
 être vérifiés à la cible finale.
 
 Vérification locale dans `/tmp/rag-pr293-main744-venv`, créé pour ce worktree :
-`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 48 tests verts,
+`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 49 tests verts,
 dont les sabotages RED→GREEN d'un second placement révoqué, en revue pendante,
 obsolète ou interne, d'un placement révoqué dans une autre collection du
 manifest, de citations aux droits `unknown`, `usage_interne` ou publics
 hors du scope signé, et de scopes étudiant contenant des droits non publics.
 Les cas RED→GREEN supplémentaires refusent un ancien ID `prod_*`, une fausse
 émission, un subject ou manifest divergent, un rôle `teacher` ou des droits
-historiques dans le scope étudiant final.
+historiques dans le scope étudiant final. Un test interdit de réécrire l'un
+des onze subjects A au cours du scellement externe ; un autre interdit de
+passer le garde avec un manifest A simplement repeint en production.
 Le parcours `student` seul et le parcours `teacher`
 explicitement autorisé restent couverts ;
 `ruff check` des deux fichiers Python : vert ; `git diff --check` : vert.
-Après intégration de #323 et #319 : 48 tests du harnais verts et 98 tests ciblés
+Après intégration de #323 et #319 : 49 tests du harnais verts et 98 tests ciblés
 supplémentaires verts sur le transfert public, l'inventaire, le vérificateur
 externe #319 et les contrats de droits, citations et scopes V3. Ces suites
 ont tourné dans le venv propre

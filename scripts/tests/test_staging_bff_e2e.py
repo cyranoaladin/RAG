@@ -294,10 +294,23 @@ def test_prepared_successor_binds_exact_eleven_student_public_scope_ids():
     index = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/preparation-index.json"
     digest = hashlib.sha256(index.read_bytes()).hexdigest()
     expected = {row["collection"] for row in json.loads(index.read_text())["proposed_scopes"]}
-    ids = harness.load_prepared_scope_ids(index, digest, expected)
+    ids, subjects = harness.load_prepared_scope_ids(index, digest, expected)
     assert len(ids) == 11
+    assert len(subjects) == 11
     assert ids["rag_nexus_nsi_terminale_specialite"] == "student_public_nsi_terminale_specialite_v1"
+    assert subjects["rag_nexus_nsi_terminale_specialite"] == next(
+        row["final_subject_sha256"] for row in json.loads(index.read_text())["proposed_scopes"]
+        if row["collection"] == "rag_nexus_nsi_terminale_specialite"
+    )
     assert all(scope_id.startswith("student_public_") and scope_id.endswith("_v1") for scope_id in ids.values())
+
+
+def test_final_activation_must_keep_all_prepared_subject_digests_immutable():
+    harness = load_harness()
+    prepared = {"rag_nexus_nsi_terminale_specialite": "a" * 64, "rag_nexus_hggsp_terminale_specialite": "b" * 64}
+    harness.assert_immutable_subject_population(prepared, prepared.copy())
+    with pytest.raises(ValueError, match="subject.*immuable"):
+        harness.assert_immutable_subject_population(prepared, {**prepared, "rag_nexus_nsi_terminale_specialite": "c" * 64})
 
 
 @pytest.mark.parametrize("sabotage", ["duplicate_id", "issued", "subject_drift", "manifest_drift"])
@@ -418,8 +431,9 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, stude
     monkeypatch.setattr(harness, "_git", fake_git)
     monkeypatch.setattr(harness, "_live_main_sha", lambda _root: head)
     monkeypatch.setattr(harness, "_sha256", lambda _path: "a" * 64)
-    monkeypatch.setattr(harness, "load_prepared_scope_ids", lambda *_args: {collection: scope["scope_id"] for collection, scope in scopes.items()})
+    monkeypatch.setattr(harness, "load_prepared_scope_ids", lambda *_args: ({collection: scope["scope_id"] for collection, scope in scopes.items()}, {collection: "c" * 64 for collection in collections}))
     monkeypatch.setattr(harness, "load_final_scopes", lambda *_args: scopes)
+    monkeypatch.setattr(harness, "assert_final_successor_release", lambda _manifest: None)
     monkeypatch.setattr(harness, "_get_health", lambda _url: (200, {"status": "ok", "build_sha": head}))
     monkeypatch.setattr(harness, "load_release_evidence", lambda *_args, **_kwargs: {"placement": {"content_sha256": "b" * 64}})
     minted = []
@@ -459,14 +473,15 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, stude
 
 def test_rehearsal_and_candidate_releases_cannot_qualify_final_bff():
     harness = load_harness()
-    candidate_path = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-b1dda0c8503aa474/profile_gate/production-profile-gate.release.json"
+    candidate_path = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/profile_gate/production-profile-gate.release.json"
     candidate = json.loads(candidate_path.read_text())
     rehearsal = {**candidate, "release_id": "profile-gate-v4", "release_mode": "rehearsal"}
     for release in (candidate, rehearsal):
         with pytest.raises(ValueError, match="release.*finale"):
             harness.assert_final_successor_release(release)
     approved = {**candidate, "release_id": "student-public-successor-final-20261010", "release_mode": "production", "promotion_status": "PROMOTABLE", "activation_status": "PRODUCTION_ACTIVATION_ALLOWED", "review_status": "APPROVED"}
-    harness.assert_final_successor_release(approved)
+    with pytest.raises(ValueError, match="activation externe|immuable"):
+        harness.assert_final_successor_release(approved)
 
 
 def test_public_derivative_requires_exact_sealed_attribution_and_text_only():
