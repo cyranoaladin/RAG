@@ -587,21 +587,20 @@ def _require_student_public_inventory_binding(
         "student public inventory artifact registry differs",
     )
     authorities = manifest.get("authorities")
-    _require(isinstance(authorities, Mapping), "public successor authorities absent")
+    if not isinstance(authorities, Mapping):
+        raise SealedReleaseIngestionError("public successor authorities absent")
     _require(
         manifest.get("release_mode") == "public_successor",
         "student public inventory requires final public_successor release",
     )
     preparation_sha = authorities.get("source_preparation_release_manifest_sha256")
     index_sha = authorities.get("source_preparation_index_sha256")
-    _require(
-        isinstance(preparation_sha, str) and _SHA256.fullmatch(preparation_sha) is not None,
-        "source preparation release manifest authority absent",
-    )
-    _require(
-        isinstance(index_sha, str) and _SHA256.fullmatch(index_sha) is not None,
-        "source preparation index authority absent",
-    )
+    if not isinstance(preparation_sha, str) or _SHA256.fullmatch(preparation_sha) is None:
+        raise SealedReleaseIngestionError(
+            "source preparation release manifest authority absent"
+        )
+    if not isinstance(index_sha, str) or _SHA256.fullmatch(index_sha) is None:
+        raise SealedReleaseIngestionError("source preparation index authority absent")
     sidecar = release_dir / "source_preparation"
     preparation = json.loads(_read_with_digest(
         sidecar / "production-profile-gate.release.json", preparation_sha,
