@@ -14,4 +14,6 @@ La proposition des onze nouveaux scopes expose séparément `rights=[public_allo
 
 L'émetteur construit un `RetrievalScopeArtifactV3` uniquement pour l'autorité ADR-0064, avec `target_policy.roles=[student]`. Les autres politiques continuent à produire V2. Le lecteur du registre fermé reconnaît V3 lorsque son identifiant, son digest et sa version sont épinglés ; aucun identifiant actuel ne change. Un scope V2 du même subject ne peut être réutilisé comme scope public étudiant.
 
+Avant toute émission ADR-0064, l'émetteur exige que le manifeste nommé par le registre de politique passe `load_release_expectation` au SHA exact et soit un `public_successor/PROMOTABLE/REVIEWED/PRODUCTION_ACTIVATION_ALLOWED`. Le diagnostic #319 ne lève pas le refus terminal de ce lecteur ; les onze scopes restent donc non émis. Une simple réétiquette de la candidate ne suffit pas.
+
 `nexus-contracts` passe de 0.24.0 à 0.25.0 : l'ajout de la voie V3 est mineur, sans changement de schéma ni d'artefact déjà émis. Une politique de registre finale reste nécessaire. Elle doit viser les SHA des subjects d'une release publique finale, après preuve d'autorité et revue exacte du HEAD ; elle ne peut être déduite du paquet candidat #323. Cette ADR n'émet aucun scope, n'active aucune publication et n'élargit pas le rôle étudiant à `internal`.

@@ -1209,6 +1209,48 @@ def _build_artifact_from_registry(
     )
 
 
+def _require_final_public_successor_for_student_scopes(
+    path: Path, expected_sha256: str, registry: PolicyRegistry,
+) -> None:
+    """Refuser la candidate #323 avant toute émission ADR-0064.
+
+    Le lecteur canonique porte le contrôle des 21 preuves externes. Tant qu'il
+    refuse le mode public_successor, l'émetteur reste fermé lui aussi.
+    """
+    if not any(
+        entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064"
+        for entry in registry.entries.values()
+    ):
+        return
+    _require(
+        registry.release_manifest_sha256 == expected_sha256,
+        "student scopes: policy registry release digest differs",
+    )
+    try:
+        from nexus_release_chain.release_readiness import (
+            ReleaseReadinessError,
+            load_release_expectation,
+        )
+    except ImportError as error:
+        raise ScopeEmissionError(
+            "student scopes require canonical release verifier"
+        ) from error
+    try:
+        release = load_release_expectation(path, expected_sha256)
+    except (ReleaseReadinessError, OSError) as error:
+        raise ScopeEmissionError(
+            "student scopes require canonically qualified final public successor release"
+        ) from error
+    _require(
+        release.release_id.startswith("student-public-successor-")
+        and release.release_mode == "public_successor"
+        and release.promotion_status == "PROMOTABLE"
+        and release.activation_status == "PRODUCTION_ACTIVATION_ALLOWED"
+        and release.review_status == "REVIEWED",
+        "student scopes require final public successor release",
+    )
+
+
 def emit_from_policy_registry(
     *,
     subject_release: Path,
@@ -1223,6 +1265,9 @@ def emit_from_policy_registry(
 ) -> EmissionResult:
     """Émettre un scope par collection de la release, et refuser tout le reste."""
     registry = load_policy_registry(policy_registry, policy_registry_sha256)
+    _require_final_public_successor_for_student_scopes(
+        subject_release, subject_release_sha256, registry,
+    )
     named = load_successor_authority(successor_authority, successor_authority_sha256)
     subjects = load_profile_subject_release(
         subject_release, subject_release_sha256

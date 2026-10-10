@@ -6,6 +6,7 @@ Ce test ne vaut ni approbation humaine ni émission d'un scope actif.
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import replace
 from pathlib import Path
 import sys
@@ -115,6 +116,38 @@ def test_packaged_scope_reader_accepts_pinned_v3(
     monkeypatch.setattr(scope_module, "_HGGSP_SUCCESSOR_RESOURCES", {})
     assert scope_module.load_retrieval_scope_artifact(artifact.scope_id) == artifact
     assert scope_module.load_retrieval_scope_registry()[artifact.scope_id] == artifact
+
+
+def test_candidate_successor_cannot_emit_student_scopes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = Path(__file__).resolve().parents[3]
+    candidate = root / (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_student_public_successor_v1/release-fcc84331e7700042/"
+        "profile_gate/production-profile-gate.release.json"
+    )
+    registry = emitter.PolicyRegistry(
+        entries={"rag_nexus_dgemc_terminale_option": _proposal()},
+        visibility_restriction_order=("public", "internal", "restricted", "private"),
+        school_year="2026-2027", programme_authority_path="unused",
+        programme_authority_sha256="a" * 64,
+        release_manifest_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
+    )
+    monkeypatch.setattr(emitter, "load_policy_registry", lambda *_: registry)
+    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: {})
+    output = tmp_path / "scopes"
+    with pytest.raises(emitter.ScopeEmissionError, match="final public successor"):
+        emitter.emit_from_policy_registry(
+            subject_release=candidate,
+            subject_release_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
+            policy_registry=tmp_path / "unused-policy",
+            policy_registry_sha256="a" * 64,
+            successor_authority=tmp_path / "unused-names",
+            successor_authority_sha256="b" * 64,
+            artifacts_dir=output, repo_root=root,
+        )
+    assert not output.exists()
 
 
 def _proposal(**overrides: object) -> emitter.PolicyRegistryEntry:
