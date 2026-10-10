@@ -1,6 +1,6 @@
 # ADR-0071 — Droits et profils complets des scopes étudiants
 
-- **Statut** : proposé dans la PR #294 ; l'émission reste interdite avant autorisation exacte des subjects finaux.
+- **Statut** : proposé dans la PR #294 ; émission interdite jusqu'à vérification indépendante de l'enveloppe d'activation et des autorités externes.
 - **Date** : 2026-10-10.
 - **Autorités** : décision documentaire déléguée #300, ADR-0064, successeur préparatoire #323.
 
@@ -16,4 +16,4 @@ L'émetteur construit un `RetrievalScopeArtifactV3` uniquement pour l'autorité 
 
 Avant toute émission ADR-0064, l'émetteur exige que le manifeste nommé par le registre de politique passe `load_release_expectation` au SHA exact et soit un `public_successor/PROMOTABLE/REVIEWED/PRODUCTION_ACTIVATION_ALLOWED`. Le diagnostic #319 ne lève pas le refus terminal de ce lecteur ; les onze scopes restent donc non émis. Une simple réétiquette de la candidate ne suffit pas.
 
-`nexus-contracts` passe de 0.24.0 à 0.25.0 : l'ajout de la voie V3 est mineur, sans changement de schéma ni d'artefact déjà émis. Une politique de registre finale reste nécessaire. Elle doit viser les SHA des subjects d'une release publique finale, après preuve d'autorité et revue exacte du HEAD ; elle ne peut être déduite du paquet candidat #323. Cette ADR n'émet aucun scope, n'active aucune publication et n'élargit pas le rôle étudiant à `internal`.
+`nexus-contracts` passe de 0.24.0 à 0.25.0 : l'ajout de la voie V3 est mineur, sans changement de schéma ni d'artefact déjà émis. La politique de registre d'émission et son enveloppe externe restent à construire après revue exacte, selon un graphe de digests sans auto-référence. La garde canonique ci-dessus est provisoirement fermée jusqu'à ce que ce vérificateur soit livré dans une PR d'activation distincte. Cette ADR n'émet aucun scope, n'active aucune publication et n'élargit pas le rôle étudiant à `internal`.
