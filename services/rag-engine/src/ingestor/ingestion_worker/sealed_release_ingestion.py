@@ -73,6 +73,12 @@ from ingestor.ingestion_control.scope_authority import (
 from ingestor.ingestion_control.sealed_release_catalog import TEXT_MEDIA_TYPE
 from ingestor.ingestion_control.transitions import cas_transition
 from ingestor.ingestion_profiles.registry import ProfileRegistry
+from ingestor.multilevel_evidence import (
+    INVENTORY_KIND,
+    STUDENT_PUBLIC_INVENTORY_KIND,
+    MultilevelEvidenceError,
+    load_student_public_candidate_inventory,
+)
 
 #: Le protocole sous lequel ces lignes sont écrites (ADR-0056). Il figure
 #: dans chaque ``payload`` : une ligne dit d'elle-même sous quel régime elle
@@ -336,13 +342,9 @@ def load_sealed_release(
     }
     artifact_media_types = _artifact_media_types(artifacts)
 
-    inventory_raw = _read_with_digest(
-        release_dir / "candidate_inventory.json",
-        candidate_inventory_sha256,
-        "inventaire de candidats",
+    discovery = _load_candidate_discovery(
+        release_dir / "candidate_inventory.json", expected_sha256=candidate_inventory_sha256,
     )
-    inventory = json.loads(inventory_raw.decode("utf-8"))
-    discovery = _index_inventory_placements(inventory)
 
     transfer_raw = _read_with_digest(
         artifact_transfer_manifest_path,
@@ -506,6 +508,33 @@ def _index_inventory_placements(
                 )
                 index[key] = placement
     return index
+
+
+def _load_candidate_discovery(
+    path: Path, *, expected_sha256: str
+) -> Mapping[tuple[str, str], Mapping[str, Any]]:
+    """Préserver V1 ; pour les textes, exiger le lecteur canonique dédié."""
+    raw = _read_with_digest(path, expected_sha256, "inventaire de candidats")
+    document = json.loads(raw.decode("utf-8"))
+    kind = document.get("inventory_kind")
+    if kind == INVENTORY_KIND:
+        return _index_inventory_placements(document)
+    if kind != STUDENT_PUBLIC_INVENTORY_KIND:
+        raise SealedReleaseIngestionError(f"inventory kind inconnu: {kind!r}")
+    try:
+        inventory = load_student_public_candidate_inventory(
+            path, expected_sha256=expected_sha256,
+        )
+    except MultilevelEvidenceError as exc:
+        raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
+    return {
+        (placement.content_sha256, placement.source_placement_id): {
+            "source_url": placement.source_url,
+            "title": placement.title,
+            "external_document_type": placement.external_document_type,
+        }
+        for placement in inventory.placements
+    }
 
 
 def _transferred_artifact_files(

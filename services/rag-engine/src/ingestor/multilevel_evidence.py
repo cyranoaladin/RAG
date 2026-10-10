@@ -15,6 +15,10 @@ from urllib.parse import urlparse
 import yaml
 
 INVENTORY_KIND = "MULTILEVEL_CANDIDATE_INVENTORY_V1"
+STUDENT_PUBLIC_INVENTORY_KIND = (
+    "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CANDIDATE_INVENTORY_V1"
+)
+_STUDENT_TEXT_MIME = "text/plain; charset=utf-8"
 CURRENTNESS_KIND = "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
 CURRENTNESS_KIND_V2 = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
 #: ADR-0059 : la preuve parle le vocabulaire de la politique d'actualité
@@ -107,6 +111,31 @@ class MultilevelCandidateInventory:
         return tuple(
             item
             for item in self.placements
+            if item.content_sha256 == content_sha256 and item.collection == collection
+        )
+
+
+@dataclass(frozen=True)
+class StudentPublicCandidateInventory:
+    """Inventaire des dérivés ; aucune autorité de currentness PDF n'en découle."""
+
+    sha256: str
+    release_id: str
+    release_manifest_sha256: str
+    artifact_registry_sha256: str
+    candidate_manifest_sha256: str
+    source_candidate_inventory_sha256: Mapping[str, str]
+    placements: tuple[MultilevelCandidatePlacement, ...]
+
+    @property
+    def unique_content_sha256(self) -> frozenset[str]:
+        return frozenset(item.content_sha256 for item in self.placements)
+
+    def placements_for(
+        self, *, content_sha256: str, collection: str
+    ) -> tuple[MultilevelCandidatePlacement, ...]:
+        return tuple(
+            item for item in self.placements
             if item.content_sha256 == content_sha256 and item.collection == collection
         )
 
@@ -453,6 +482,168 @@ def load_multilevel_candidate_inventory(
         effective_catalog_authority_sha256=authorities[
             "effective_catalog_authority_sha256"
         ],
+        placements=tuple(placements),
+    )
+
+
+def load_student_public_candidate_inventory(
+    path: Path, *, expected_sha256: str
+) -> StudentPublicCandidateInventory:
+    """Lire un inventaire de textes par digest, sans interpréter un PDF comme texte.
+
+    Les jointures retournées ont la même clé `(content_sha256,
+    source_placement_id)` que Worker A. Ce lecteur ne convertit pas le format
+    historique V1 et ne déclare aucune preuve de transfert ou d'actualité.
+    """
+    inventory_sha, document = _read_digest_bound(
+        path, expected_sha256=expected_sha256, json_only=True,
+        label="student public candidate inventory",
+    )
+    _require_exact_keys(document, {
+        "inventory_kind", "release_id", "release_manifest_sha256",
+        "artifact_registry_sha256", "candidate_manifest_sha256",
+        "source_candidate_inventory_sha256", "counts", "collections",
+    }, label="student public candidate inventory")
+    if document.get("inventory_kind") != STUDENT_PUBLIC_INVENTORY_KIND:
+        raise MultilevelEvidenceError("student public inventory kind differs")
+    release_id = _require_nonempty(document.get("release_id"), label="release id")
+    release_manifest_sha = _require_sha256(
+        document.get("release_manifest_sha256"), label="release manifest SHA"
+    )
+    artifact_registry_sha = _require_sha256(
+        document.get("artifact_registry_sha256"), label="artifact registry SHA"
+    )
+    candidate_manifest_sha = _require_sha256(
+        document.get("candidate_manifest_sha256"), label="candidate manifest SHA"
+    )
+    raw_source_shas = document.get("source_candidate_inventory_sha256")
+    if not isinstance(raw_source_shas, Mapping):
+        raise MultilevelEvidenceError("source candidate inventory authority absent")
+    _require_exact_keys(raw_source_shas, {"v4", "v5"}, label="source inventory digests")
+    source_shas = {
+        version: _require_sha256(raw_source_shas[version], label=f"{version} source SHA")
+        for version in ("v4", "v5")
+    }
+
+    raw_collections = document.get("collections")
+    if not isinstance(raw_collections, list) or not raw_collections:
+        raise MultilevelEvidenceError("student public collections absent")
+    names: list[str] = []
+    placements: list[MultilevelCandidatePlacement] = []
+    identities: dict[str, tuple[str, str, str]] = {}
+    source_ids: set[str] = set()
+    for raw_collection in raw_collections:
+        if not isinstance(raw_collection, Mapping):
+            raise MultilevelEvidenceError("student public collection malformed")
+        _require_exact_keys(raw_collection, {"collection", "candidates"}, label="collection")
+        name = _require_nonempty(raw_collection.get("collection"), label="collection")
+        names.append(name)
+        raw_candidates = raw_collection.get("candidates")
+        if not isinstance(raw_candidates, list) or not raw_candidates:
+            raise MultilevelEvidenceError("student public collection candidates absent")
+        candidate_shas: list[str] = []
+        for raw_candidate in raw_candidates:
+            if not isinstance(raw_candidate, Mapping):
+                raise MultilevelEvidenceError("student public candidate malformed")
+            _require_exact_keys(raw_candidate, {
+                "content_sha256", "source_pdf_sha256", "physical_path", "media_type",
+                "derivative_receipt_sha256", "placements",
+            }, label="student public candidate")
+            sha = _require_sha256(raw_candidate.get("content_sha256"), label="derivative SHA")
+            source_sha = _require_sha256(
+                raw_candidate.get("source_pdf_sha256"), label="source PDF SHA"
+            )
+            receipt_sha = _require_sha256(
+                raw_candidate.get("derivative_receipt_sha256"), label="receipt SHA"
+            )
+            if source_sha == sha:
+                raise MultilevelEvidenceError("source PDF SHA equals derivative SHA")
+            physical_path = raw_candidate.get("physical_path")
+            if physical_path != f"{sha}.txt":
+                raise MultilevelEvidenceError("student public text path differs")
+            if raw_candidate.get("media_type") != _STUDENT_TEXT_MIME:
+                raise MultilevelEvidenceError("student public media type differs")
+            identity = (source_sha, receipt_sha, physical_path)
+            if sha in identities and identities[sha] != identity:
+                raise MultilevelEvidenceError("derivative identity differs across collections")
+            identities[sha] = identity
+            candidate_shas.append(sha)
+            raw_placements = raw_candidate.get("placements")
+            if not isinstance(raw_placements, list) or not raw_placements:
+                raise MultilevelEvidenceError("student public source placements absent")
+            candidate_source_ids: list[str] = []
+            for raw_placement in raw_placements:
+                if not isinstance(raw_placement, Mapping):
+                    raise MultilevelEvidenceError("student public source placement malformed")
+                _require_exact_keys(raw_placement, {
+                    "source_placement_id", "source_url", "title", "external_level",
+                    "external_subject", "external_scope", "external_document_type",
+                    "year", "placement_origin", "placement_reason_code",
+                }, label="student public source placement")
+                source_id = _require_sha256(
+                    raw_placement.get("source_placement_id"), label="source placement SHA"
+                )
+                if source_id in source_ids:
+                    raise MultilevelEvidenceError("source placement duplicate")
+                source_ids.add(source_id)
+                candidate_source_ids.append(source_id)
+                source_url = _require_nonempty(raw_placement.get("source_url"), label="source URL")
+                parsed = urlparse(source_url)
+                if (parsed.scheme != "https"
+                        or parsed.netloc != "eduscol.education.gouv.fr"
+                        or not parsed.path.startswith("/") or parsed.fragment):
+                    raise MultilevelEvidenceError("source URL is not an Eduscol page")
+                reason = raw_placement.get("placement_reason_code")
+                if reason is not None and (not isinstance(reason, str) or not reason.strip()):
+                    raise MultilevelEvidenceError("placement reason code invalid")
+                for field in ("year", "placement_origin"):
+                    _require_nonempty(raw_placement.get(field), label=field)
+                placements.append(MultilevelCandidatePlacement(
+                    collection=name,
+                    content_sha256=sha,
+                    physical_path=physical_path,
+                    source_placement_id=source_id,
+                    source_url=source_url,
+                    title=_require_nonempty(raw_placement.get("title"), label="title"),
+                    external_level=_require_nonempty(
+                        raw_placement.get("external_level"), label="external level"
+                    ),
+                    external_subject=_require_nonempty(
+                        raw_placement.get("external_subject"), label="external subject"
+                    ),
+                    external_scope=_require_nonempty(
+                        raw_placement.get("external_scope"), label="external scope"
+                    ),
+                    external_document_type=_require_nonempty(
+                        raw_placement.get("external_document_type"), label="external document type"
+                    ),
+                ))
+            if candidate_source_ids != sorted(candidate_source_ids):
+                raise MultilevelEvidenceError("source placement order differs")
+        if candidate_shas != sorted(set(candidate_shas)):
+            raise MultilevelEvidenceError("student public candidate order or uniqueness differs")
+    if names != sorted(set(names)):
+        raise MultilevelEvidenceError("student public collection order or uniqueness differs")
+    counts = document.get("counts")
+    if not isinstance(counts, Mapping):
+        raise MultilevelEvidenceError("student public counts absent")
+    _require_exact_keys(counts, {"collections", "unique_artifacts", "placements"},
+                        label="student public counts")
+    for field, actual in (
+        ("collections", len(names)),
+        ("unique_artifacts", len(identities)),
+        ("placements", len(placements)),
+    ):
+        value = counts.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value != actual:
+            raise MultilevelEvidenceError(f"student public {field} count differs")
+    return StudentPublicCandidateInventory(
+        sha256=inventory_sha,
+        release_id=release_id,
+        release_manifest_sha256=release_manifest_sha,
+        artifact_registry_sha256=artifact_registry_sha,
+        candidate_manifest_sha256=candidate_manifest_sha,
+        source_candidate_inventory_sha256=source_shas,
         placements=tuple(placements),
     )
 
@@ -958,11 +1149,13 @@ __all__ = [
     "CURRENTNESS_KIND_V2",
     "CURRENTNESS_KIND_V3",
     "INVENTORY_KIND",
+    "STUDENT_PUBLIC_INVENTORY_KIND",
     "NOT_CURRENT_DECLARED_BY_SOURCE",
     "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE",
     "PRODUCT_CURRENTNESS_BY_DISPOSITION",
     "MultilevelCandidateInventory",
     "MultilevelCandidatePlacement",
+    "StudentPublicCandidateInventory",
     "MultilevelCurrentnessArtifact",
     "MultilevelCurrentnessEvidence",
     "MultilevelEvidenceError",
@@ -970,5 +1163,6 @@ __all__ = [
     "VERIFIED_CURRENT",
     "content_set_sha256",
     "load_multilevel_candidate_inventory",
+    "load_student_public_candidate_inventory",
     "load_multilevel_currentness",
 ]
