@@ -26,15 +26,24 @@ réelle ni digest d'autorité n'a été émis.
 La fenêtre courte implique un nouveau pin, un nouveau HEAD et une nouvelle
 review si elle expire. Une approbation d'un ancien HEAD ou d'un autre chemin
 de destination n'est pas réutilisable. La vérification dépend de GitHub live ;
-son indisponibilité laisse le pin refusé. La revue après merge devra utiliser
-un reçu historique validé par le protocole de la PR, car le vérificateur
-canonique live exige une PR ouverte. Cela doit être traité avant une signature
-ou activation post-merge.
+son indisponibilité laisse le pin refusé. Après fusion,
+`historical_staging_target_pin_receipt.py` construit puis rejoue un reçu
+historique. Il reconstitue uniquement le statut OPEN et le `base_sha` de
+l'exécution trusted pré-fusion pour appliquer le vérificateur canonique ; le
+reste provient de GitHub actuel. La review, son ID, son challenge, le statut
+trusted réussi avant merge, le run et sa tentative, le tree
+approuvé/fusionné, le blob du pin au HEAD approuvé et dans le `main` actuel
+sont tous relus. Le `main` du checkout doit coïncider avec le `main` GitHub
+live et descendre du merge. La cible hôte/Docker/PostgreSQL est relue enfin.
+Le reçu seul reste explicitement hors autorité de publication.
 
-Vérification locale sur fixtures synthétiques : 20 tests passent, `ruff` passe.
+Vérification locale sur fixtures synthétiques : 91 tests ciblés passent,
+`ruff` passe.
 Les sabotages couvrent digest, ancre A, hôte, machine-id, conteneur, base,
 chemin, symlink, expiration, review/HEAD/base/challenge et blob substitué. Ce
-résultat ne vaut pas qualification d'une cible réelle.
+résultat ne vaut pas qualification d'une cible réelle. Le test d'intégration
+Git crée une histoire approuvée→fusionnée→main avancé ; le rejeu conserve le
+`base_sha` historique lié au run même si l'API PR expose une base ultérieure.
 
 Prochaines conditions factuelles : cible staging finale créée et identifiée,
 DSN read-only vers son PostgreSQL conteneurisé disponible par variable
