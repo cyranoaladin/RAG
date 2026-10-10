@@ -115,10 +115,11 @@ def test_final_scope_index_matches_all_sealed_collections_and_governed_artifacts
     collections = {"rag_nexus_nsi_terminale_specialite", "rag_nexus_hggsp_terminale_specialite"}
     for subject, collection in (("nsi", "rag_nexus_nsi_terminale_specialite"), ("hggsp", "rag_nexus_hggsp_terminale_specialite")):
         scope = {
+            "artifact_version": "3",
             "scope_id": f"prod_{subject}_terminale_specialite_v3",
             "status": "eligible_for_promotion",
-            "target_identity": {"tenant": "libre_terminale", "niveau": "terminale", "voie": "generale", "matiere": subject, "statut_enseignement": "specialite", "audience": "libre", "candidates": ["libre"]},
-            "evidence_subject": {"collection": collection, "school_year": "2026-2027", "visibility": "internal"},
+            "target_policy": {"tenant": "libre_terminale", "niveau": "terminale", "voie": "generale", "matiere": subject, "statut_enseignement": "specialite", "audiences": ["libre"], "candidates": ["libre"], "roles": ["student", "teacher"]},
+            "evidence_subject": {"collection": collection, "school_year": "2026-2027", "visibility": "public"},
         }
         (artifacts / f"retrieval-scope-prod-{subject}-terminale-specialite-v3.json").write_text(json.dumps(scope))
         scopes.append(scope)
@@ -133,6 +134,12 @@ def test_final_scope_index_matches_all_sealed_collections_and_governed_artifacts
     generated.write_text(json.dumps(scopes))
     with pytest.raises(ValueError, match="gouverné"):
         harness.load_final_scopes(generated, artifacts, collections)
+    scopes[0]["scope_id"] = "prod_nsi_terminale_specialite_v3"
+    scopes[0]["artifact_version"] = "2"
+    generated.write_text(json.dumps(scopes))
+    (artifacts / "retrieval-scope-prod-nsi-terminale-specialite-v3.json").write_text(json.dumps(scopes[0]))
+    with pytest.raises(ValueError, match="V3|public"):
+        harness.load_final_scopes(generated, artifacts, collections)
 
 
 def test_signed_claims_match_selected_final_scope_and_digest():
@@ -144,10 +151,21 @@ def test_signed_claims_match_selected_final_scope_and_digest():
         harness.assess_signed_claims({**claims, "scope_digest": "0" * 64}, "teacher", scope)
 
 
+def test_v3_scope_source_digest_must_match_final_release_subject():
+    harness = load_harness()
+    collection = "rag_nexus_nsi_terminale_specialite"
+    scope = {"source_sha256": "a" * 64, "evidence_subject": {"collection": collection}}
+    harness.assert_scope_subject_binding(scope, collection, {collection: "a" * 64})
+    with pytest.raises(ValueError, match="subject"):
+        harness.assert_scope_subject_binding(scope, collection, {collection: "b" * 64})
+    with pytest.raises(ValueError, match="subject"):
+        harness.assert_scope_subject_binding(scope, collection, {})
+
+
 def test_signed_identity_uses_exact_final_collection_profile():
     harness = load_harness()
     scope = {
-        "target_identity": {"tenant": "libre_premiere", "niveau": "premiere", "voie": "generale", "matiere": "hggsp", "statut_enseignement": "specialite", "audience": "libre", "candidates": ["libre"]},
+        "target_policy": {"tenant": "libre_premiere", "niveau": "premiere", "voie": "generale", "matiere": "hggsp", "statut_enseignement": "specialite", "audiences": ["libre"], "candidates": ["libre"], "roles": ["student", "teacher"]},
         "evidence_subject": {"school_year": "2026-2027", "collection": "rag_nexus_hggsp_premiere_specialite"},
     }
     assert harness.identity_for_scope(scope, "teacher") == {
@@ -155,6 +173,66 @@ def test_signed_identity_uses_exact_final_collection_profile():
         "statut_enseignement": "specialite", "audience": "libre", "candidat": "libre",
         "school_year": "2026-2027", "role": "teacher",
     }
+
+
+def test_unissued_teacher_role_is_refused_by_final_scope_policy():
+    harness = load_harness()
+    scope = {
+        "target_policy": {"tenant": "libre_premiere", "niveau": "premiere", "voie": "generale", "matiere": "hggsp", "statut_enseignement": "specialite", "audiences": ["libre"], "candidates": ["libre"], "roles": ["student"]},
+        "evidence_subject": {"school_year": "2026-2027", "collection": "rag_nexus_hggsp_premiere_specialite"},
+    }
+    with pytest.raises(ValueError, match="role"):
+        harness.identity_for_scope(scope, "teacher")
+
+
+def test_rehearsal_and_candidate_releases_cannot_qualify_final_bff():
+    harness = load_harness()
+    candidate_path = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-b1dda0c8503aa474/profile_gate/production-profile-gate.release.json"
+    candidate = json.loads(candidate_path.read_text())
+    rehearsal = {**candidate, "release_id": "profile-gate-v4", "release_mode": "rehearsal"}
+    for release in (candidate, rehearsal):
+        with pytest.raises(ValueError, match="release.*finale"):
+            harness.assert_final_successor_release(release)
+    approved = {**candidate, "release_id": "student-public-successor-final-20261010", "release_mode": "production", "promotion_status": "PROMOTABLE", "activation_status": "PRODUCTION_ACTIVATION_ALLOWED", "review_status": "APPROVED"}
+    harness.assert_final_successor_release(approved)
+
+
+def test_public_derivative_requires_exact_sealed_attribution_and_text_only():
+    harness = load_harness()
+    collection = "rag_nexus_nsi_terminale_specialite"
+    candidate = hit(collection)
+    candidate["metadata"]["placement_id"] = "placement-1"
+    sealed_citation = {
+        "source_uri": candidate["citation"]["source_uri"],
+        "source_label": candidate["citation"]["source_label"],
+        "licensor": "Direction générale de l'enseignement scolaire",
+        "licence_id": "ETALAB-2.0",
+        "source_updated_at": "2026-10-10T06:04:05Z",
+        "derivative_notice": "Extrait textuel dérivé ; PDF non redistribué.",
+    }
+    sealed = {
+        "placement-1": {
+            "artifact_id": "b" * 64,
+            "content_sha256": "b" * 64,
+            "visibility": "public",
+            "media_type": "text/plain; charset=utf-8",
+            "citation": sealed_citation,
+            "source_uri": sealed_citation["source_uri"],
+            "source_label": sealed_citation["source_label"],
+            "chunks": {"chunk-1": (3, 3)},
+        }
+    }
+    with pytest.raises(ValueError, match="attribution"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)
+    candidate["citation"].update({key: sealed_citation[key] for key in ("licensor", "licence_id", "source_updated_at", "derivative_notice")})
+    assert harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)["results"] == 1
+    candidate["citation"]["source_updated_at"] = "2026-10-09"
+    with pytest.raises(ValueError, match="attribution"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)
+    candidate["citation"]["source_updated_at"] = sealed_citation["source_updated_at"]
+    sealed["placement-1"]["media_type"] = "application/pdf"
+    with pytest.raises(ValueError, match="textuel"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)
 
 
 def test_cockpit_url_accepts_only_local_origin_without_credentials_or_query():

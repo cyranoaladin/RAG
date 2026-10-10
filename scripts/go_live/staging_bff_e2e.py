@@ -15,7 +15,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -84,15 +84,21 @@ def load_final_scopes(
         scope_id = scope.get("scope_id")
         subject = _object(scope.get("evidence_subject"), "subject final")
         collection = subject.get("collection")
+        target = scope.get("target_policy")
         if (
             not isinstance(scope_id, str)
             or not re.fullmatch(r"prod_[a-z0-9_]+_v[0-9]+", scope_id)
             or not isinstance(collection, str)
             or scope_id in scope_ids
             or collection in scopes
+            or scope.get("artifact_version") != "3"
             or scope.get("status") != "eligible_for_promotion"
+            or subject.get("visibility") != "public"
+            or not isinstance(target, dict)
+            or not isinstance(target.get("roles"), list)
+            or "student" not in target["roles"]
         ):
-            raise ValueError("index de scopes finaux ambigu ou invalide")
+            raise ValueError("index de scopes V3 publics ambigu ou invalide")
         canonical = artifact_dir / f"retrieval-scope-{scope_id.replace('_', '-')}.json"
         if not canonical.is_file() or json.loads(canonical.read_text(encoding="utf-8")) != scope:
             raise ValueError("scope final différent de l'artefact gouverné")
@@ -114,6 +120,31 @@ def _object(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TypeError(f"{label} invalide")
     return value
+
+
+def assert_final_successor_release(manifest: dict[str, Any]) -> None:
+    """Ne jamais qualifier le candidat préparatoire ou une rehearsal interne."""
+    if (
+        not isinstance(manifest.get("release_id"), str)
+        or not manifest["release_id"].startswith("student-public-successor-")
+        or manifest.get("release_mode") != "production"
+        or manifest.get("promotion_status") != "PROMOTABLE"
+        or manifest.get("activation_status") != "PRODUCTION_ACTIVATION_ALLOWED"
+        or manifest.get("review_status") != "APPROVED"
+    ):
+        raise ValueError("release publique finale non établie")
+
+
+def assert_scope_subject_binding(
+    scope: dict[str, Any], collection: str, subject_shas: dict[str, str]
+) -> None:
+    """Lier le scope V3 aux octets du sujet servi, pas à un ancien candidat."""
+    if (
+        _object(scope.get("evidence_subject"), "subject du scope").get("collection") != collection
+        or not SHA256.fullmatch(subject_shas.get(collection, ""))
+        or scope.get("source_sha256") != subject_shas[collection]
+    ):
+        raise ValueError("scope V3 non lié au subject final")
 
 
 def assess_positive(
@@ -167,6 +198,21 @@ def assess_positive(
                 raise ValueError("placement absent de la release scellée")
             if require_public and sealed["visibility"] != "public":
                 raise ValueError("placement non public")
+            if require_public:
+                if sealed.get("media_type") != "text/plain; charset=utf-8":
+                    raise ValueError("artefact public non textuel")
+                sealed_citation = _object(sealed.get("citation"), "attribution scellée")
+                fields = ("source_uri", "source_label", "licensor", "licence_id", "source_updated_at", "derivative_notice")
+                if (
+                    sealed_citation.get("licence_id") != "ETALAB-2.0"
+                    or any(
+                        not isinstance(citation.get(field), str)
+                        or not citation[field].strip()
+                        or citation[field] != sealed_citation.get(field)
+                        for field in fields
+                    )
+                ):
+                    raise ValueError("attribution du dérivé public absente ou non scellée")
             if sealed["source_uri"] != citation["source_uri"] or sealed["source_label"] != citation["source_label"]:
                 raise ValueError("citation non liée à l'artefact scellé")
             pages = sealed["chunks"].get(hit.get("chunk_id"))
@@ -265,6 +311,8 @@ def load_release_evidence(
                 "artifact_id": artifact["artifact_id"],
                 "content_sha256": artifact["content_sha256"],
                 "visibility": placement["visibility"],
+                "media_type": artifact.get("media_type"),
+                "citation": artifact.get("citation"),
                 "source_uri": artifact["source_url"],
                 "source_label": artifact["title"],
                 "chunks": {
@@ -296,18 +344,24 @@ def _live_main_sha(root: Path) -> str:
 
 
 def identity_for_scope(scope: dict[str, Any], role: str) -> dict[str, Any]:
-    target = _object(scope.get("target_identity"), "target identity")
+    target = _object(scope.get("target_policy"), "target policy")
     subject = _object(scope.get("evidence_subject"), "evidence subject")
     candidates = target.get("candidates")
     if not isinstance(candidates, list) or "libre" not in candidates:
         raise ValueError("candidat libre absent du scope final")
+    roles = target.get("roles")
+    if not isinstance(roles, list) or role not in roles:
+        raise ValueError("role absent du scope final")
+    audiences = target.get("audiences")
+    if not isinstance(audiences, list) or "libre" not in audiences:
+        raise ValueError("audience libre absente du scope final")
     return {
         "tenant": target["tenant"],
         "niveau": target["niveau"],
         "voie": target["voie"],
         "matieres": [target["matiere"]],
         "statut_enseignement": target["statut_enseignement"],
-        "audience": target["audience"],
+        "audience": "libre",
         "candidat": "libre",
         "school_year": subject["school_year"],
         "role": role,
@@ -396,7 +450,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("checkout différent du main final attendu")
     if _git(root, "status", "--porcelain"):
         raise ValueError("checkout de qualification non propre")
-    scope_path = root / "services/cockpit/src/generated/final-retrieval-scopes-v4-v5.json"
+    scope_path = args.scope_index.resolve()
+    if not scope_path.is_relative_to(root):
+        raise ValueError("index de scopes hors checkout")
     if _sha256(args.registry) != args.registry_sha256:
         raise ValueError("release registry digest invalide")
     registry = _object(json.loads(args.registry.read_text(encoding="utf-8")), "registry")
@@ -405,11 +461,30 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     if len(registry_collections) != 11:
         raise ValueError("registre final BFF attendu à 11 collections")
+    if len(registry["releases"]) != 1:
+        raise ValueError("registre successeur public non unique")
+    release = registry["releases"][0]
+    manifest_path = args.registry.parent / release["manifest_path"]
+    if _sha256(manifest_path) != release["expected_manifest_sha256"]:
+        raise ValueError("release manifest digest invalide")
+    manifest = _object(json.loads(manifest_path.read_text(encoding="utf-8")), "manifest")
+    assert_final_successor_release(manifest)
     scopes = load_final_scopes(
         scope_path,
         root / "packages/contracts/src/nexus_contracts/artifacts",
         registry_collections,
     )
+    subject_refs = manifest.get("subjects")
+    if not isinstance(subject_refs, list) or len(subject_refs) != 11:
+        raise ValueError("subjects de release finale incomplets")
+    subject_shas = {
+        ref["collection"]: ref["sha256"]
+        for ref in subject_refs if isinstance(ref, dict) and isinstance(ref.get("collection"), str)
+    }
+    if set(subject_shas) != registry_collections:
+        raise ValueError("subjects de release finale hors collection")
+    for collection, final_scope in scopes.items():
+        assert_scope_subject_binding(final_scope, collection, subject_shas)
     scope = scopes.get(args.collection)
     if scope is None:
         raise ValueError("collection absente du scope BFF signé")
@@ -446,7 +521,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         student = {"refusal": assess_internal_student(student_status, student_body)}
     return {
         "kind": "NEXUS-FINAL-STAGING-BFF-E2E-V1",
-        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "observed_at": datetime.now(UTC).isoformat(),
         "checkout_sha": head,
         "live_main_sha": live_main_sha,
         "cockpit_runtime_build_sha": runtime_build_sha,
@@ -462,6 +537,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "cockpit_url": cockpit_url,
             "registry": str(args.registry.resolve().relative_to(root)),
             "registry_sha256": args.registry_sha256,
+            "scope_index": str(scope_path.relative_to(root)),
             "expected_sha": args.expected_sha,
             "collection": args.collection,
             "query": args.query,
@@ -487,6 +563,7 @@ def main() -> int:
     parser.add_argument("--cockpit-url", required=True)
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--registry-sha256", required=True)
+    parser.add_argument("--scope-index", type=Path, required=True)
     parser.add_argument("--expected-sha", required=True)
     parser.add_argument("--collection", default=NSI_COLLECTION)
     parser.add_argument("--query", default="Quel est le programme de spécialité NSI en terminale ?")
