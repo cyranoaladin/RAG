@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from nexus_contracts.authority_artifacts import (
+    CanonicalArtifactError,
+    ReleaseBatchPublicationReviewArtifact,
+    parse_release_batch_publication_review_artifact,
+)
 from nexus_contracts.scope import RetrievalScopeArtifactV3
 
 from nexus_release_chain.release_readiness import (
@@ -406,6 +411,53 @@ def verify_content_authority_bindings(
     for field, digest in expected.items():
         if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None or authorities.get(field) != digest:
             raise PublicSuccessorActivationError(f"{field}: C differs from immutable A")
+
+
+def verify_publication_batch_review(
+    raw: bytes,
+    content: PublicSuccessorContentVerdict,
+    release_root: Path,
+    transfer_manifest_sha256: str,
+    scope_authorization_ids: tuple[str, ...],
+    now_utc: datetime,
+) -> ReleaseBatchPublicationReviewArtifact:
+    """Vérifier le document LOT42 canonique contre A et le transfert exact.
+
+    La revue humaine et les lignes DB sont vérifiées séparément au scellement ;
+    un document LOT42 valide par forme ne s'auto-approuve jamais.
+    """
+    try:
+        review = parse_release_batch_publication_review_artifact(raw)
+    except (CanonicalArtifactError, ValueError) as error:
+        raise PublicSuccessorActivationError("LOT42 review artifact invalid") from error
+    try:
+        release = load_release_expectation(
+            release_root / "profile_gate/production-profile-gate.release.json",
+            content.content_manifest_sha256,
+        )
+    except ReleaseReadinessError as error:
+        raise PublicSuccessorActivationError("LOT42 A source invalid") from error
+    currentness_values = {row.payload.get("currentness") for row in release.placements}
+    if len(currentness_values) != 1 or not currentness_values <= {"current", "official_snapshot"}:
+        raise PublicSuccessorActivationError("LOT42 A currentness is not homogeneous")
+    if review.artifact_transfer_manifest_sha256 != transfer_manifest_sha256:
+        raise PublicSuccessorActivationError("LOT42 transfer manifest differs")
+    if (
+        review.release_id != content.release_id
+        or review.release_manifest_sha256 != content.content_manifest_sha256
+        or review.artifacts_release_sha256 != content.artifact_registry_sha256
+        or review.candidate_inventory_sha256 != content.candidate_inventory_sha256
+        or review.expected_counts.model_dump() != content.expected_counts
+        or set(review.collections) != set(content.subject_sha256_by_collection)
+        or review.scope_authorization_ids != scope_authorization_ids
+        or review.placement_evidence.placement_status != "active"
+        or review.placement_evidence.review_status != "reviewed"
+        or review.placement_evidence.currentness not in currentness_values
+    ):
+        raise PublicSuccessorActivationError("LOT42 facts differ from public A")
+    if now_utc < review.valid_from or now_utc >= review.valid_until:
+        raise PublicSuccessorActivationError("LOT42 review expired or not yet valid")
+    return review
 
 
 def verify_public_successor_activation(

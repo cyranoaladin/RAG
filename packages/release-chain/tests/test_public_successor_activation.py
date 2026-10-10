@@ -10,6 +10,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from nexus_contracts.authority_artifacts import (
+    ReleaseBatchExpectedCounts,
+    ReleaseBatchPlacementEvidence,
+    ReleaseBatchPublicationReviewArtifact,
+)
 from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationError,
     verify_content_anchor,
@@ -17,6 +22,7 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_currentness,
     verify_public_scope_registry,
     verify_public_successor_activation,
+    verify_publication_batch_review,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -85,6 +91,50 @@ def test_c_content_authorities_must_restate_exact_a_bindings() -> None:
         changed = {**authorities, field: "f" * 64}
         with pytest.raises(PublicSuccessorActivationError, match=field):
             verify_content_authority_bindings(RELEASE, content, changed)
+
+
+def _lot42_review() -> ReleaseBatchPublicationReviewArtifact:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    return ReleaseBatchPublicationReviewArtifact(
+        protocol_version="LOT42-RELEASE-BATCH-V1",
+        review_id="lot42-public-successor-test",
+        decision="AUTHORIZE_SEALED_RELEASE_PUBLICATION",
+        release_id=content.release_id,
+        release_manifest_sha256=content.content_manifest_sha256,
+        artifacts_release_sha256=content.artifact_registry_sha256,
+        candidate_inventory_sha256=content.candidate_inventory_sha256,
+        artifact_transfer_manifest_sha256="a" * 64,
+        expected_counts=ReleaseBatchExpectedCounts(**content.expected_counts),
+        collections=tuple(sorted(content.subject_sha256_by_collection)),
+        placement_evidence=ReleaseBatchPlacementEvidence(
+            currentness="official_snapshot", placement_status="active", review_status="reviewed",
+        ),
+        scope_authorization_ids=tuple(f"lot41a-{n:02d}" for n in range(11)),
+        provenance_source_url_count=1,
+        provenance_note="Provenance du corpus textuel public testé.",
+        valid_from=datetime(2026, 10, 10, 20, tzinfo=UTC),
+        valid_until=datetime(2026, 10, 11, 12, tzinfo=UTC),
+    )
+
+
+def test_lot42_public_review_is_bound_to_a_and_transfer() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    review = _lot42_review()
+    now = datetime(2026, 10, 10, 21, tzinfo=UTC)
+    assert verify_publication_batch_review(
+        review.canonical_bytes(), content, RELEASE, "a" * 64,
+        review.scope_authorization_ids, now,
+    ).digest() == review.digest()
+    with pytest.raises(PublicSuccessorActivationError, match="LOT42.*transfer"):
+        verify_publication_batch_review(
+            review.canonical_bytes(), content, RELEASE, "b" * 64,
+            review.scope_authorization_ids, now,
+        )
+    with pytest.raises(PublicSuccessorActivationError, match="LOT42.*expired"):
+        verify_publication_batch_review(
+            review.canonical_bytes(), content, RELEASE, "a" * 64,
+            review.scope_authorization_ids, review.valid_until,
+        )
 
 
 @pytest.mark.parametrize(
