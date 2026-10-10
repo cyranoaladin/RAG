@@ -1,0 +1,186 @@
+"""Le successeur préparatoire #313 ne peut émettre aucun scope étudiant."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts/go_live"))
+
+import check_public_scope_policy_authority as scope_gate
+from check_public_scope_policy_authority import (
+    SUCCESSOR_DIR,
+    PublicScopePolicyError,
+    check_public_successor_scope_proposal,
+)
+
+PROPOSAL = (
+    ROOT / "governance/student_public_rights/public_successor_scope_proposal_20261010.yml"
+)
+
+
+def _proposal() -> dict:
+    return yaml.safe_load(PROPOSAL.read_text(encoding="utf-8"))
+
+
+def test_prepared_successor_binds_eleven_unissued_student_scopes() -> None:
+    proposal = _proposal()
+    assert proposal["scope_artifact_version"] == "3"
+    assert proposal["successor_release_id"] == (
+        "student-public-successor-20261010-fcc84331e7700042"
+    )
+    assert proposal["source_pr"] == 323
+    assert check_public_successor_scope_proposal(ROOT, proposal) == 11
+    assert all(row["status"] == "NOT_ISSUED" for row in proposal["bindings"])
+    assert proposal["scope_issuance_authorized"] is False
+
+
+def test_legacy_successor_cannot_claim_complete_profile_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#313 cannot masquerade as #323: subjects carry only scope hashes."""
+    old_dir = SUCCESSOR_DIR.parent / "release-b1dda0c8503aa474"
+    old_index_raw = (ROOT / old_dir / "preparation-index.json").read_bytes()
+    old_manifest_raw = (
+        ROOT / old_dir / "profile_gate/production-profile-gate.release.json"
+    ).read_bytes()
+    old_profiles_raw = (ROOT / old_dir / "profile_gate/public_profiles.json").read_bytes()
+    old_index = json.loads(old_index_raw)
+    old_proposal = _proposal()
+    old_proposal.update(
+        source_pr=323,
+        successor_release_id=old_index["release_id"],
+        successor_release_manifest_sha256=hashlib.sha256(old_manifest_raw).hexdigest(),
+        preparation_index_sha256=hashlib.sha256(old_index_raw).hexdigest(),
+        public_profile_registry_sha256=hashlib.sha256(old_profiles_raw).hexdigest(),
+    )
+    old_scopes = {row["collection"]: row for row in old_index["proposed_scopes"]}
+    for binding in old_proposal["bindings"]:
+        binding["prepared_subject_sha256"] = old_scopes[
+            binding["collection"]
+        ]["final_subject_sha256"]
+    monkeypatch.setattr(scope_gate, "SUCCESSOR_DIR", old_dir)
+    monkeypatch.setattr(
+        scope_gate, "SUCCESSOR_INDEX_SHA256", old_proposal["preparation_index_sha256"]
+    )
+    monkeypatch.setattr(
+        scope_gate, "SUCCESSOR_MANIFEST_SHA256",
+        old_proposal["successor_release_manifest_sha256"],
+    )
+    monkeypatch.setattr(scope_gate, "SUCCESSOR_RELEASE_ID", old_index["release_id"])
+    with pytest.raises(PublicScopePolicyError, match="PROFILE_BINDING"):
+        check_public_successor_scope_proposal(ROOT, old_proposal)
+
+
+def test_scope_proposal_names_complete_profile_identity() -> None:
+    bindings = _proposal()["bindings"]
+    assert len(bindings) == 11
+    assert all(row["complete_profile_version"] == "student-public-derivative-v1"
+               for row in bindings)
+    assert all(len(row["complete_profile_fingerprint"]) == 64 for row in bindings)
+    assert all(len(row["complete_profile_sha256"]) == 64 for row in bindings)
+    assert all(row["rights"] == ["public_allowed"] for row in bindings)
+    assert all(row["evidence_audiences"] == ["libre", "aefe"] for row in bindings)
+    assert all(row["programme_version"] for row in bindings)
+
+
+@pytest.mark.parametrize("sabotage", [
+    "legacy_rights", "wrong_audiences", "wrong_programme",
+    "wrong_programme_authority", "legacy_scope_version",
+])
+def test_successor_proposal_refuses_unproven_policy_dimensions(sabotage: str) -> None:
+    proposal = copy.deepcopy(_proposal())
+    row = proposal["bindings"][0]
+    if sabotage == "legacy_rights":
+        row["rights"] = ["officiel_public"]
+    elif sabotage == "wrong_audiences":
+        row["evidence_audiences"] = ["libre", "tous"]
+    elif sabotage == "wrong_programme":
+        row["programme_version"] = "BOEN_FAUX"
+    elif sabotage == "legacy_scope_version":
+        proposal["scope_artifact_version"] = "2"
+    else:
+        proposal["programme_registry_sha256"] = "0" * 64
+    with pytest.raises(PublicScopePolicyError):
+        check_public_successor_scope_proposal(ROOT, proposal)
+
+
+def test_successor_proposal_requires_exact_rights_authority_bytes(tmp_path: Path) -> None:
+    release = tmp_path / SUCCESSOR_DIR
+    release.parent.mkdir(parents=True)
+    release.symlink_to(ROOT / SUCCESSOR_DIR, target_is_directory=True)
+    relative = Path(
+        "governance/student_public_rights/authorities/"
+        "eduscol_etalab_2_0_sitewide_20261010.yml"
+    )
+    authority = tmp_path / relative
+    authority.parent.mkdir(parents=True)
+    authority.write_bytes((ROOT / relative).read_bytes() + b"\n# altered\n")
+    with pytest.raises(PublicScopePolicyError, match="RIGHTS"):
+        check_public_successor_scope_proposal(tmp_path, _proposal())
+
+
+def test_successor_proposal_requires_exact_programme_authority_bytes(tmp_path: Path) -> None:
+    release = tmp_path / SUCCESSOR_DIR
+    release.parent.mkdir(parents=True)
+    release.symlink_to(ROOT / SUCCESSOR_DIR, target_is_directory=True)
+    rights = tmp_path / scope_gate.SUCCESSOR_RIGHTS_AUTHORITY
+    rights.parent.mkdir(parents=True)
+    rights.write_bytes((ROOT / scope_gate.SUCCESSOR_RIGHTS_AUTHORITY).read_bytes())
+    programme = tmp_path / scope_gate.SUCCESSOR_PROGRAMME_REGISTRY
+    programme.parent.mkdir(parents=True)
+    programme.write_bytes((ROOT / scope_gate.SUCCESSOR_PROGRAMME_REGISTRY).read_bytes() + b" ")
+    with pytest.raises(PublicScopePolicyError, match="PROGRAMME_AUTHORITY_DIVERGENT"):
+        check_public_successor_scope_proposal(tmp_path, _proposal())
+
+
+@pytest.mark.parametrize("sabotage", [
+    "old_candidate", "bad_manifest", "bad_preparation_index", "missing_scope",
+    "internal", "teacher", "second_subject", "wrong_subject", "wrong_profile",
+    "wrong_scope_id", "issued", "faked_review", "publication_enabled",
+    "pdf_download_enabled", "answer_generation_enabled", "bad_rights_authority",
+])
+def test_successor_proposal_refuses_drift_or_premature_activation(sabotage: str) -> None:
+    proposal = copy.deepcopy(_proposal())
+    row = proposal["bindings"][0]
+    if sabotage == "old_candidate":
+        proposal["successor_release_id"] = "student-public-20261010-v1-eb39f6cd0423e184"
+    elif sabotage == "bad_manifest":
+        proposal["successor_release_manifest_sha256"] = "0" * 64
+    elif sabotage == "bad_preparation_index":
+        proposal["preparation_index_sha256"] = "0" * 64
+    elif sabotage == "missing_scope":
+        proposal["bindings"].pop()
+    elif sabotage == "internal":
+        row["visibility"] = "internal"
+    elif sabotage == "teacher":
+        row["target_policy"]["roles"] = ["student", "teacher"]
+    elif sabotage == "second_subject":
+        row["target_policy"]["matiere"] = ["dgemc", "nsi"]
+    elif sabotage == "wrong_subject":
+        row["prepared_subject_sha256"] = "0" * 64
+    elif sabotage == "wrong_profile":
+        row["profile_fingerprint"] = "0" * 64
+    elif sabotage == "wrong_scope_id":
+        row["proposed_scope_id"] = "student_public_hggsp_premiere_specialite_v1"
+    elif sabotage == "issued":
+        row["status"] = "ISSUED"
+    elif sabotage == "faked_review":
+        proposal["exact_head_review_receipt"] = "a" * 64
+    elif sabotage == "publication_enabled":
+        proposal["publication_authorized"] = True
+    elif sabotage == "pdf_download_enabled":
+        proposal["full_pdf_redistribution_allowed"] = True
+    elif sabotage == "answer_generation_enabled":
+        proposal["answer_generation_allowed"] = True
+    elif sabotage == "bad_rights_authority":
+        proposal["rights_authority_sha256"] = "0" * 64
+    with pytest.raises(PublicScopePolicyError):
+        check_public_successor_scope_proposal(ROOT, proposal)

@@ -6,11 +6,18 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 import yaml
+from nexus_contracts import load_retrieval_scope_registry
+from nexus_contracts.ingestion import CollectionProfile, collection_profile_fingerprint
 from nexus_contracts.scope import RetrievalScopeTargetPolicy
+from nexus_release_chain.release_readiness import (
+    ReleaseReadinessError,
+    load_release_expectation,
+)
 from pydantic import ValidationError
 
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
@@ -21,10 +28,257 @@ POLICY_KIND = "NEXUS_STUDENT_PUBLIC_DERIVATIVE_SCOPE_POLICY_PROPOSAL_V1"
 BINDING_KEYS = {"collection", "candidate_subject_sha256", "candidate_profile_fingerprint",
                 "evidence_visibility", "policy_visibility", "rights_basis", "rights",
                 "material_kind", "target_policy", "final_subject_sha256", "scope_id"}
+SUCCESSOR_DIR = Path(
+    "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+)
+SUCCESSOR_INDEX_SHA256 = "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4"
+SUCCESSOR_MANIFEST_SHA256 = "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78"
+SUCCESSOR_RELEASE_ID = "student-public-successor-20261010-fcc84331e7700042"
+SUCCESSOR_PROPOSAL_KIND = "NEXUS_STUDENT_PUBLIC_SUCCESSOR_SCOPE_PROPOSAL_V1"
+SUCCESSOR_RIGHTS_AUTHORITY = Path(
+    "governance/student_public_rights/authorities/"
+    "eduscol_etalab_2_0_sitewide_20261010.yml"
+)
+SUCCESSOR_PROGRAMME_REGISTRY = Path(
+    "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json"
+)
+SUCCESSOR_PROGRAMME_REGISTRY_SHA256 = (
+    "67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97"
+)
+SUCCESSOR_BINDING_KEYS = {
+    "collection", "prepared_subject_sha256", "final_subject_sha256",
+    "profile_fingerprint", "complete_profile_version",
+    "complete_profile_fingerprint", "complete_profile_sha256",
+    "proposed_scope_id", "status", "visibility", "rights_basis", "rights",
+    "evidence_audiences", "programme_version", "target_policy",
+}
 
 
 class PublicScopePolicyError(ValueError):
     """La proposition ne correspond pas au candidat ou élargit les droits."""
+
+
+def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any]) -> int:
+    """Vérifier onze scopes proposés #323 sans émettre d'artefact de scope.
+
+    Les SHA du paquet préparatoire sont épinglés dans le code et vérifiés par
+    le lecteur canonique. Ce contrôle n'autorise ni release finale ni review.
+    """
+    expected_top = {
+        "authority_kind", "status", "source_pr", "scope_artifact_version",
+        "successor_release_id",
+        "successor_release_manifest_sha256", "preparation_index_sha256",
+        "public_profile_registry_sha256", "rights_authority_sha256",
+        "programme_registry_sha256",
+        "expected_population", "scope_issuance_authorized",
+        "publication_authorized", "full_pdf_redistribution_allowed",
+        "answer_generation_allowed", "exact_head_authority_reviewer",
+        "exact_head_review_receipt", "bindings",
+    }
+    counts = {"subjects": 11, "unique_artifacts": 253, "placements": 377,
+              "unique_chunks": 3975}
+    if (
+        set(proposal) != expected_top
+        or proposal.get("authority_kind") != SUCCESSOR_PROPOSAL_KIND
+        or proposal.get("status") != "PENDING_EXACT_HEAD_AUTHORITY_REVIEW"
+        or proposal.get("source_pr") != 323
+        or proposal.get("scope_artifact_version") != "3"
+        or proposal.get("successor_release_id") != SUCCESSOR_RELEASE_ID
+        or proposal.get("successor_release_manifest_sha256") != SUCCESSOR_MANIFEST_SHA256
+        or proposal.get("preparation_index_sha256") != SUCCESSOR_INDEX_SHA256
+        or proposal.get("programme_registry_sha256") != SUCCESSOR_PROGRAMME_REGISTRY_SHA256
+        or proposal.get("expected_population") != counts
+        or proposal.get("scope_issuance_authorized") is not False
+        or proposal.get("publication_authorized") is not False
+        or proposal.get("full_pdf_redistribution_allowed") is not False
+        or proposal.get("answer_generation_allowed") is not False
+        or proposal.get("exact_head_authority_reviewer") != "abenrhouma"
+        or proposal.get("exact_head_review_receipt") is not None
+    ):
+        raise PublicScopePolicyError("SUCCESSOR_SCOPE_PROPOSAL_NOT_PENDING")
+    release_dir = root / SUCCESSOR_DIR
+    index_path = release_dir / "preparation-index.json"
+    manifest_path = release_dir / "profile_gate/production-profile-gate.release.json"
+    index_raw = index_path.read_bytes()
+    if _sha(index_raw) != SUCCESSOR_INDEX_SHA256:
+        raise PublicScopePolicyError("SUCCESSOR_PREPARATION_INDEX_DIVERGENT")
+    index = _json(index_raw, "SUCCESSOR_PREPARATION_INDEX_INVALID")
+    try:
+        release = load_release_expectation(manifest_path, SUCCESSOR_MANIFEST_SHA256)
+    except (ReleaseReadinessError, OSError) as error:
+        raise PublicScopePolicyError("SUCCESSOR_RELEASE_INVALID") from error
+    manifest = _json(manifest_path.read_bytes(), "SUCCESSOR_RELEASE_INVALID")
+    if (
+        release.release_id != SUCCESSOR_RELEASE_ID
+        or release.release_mode != "candidate"
+        or release.promotion_status != "NOT_PROMOTABLE"
+        or release.activation_status != "NO_PRODUCTION_ACTIVATION"
+        or release.review_status != "PRE_REVIEW"
+        or len(release.collections) != 11
+        or len(release.artifacts) != 253
+        or len(release.placements) != 377
+        or sum(len(artifact.chunks) for artifact in release.artifacts) != 3975
+        or index.get("release_manifest_sha256") != SUCCESSOR_MANIFEST_SHA256
+        or index.get("release_id") != SUCCESSOR_RELEASE_ID
+        or index.get("expected_counts") != counts
+        or manifest.get("expected_counts") != counts
+        or proposal.get("public_profile_registry_sha256")
+        != manifest.get("authorities", {}).get("public_profile_registry_sha256")
+        or proposal.get("rights_authority_sha256")
+        != manifest.get("authorities", {}).get("rights_authority_sha256")
+    ):
+        raise PublicScopePolicyError("SUCCESSOR_RELEASE_BINDING_INVALID")
+    if _sha((root / SUCCESSOR_RIGHTS_AUTHORITY).read_bytes()) != proposal["rights_authority_sha256"]:
+        raise PublicScopePolicyError("SUCCESSOR_RIGHTS_AUTHORITY_DIVERGENT")
+    programme_raw = (root / SUCCESSOR_PROGRAMME_REGISTRY).read_bytes()
+    if _sha(programme_raw) != SUCCESSOR_PROGRAMME_REGISTRY_SHA256:
+        raise PublicScopePolicyError("SUCCESSOR_PROGRAMME_AUTHORITY_DIVERGENT")
+    programme = _json(programme_raw, "SUCCESSOR_PROGRAMME_AUTHORITY_INVALID")
+    if (programme.get("registry_kind") != "NEXUS_PROGRAMME_INDEX_REGISTRY_V3"
+            or programme.get("school_year") != "2026-2027"):
+        raise PublicScopePolicyError("SUCCESSOR_PROGRAMME_AUTHORITY_INVALID")
+    taxonomies = _unique(
+        _rows(programme.get("taxonomies"), "SUCCESSOR_PROGRAMME_AUTHORITY_INVALID"),
+        "collection", "SUCCESSOR_PROGRAMME_AUTHORITY_INVALID",
+    )
+    profile_path = release_dir / "profile_gate/public_profiles.json"
+    if _sha(profile_path.read_bytes()) != proposal["public_profile_registry_sha256"]:
+        raise PublicScopePolicyError("SUCCESSOR_PROFILE_DIGEST_DIVERGENT")
+    profiles = _json(profile_path.read_bytes(), "SUCCESSOR_PROFILES_INVALID")
+    by_profile = _unique(
+        _rows(profiles.get("entries"), "SUCCESSOR_PROFILES_INVALID"),
+        "collection", "SUCCESSOR_PROFILES_INVALID",
+    )
+    scope_rows = _unique(
+        _rows(index.get("proposed_scopes"), "SUCCESSOR_SCOPES_INVALID"),
+        "collection", "SUCCESSOR_SCOPES_INVALID",
+    )
+    bindings = _unique(
+        _rows(proposal.get("bindings"), "SUCCESSOR_SCOPE_BINDINGS_INVALID"),
+        "collection", "SUCCESSOR_SCOPE_BINDINGS_INVALID",
+    )
+    refs = _unique(
+        _rows(manifest.get("subjects"), "SUCCESSOR_SUBJECTS_INVALID"),
+        "collection", "SUCCESSOR_SUBJECTS_INVALID",
+    )
+    complete_profiles = _unique(
+        _rows(index.get("complete_profiles"), "SUCCESSOR_COMPLETE_PROFILES_INVALID"),
+        "collection", "SUCCESSOR_COMPLETE_PROFILES_INVALID",
+    )
+    collections = set(release.collections)
+    if not (set(by_profile) == set(scope_rows) == set(bindings) == set(refs)
+            == set(complete_profiles) == set(taxonomies) == collections):
+        raise PublicScopePolicyError("SUCCESSOR_SCOPE_COLLECTIONS_DIVERGENT")
+    if len({row.get("proposed_scope_id") for row in bindings.values()}) != 11:
+        raise PublicScopePolicyError("SUCCESSOR_SCOPE_IDS_DUPLICATED")
+    active = load_retrieval_scope_registry()
+    for collection, binding in bindings.items():
+        profile = by_profile[collection]
+        scope = profile.get("scope")
+        ref = refs[collection]
+        prepared = scope_rows[collection]
+        complete = complete_profiles[collection]
+        taxonomy = taxonomies[collection]
+        target = binding.get("target_policy")
+        expected_profile_path = f"profile_gate/profiles/{collection}.yml"
+        if complete.get("path") != expected_profile_path:
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
+        profile_raw = (release_dir / expected_profile_path).read_bytes()
+        if _sha(profile_raw) != complete.get("sha256"):
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
+        try:
+            complete_profile = CollectionProfile.model_validate(yaml.safe_load(profile_raw))
+        except (ValidationError, yaml.YAMLError) as error:
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID") from error
+        subject_path = release_dir / "profile_gate" / ref["path"]
+        subject = _json(subject_path.read_bytes(), "SUCCESSOR_SUBJECT_INVALID")
+        if (
+            _sha(subject_path.read_bytes()) != ref.get("sha256")
+            or complete_profile.scope.collection != collection
+            or complete_profile.scope.visibility != "public"
+            or complete_profile.profile_version != complete.get("profile_version")
+            or collection_profile_fingerprint(complete_profile) != complete.get("fingerprint")
+            or subject.get("profile") != {
+                "version": complete.get("profile_version"),
+                "fingerprint": complete.get("fingerprint"),
+                "manifest_digest": proposal.get("public_profile_registry_sha256"),
+            }
+        ):
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
+        taxonomy_path = taxonomy.get("path")
+        if (not isinstance(taxonomy_path, str)
+                or not taxonomy_path.startswith("services/rag-pedago/taxonomy/")
+                or ".." in Path(taxonomy_path).parts
+                or _sha((root / taxonomy_path).read_bytes()) != taxonomy.get("sha256")):
+            raise PublicScopePolicyError("SUCCESSOR_PROGRAMME_AUTHORITY_DIVERGENT")
+        if (
+            set(binding) != SUCCESSOR_BINDING_KEYS
+            or binding.get("prepared_subject_sha256") != ref.get("sha256")
+            or prepared.get("final_subject_sha256") != ref.get("sha256")
+            or prepared.get("proposed_scope_id") != binding.get("proposed_scope_id")
+            or prepared.get("status") != "NOT_ISSUED"
+            or binding.get("status") != "NOT_ISSUED"
+            or binding.get("final_subject_sha256") is not None
+            or binding.get("proposed_scope_id") in active
+            or binding.get("profile_fingerprint") != profile.get("profile_fingerprint")
+            or binding.get("complete_profile_version") != complete.get("profile_version")
+            or binding.get("complete_profile_fingerprint") != complete.get("fingerprint")
+            or binding.get("complete_profile_sha256") != complete.get("sha256")
+            or binding.get("visibility") != "public"
+            or binding.get("rights_basis") != AUTHORITY_ID
+            or binding.get("rights") != ["public_allowed"]
+            or binding.get("evidence_audiences") != ["libre", "aefe"]
+            or binding.get("programme_version") != taxonomy.get("programme_version")
+            or not isinstance(scope, dict)
+            or scope.get("visibility") != "public"
+            or scope.get("audience") != binding.get("evidence_audiences")
+            or scope.get("programme_version") != binding.get("programme_version")
+            or complete_profile.scope.audience != binding.get("evidence_audiences")
+            or complete_profile.scope.programme_version != binding.get("programme_version")
+            or any(scope.get(key) != taxonomy.get(key) for key in (
+                "niveau", "voie", "matiere", "statut_enseignement"
+            ))
+            or not isinstance(target, dict)
+        ):
+            raise PublicScopePolicyError("SUCCESSOR_SCOPE_BINDING_INVALID")
+        try:
+            policy = RetrievalScopeTargetPolicy.model_validate(target)
+        except ValidationError as error:
+            raise PublicScopePolicyError("SUCCESSOR_SCOPE_TARGET_INVALID") from error
+        if (
+            policy.roles != ["student"]
+            or policy.audiences != ["libre"]
+            or policy.candidates != ["libre"]
+            or "libre" not in scope.get("audience", [])
+            or any(target.get(key) != scope.get(key) for key in (
+                "tenant", "niveau", "voie", "matiere", "statut_enseignement"
+            ))
+            or target.get("candidates") != [scope.get("candidat")]
+            or scope.get("collection") != collection
+        ):
+            raise PublicScopePolicyError("SUCCESSOR_SCOPE_TARGET_INVALID")
+    for placement in release.placements:
+        if (
+            placement.artifact_id not in {a.content_sha256 for a in release.artifacts}
+            or placement.payload.get("visibility") != "public"
+            or placement.payload.get("placement_status") != "active"
+            or placement.payload.get("review_status") != "reviewed"
+            or placement.payload.get("currentness") not in {"current", "official_snapshot"}
+        ):
+            raise PublicScopePolicyError("SUCCESSOR_SCOPE_PLACEMENT_INVALID")
+    artifacts_path = release_dir / "profile_gate/artifacts.release.json"
+    if _sha(artifacts_path.read_bytes()) != index.get("artifact_registry_sha256"):
+        raise PublicScopePolicyError("SUCCESSOR_ARTIFACT_REGISTRY_DIVERGENT")
+    artifacts = _json(artifacts_path.read_bytes(), "SUCCESSOR_ARTIFACT_REGISTRY_INVALID")
+    if any(
+        row.get("media_type") != "text/plain; charset=utf-8"
+        or row.get("source_pdf_sha256") == row.get("content_sha256")
+        for row in _rows(artifacts.get("artifacts"), "SUCCESSOR_ARTIFACT_REGISTRY_INVALID")
+    ):
+        raise PublicScopePolicyError("SUCCESSOR_SCOPE_PDF_NOT_PUBLIC")
+    return 11
 
 
 def _sha(raw: bytes) -> str:

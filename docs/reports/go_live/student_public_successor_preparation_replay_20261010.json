@@ -1,0 +1,17 @@
+{
+  "checked_at_utc": "2026-10-10T20:45:09.217752Z",
+  "content_anchor_sha256": "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0",
+  "kind": "NEXUS_PUBLIC_SUCCESSOR_PREPARATION_REPLAY_REPORT_V1",
+  "private_cas_index_sha256": "757f41e4aabceaed603196294b3a980c7ecd5d228de8a48b6fc0e3c60fc06d36",
+  "result": {
+    "activation_allowed": false,
+    "content_manifest_sha256": "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78",
+    "inclusion_population_verified": true,
+    "kind": "NEXUS_PUBLIC_SUCCESSOR_PREPARATION_REPLAY_V1",
+    "private_cas_replay_verified": true,
+    "semantic_verification_complete": false,
+    "source_currentness_window_open": true
+  },
+  "source_head_sha": "b08c4def985af1a5d471402f80537387a661106d",
+  "source_tree_sha": "cdfa4f3dbebfb42196558ff49ac57276a8680fbe"
+}
