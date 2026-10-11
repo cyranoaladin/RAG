@@ -39,13 +39,13 @@ ROOT = Path(__file__).resolve().parents[3]
 RELEASE = (
     ROOT
     / "services/rag-pedago/data/releases/prerentree_2026_2027"
-    / "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+    / "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60"
 )
 ANCHOR = (
-    ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
+    ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
 )
-ANCHOR_SHA = "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0"
-NOW = datetime(2026, 10, 10, 16, tzinfo=UTC)
+ANCHOR_SHA = "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0"
+NOW = datetime(2026, 10, 11, 16, tzinfo=UTC)
 TEST_SEED = "11" * 32
 
 
@@ -89,8 +89,8 @@ def _test_material(
                 "pii_absence_attested": True,
                 "pii_absence_evidence": pii_evidence
                 or ("profile_gate/public_pii_registry.json@sha256:" + pii_sha),
-                "valid_from": datetime(2026, 10, 10, 15, tzinfo=UTC),
-                "valid_until": datetime(2026, 10, 11, 13, tzinfo=UTC),
+                "valid_from": datetime(2026, 10, 11, 15, tzinfo=UTC),
+                "valid_until": datetime(2026, 10, 12, 13, tzinfo=UTC),
                 "allowed_content_sha256": sorted(set(values)),
             }
         )
@@ -115,7 +115,7 @@ def _test_material(
                 "reviewer_login": "abenrhouma",
                 "reviewer_permission": "admin",
                 "author_login": "cyranoaladin",
-                "submitted_at": datetime(2026, 10, 10, 15, 10, tzinfo=UTC),
+                "submitted_at": datetime(2026, 10, 11, 15, 10, tzinfo=UTC),
                 "challenge_protocol": "NEXUS-TRUSTED-REVIEW-V1",
                 "challenge_digest": expected_challenge_digest(
                     repository="cyranoaladin/RAG",
@@ -126,9 +126,9 @@ def _test_material(
                     author="cyranoaladin",
                     reviewer="abenrhouma",
                 ),
-                "verified_at": datetime(2026, 10, 10, 15, 20, tzinfo=UTC),
+                "verified_at": datetime(2026, 10, 11, 15, 20, tzinfo=UTC),
                 "verifier_version": "fixture-v1",
-                "expires_at": datetime(2026, 10, 11, 13, tzinfo=UTC),
+                "expires_at": datetime(2026, 10, 12, 13, tzinfo=UTC),
             }
         )
         files[canonical_review_binding_path(authorization_id)] = sign_review_binding(
@@ -185,7 +185,7 @@ def test_actual_a_requires_all_eleven_reviewed_authorizations() -> None:
                 (ROOT / "governance/trust-anchors/review-binding-v1.json").read_bytes()
             ),
             environment="production",
-            now_utc=datetime(2026, 10, 11, 6, tzinfo=UTC),
+            now_utc=NOW,
             accepted_reviewers=("abenrhouma",),
             revocation_registry_raw=(
                 ROOT / "governance/trust-anchors/authorization-revocations-v1.json"
@@ -277,7 +277,7 @@ def test_expired_content_anchor_cannot_produce_authority() -> None:
             release_files=files,
             trust_anchor=trust_anchor,
             environment="test",
-            now_utc=datetime(2026, 10, 12, tzinfo=UTC),
+            now_utc=datetime(2026, 10, 13, tzinfo=UTC),
             accepted_reviewers=("abenrhouma",),
             revocation_registry_raw=(
                 ROOT / "governance/trust-anchors/authorization-revocations-v1.json"
