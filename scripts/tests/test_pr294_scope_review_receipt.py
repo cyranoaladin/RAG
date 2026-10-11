@@ -1,5 +1,7 @@
 """Le reçu #294 relie la review exacte à B sans autoriser la publication."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import hashlib
@@ -28,8 +30,15 @@ from pr294_scope_review_receipt import (
 from trusted_human_review import TrustedReviewDecision, build_challenge
 
 ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
-POLICY = ROOT / "governance/student_public_rights/student_public_successor_scope_policy_registry_v1.yml"
-NAMES = ROOT / "packages/contracts/authorities/student-public-successor-scope-names-v1.yml"
+# Les octets approuvés par #294 sont historiques ; #330 peut remplacer les
+# chemins de production par une politique liée à la nouvelle release A.
+POLICY = ROOT / "scripts/tests/fixtures/pr294_scope_review/policy.yml"
+NAMES = ROOT / "scripts/tests/fixtures/pr294_scope_review/names.yml"
+PR294_APPROVED_SHA256 = {
+    "anchor": "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0",
+    "policy": "8b47c2c4a0314393b9cb1d42f8940e12ad047d795e8bfb7ed526d1b6aac1bd18",
+    "names": "570a9392553a6d2bbadc909209a6ad5af9dc5d0b2f5acc30d14815d9b74c5782",
+}
 
 
 def _sha(raw: bytes) -> str:
@@ -41,6 +50,9 @@ def _canonical(document: dict) -> bytes:
 
 
 def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[str, bytes], Path]:
+    assert {_label: _sha(path.read_bytes()) for _label, path in (
+        ("anchor", ANCHOR), ("policy", POLICY), ("names", NAMES),
+    )} == PR294_APPROVED_SHA256
     anchor = json.loads(ANCHOR.read_bytes())
     policy = yaml.safe_load(POLICY.read_bytes())
     policies = {row["collection"]: row for row in policy["collections"]}

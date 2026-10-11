@@ -1,0 +1,259 @@
+# Politique ADR-0064 préparée pour revue exacte ; aucune émission avant les gates live.
+registry_kind: NEXUS_RETRIEVAL_SCOPE_POLICY_REGISTRY_V1
+registry_version: '1'
+school_year: 2026-2027
+release_id: student-public-successor-20261010-fcc84331e7700042
+release_manifest_path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/profile_gate/production-profile-gate.release.json
+release_manifest_sha256: b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78
+programme_version_authority:
+  authority_kind: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
+  path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json
+  sha256: 67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97
+visibility_restriction_order:
+- public
+- internal
+- restricted
+- private
+collections:
+- collection: rag_nexus_dgemc_terminale_option
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 11694699f9c6128624fa54c0ea12ddf623479ee0524abf56f34259641f51177b
+  tenant: libre_terminale
+  niveau: terminale
+  voie: generale
+  matiere: dgemc
+  statut_enseignement: option
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_hggsp_premiere_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 993d6a4c4a294a5b5fcdef60c9d738a57bc1e520b36cb9918c596779e5f0d06e
+  tenant: libre_premiere
+  niveau: premiere
+  voie: generale
+  matiere: hggsp
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_1_2019-01-22
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_hggsp_terminale_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 7df591d677da24eb7165d17a56280120085207edd85061ddbd43d933ae017b31
+  tenant: libre_terminale
+  niveau: terminale
+  voie: generale
+  matiere: hggsp
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_8_2019-07-25
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_hlp_premiere_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: bc35a10a00aa41f9a297f6a0e8a8367c67468d8ba25c4e3b2a2d1c5e40f752c5
+  tenant: libre_premiere
+  niveau: premiere
+  voie: generale
+  matiere: hlp
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_1_2019-01-22
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_hlp_terminale_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 8c5c0c1c5bfcf50ccb3f99cd65336ff180935e523f04655d0d3ccf8f7abdf2e2
+  tenant: libre_terminale
+  niveau: terminale
+  voie: generale
+  matiere: hlp
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_8_2019-07-25
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_nsi_premiere_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 7061eb991a46ea457058b3c8f5a70eeae10f96330db19db56379f053d5a5494b
+  tenant: libre_premiere
+  niveau: premiere
+  voie: generale
+  matiere: nsi
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_1_2019-01-22
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_nsi_terminale_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: cd8dbebfedcab3179fc70a3ec8051e9fb794826d45f786302f61106184f57513
+  tenant: libre_terminale
+  niveau: terminale
+  voie: generale
+  matiere: nsi
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_8_2019-07-25
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_ses_premiere_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 0b92c5894bc028f2a0c14a0d6c8f56256a78764f59420599ad451bfad4a66a17
+  tenant: libre_premiere
+  niveau: premiere
+  voie: generale
+  matiere: ses
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_1_2019-01-22
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_ses_terminale_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 128dd506a6f2ff4c2c55302976a33c6406c542791ec64c91a415a89a73fc165e
+  tenant: libre_terminale
+  niveau: terminale
+  voie: generale
+  matiere: ses
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_8_2019-07-25
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_svt_premiere_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: e631069e547a93603cd3e85a6e26cb8f790d7ee2ea4f709af7752ed8cbb29dd4
+  tenant: libre_premiere
+  niveau: premiere
+  voie: generale
+  matiere: svt
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_1_2019-01-22
+  target_audience: libre
+  target_candidates:
+  - libre
+- collection: rag_nexus_svt_terminale_specialite
+  decision_status: GOVERNED_BY_HUMAN_DECISION
+  authority_source: NEXUS_HUMAN_DECISION_ADR_0064
+  policy_source_scope_id: null
+  subject_manifest_sha256: 63f92ba389fdc7f5f2cfd59a03d41da62115dc5eda1884f453e982f3dfdde034
+  tenant: libre_terminale
+  niveau: terminale
+  voie: generale
+  matiere: svt
+  statut_enseignement: specialite
+  candidat: libre
+  audiences:
+  - libre
+  - aefe
+  rights:
+  - public_allowed
+  policy_visibility: public
+  evidence_visibility: public
+  programme_version: BOEN_special_8_2019-07-25
+  target_audience: libre
+  target_candidates:
+  - libre
