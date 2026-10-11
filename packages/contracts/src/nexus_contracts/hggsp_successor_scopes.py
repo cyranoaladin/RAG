@@ -14,6 +14,7 @@ from typing import Mapping
 from nexus_contracts.scope import (
     RetrievalScopeArtifact,
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
     _RETRIEVAL_SCOPE_RESOURCES,
     load_retrieval_scope_artifact as _load_historical_artifact,
     load_retrieval_scope_registry as _load_historical_registry,
@@ -32,9 +33,23 @@ _HGGSP_SUCCESSOR_RESOURCES: Mapping[str, tuple[str, str]] = MappingProxyType(
     }
 )
 
+# Extension réservée aux scopes publics V3 après scellage des subjects finaux.
+# Aucun scope candidat #323 n'est installé par cette PR.
+_STUDENT_PUBLIC_RESOURCES: Mapping[str, tuple[str, str]] = MappingProxyType({})
+
 
 def load_retrieval_scope_artifact(scope_id: str) -> RetrievalScopeArtifact:
     """Charger un scope historique ou V5 explicitement nommé et vérifié."""
+    student = _STUDENT_PUBLIC_RESOURCES.get(scope_id)
+    if student is not None:
+        if scope_id in _RETRIEVAL_SCOPE_RESOURCES or scope_id in _HGGSP_SUCCESSOR_RESOURCES:
+            raise ValueError("student public scope collides with existing scope")
+        resource_name, expected_digest = student
+        resource = files("nexus_contracts").joinpath(resource_name)
+        artifact = RetrievalScopeArtifactV3.model_validate_json(resource.read_bytes())
+        if artifact.scope_id != scope_id or artifact.sha256_digest() != expected_digest:
+            raise ValueError("retrieval scope artifact digest mismatch")
+        return artifact
     successor = _HGGSP_SUCCESSOR_RESOURCES.get(scope_id)
     if successor is None:
         return _load_historical_artifact(scope_id)
@@ -49,16 +64,22 @@ def load_retrieval_scope_artifact(scope_id: str) -> RetrievalScopeArtifact:
 
 
 def load_retrieval_scope_registry() -> Mapping[str, RetrievalScopeArtifact]:
-    """Retourner le registre public fermé historique + deux scopes V5."""
+    """Retourner le registre fermé historique, V5 et futurs scopes V3."""
     historical = _load_historical_registry()
     if set(historical) & set(_HGGSP_SUCCESSOR_RESOURCES):
         raise ValueError("HGGSP successor scope collides with historical scope")
+    if set(_STUDENT_PUBLIC_RESOURCES) & (set(historical) | set(_HGGSP_SUCCESSOR_RESOURCES)):
+        raise ValueError("student public scope collides with existing scope")
     return MappingProxyType(
         {
             **historical,
             **{
                 scope_id: load_retrieval_scope_artifact(scope_id)
                 for scope_id in _HGGSP_SUCCESSOR_RESOURCES
+            },
+            **{
+                scope_id: load_retrieval_scope_artifact(scope_id)
+                for scope_id in _STUDENT_PUBLIC_RESOURCES
             },
         }
     )
