@@ -16,9 +16,20 @@ import emit_student_public_scopes as issuer  # noqa: E402
 from test_pr294_scope_review_receipt import _fixture  # noqa: E402
 from trusted_human_review import build_challenge  # noqa: E402
 
+FRESH = ROOT / "scripts/tests/fixtures/pr330_scope_review"
+PR330_SHA256 = {
+    "anchor": "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0",
+    "policy": "b1e204422e6e4b0c64aac981a55ed07f530b59e6ebc3af2462b345a57ce8e086",
+    "names": "192c9fb4f591786aef3a0e90e92b75c17cb33a3a026e908c5133733a9256aacb",
+}
+
 
 def _new_receipt(tmp_path: Path) -> tuple:
-    parts = list(_fixture(tmp_path))
+    parts = list(_fixture(
+        tmp_path,
+        source_files=(FRESH / "anchor.json", FRESH / "policy.yml", FRESH / "names.yml"),
+        expected_sha256=PR330_SHA256,
+    ))
     doc = parts[0]
     doc["kind"] = "PR330_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1"
     doc["pull_request"] = 330

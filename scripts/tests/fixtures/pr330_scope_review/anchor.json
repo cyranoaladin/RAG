@@ -1,0 +1,91 @@
+{
+  "activation_allowed": false,
+  "artifact_registry_sha256": "b82539e89b2b0ee4e0d57d1c6898be896ffd9bcc79738d771345517c2a5331da",
+  "candidate_inventory_sha256": "5c349975e2a327f8b855e82dc932ff8d7d7984537ae48cdf131f814858b6a4ac",
+  "content_manifest_sha256": "efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85",
+  "content_release_id": "student-public-successor-20261010-40b956c6f5ec0c60",
+  "expected_counts": {
+    "placements": 377,
+    "subjects": 11,
+    "unique_artifacts": 253,
+    "unique_chunks": 3975
+  },
+  "kind": "NEXUS_PUBLIC_SUCCESSOR_CONTENT_ANCHOR_V1",
+  "preparation_index_sha256": "9996d56501ef5fdb2b55a01ad357eef9cdbb6cd981d2b7ef452b8340aa9abedd",
+  "preparation_sidecars": {
+    "inclusion_attestation.json": "1f49b8d48fb40a979ec528d89bf46f711aeb7a71e1311d6fcc17869bc76b6edf",
+    "public_currentness_registry.json": "2ad7b93753595338cae086c0bd5237dfd3ff4a9a7d926dcc2498ac971cd01145",
+    "public_pii_registry.json": "fcecdcf80539a4e5a4e163fea46b24f3f4793fc26f91abe7e52f0cab4cb9a918",
+    "public_profiles.json": "5fded0322eccdfa54436e0a9f21d6a3344709c1becbd05f9cc46f93a0b0beb86",
+    "public_rights_registry.json": "34c1887133878c2fe622cc17334ddadaf5357e8d5491dfbcdfe6df1f5cee44f5"
+  },
+  "status": "CONTENT_ONLY_NOT_ACTIVABLE",
+  "subjects": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "path": "subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "profile_sha256": "a62fe4c4a8f118b3185778d50395d31851b5d6aec4c19d961d827b44d7a45038",
+      "subject_sha256": "7ff33ed32b289b54e515f4f32bb51c7c667ae0c4c18b307bfc457e8f0084452d"
+    },
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "path": "subjects/rag_nexus_hggsp_premiere_specialite.release.json",
+      "profile_sha256": "5fad15a3b326a1a156e4a6572bd730339c139549acc8875ade7f28d621df2df4",
+      "subject_sha256": "6fdd49d67ba29fdcd3dbcfda382062f2f0aea31e313263d795185d99afa27d38"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "path": "subjects/rag_nexus_hggsp_terminale_specialite.release.json",
+      "profile_sha256": "569798d30b62940a5835d59e371336ca01dfd20ffe4fb18a5154be413b1a479d",
+      "subject_sha256": "977c727605afe0dd0d7e9150ca4914354912dda43c6f19426421cb2236e0defe"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "path": "subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "profile_sha256": "3c818f3190f2c57841a133e20f1af838810fb08099e4faf36dfc672246fd3e77",
+      "subject_sha256": "ad3db6c5b3ff368821588a00c354c2a059d93d412d7715fc1bee23e5598c17a3"
+    },
+    {
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "path": "subjects/rag_nexus_hlp_terminale_specialite.release.json",
+      "profile_sha256": "8ddf0396046af742b025bb338be8a0ba5dc7a2d5afcdf265cc91d957be979c47",
+      "subject_sha256": "6b21053f94d78626a9232f5420089ecd80ca1c8295a9b162006939cbade073dc"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "path": "subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "profile_sha256": "82978996fe1c01c74cb0c3b76e6246a75bd9926cc69abc22de6e053623c9f650",
+      "subject_sha256": "8c3cd3b3605b1b04955385d4e37ef19043f73c0b3614aa0d9a015771ff86d113"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "path": "subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "profile_sha256": "c74d40a6cb56c3e20d038bd39c1ebd0a7156aea43e8d7211ebe437c1c2edcdc2",
+      "subject_sha256": "0fcb326d429e3dde1050315308722c7d7ae4bf134e3b9be3a189a18858bf8a7d"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "path": "subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "profile_sha256": "1ab9a2230487a7eaaa91dc9851086ca901a5a70f5b872bcd95e801d4290c5dea",
+      "subject_sha256": "81095ec4b1f6b6f93b99ce4f9c172110a2a8c6658a61dbd993f290c12ef35287"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "path": "subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "profile_sha256": "b9c7f1764874db3f798483ce22c35753c0b06939e294594f2315a0a7a446c6de",
+      "subject_sha256": "837a2af663d76d4ad47f89dedd295d66f1c8df38053a73d56684e02b4dda6d18"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "path": "subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "profile_sha256": "902e68f10c6b93f7c5b61ecf2a793cc14f013434a19ded8838c5ea30f7a9e435",
+      "subject_sha256": "d4a3edce57ed287c5d9b4e9687b046cca80f810dcf7bd54e9686d78b1028879d"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "path": "subjects/rag_nexus_svt_terminale_specialite.release.json",
+      "profile_sha256": "78913d91cf546195adc80304622512c7275e2a38ddfe0d71cfa95b9ce4eae11e",
+      "subject_sha256": "ee7fda04542f7ec7a3a450ed4b0dd0c131b25b813ee18f5b0704dc869e04a201"
+    }
+  ]
+}
