@@ -46,7 +46,8 @@ PIN_FIELDS = frozenset({
 })
 IDENTITY_SQL = (
     "SELECT system_identifier::pg_catalog.text, "
-    "pg_catalog.current_database(), pg_catalog.inet_server_addr()::pg_catalog.text, "
+    "pg_catalog.current_database(), "
+    "pg_catalog.host(pg_catalog.inet_server_addr()), "
     "pg_catalog.inet_server_port() "
     "FROM pg_catalog.pg_control_system()"
 )

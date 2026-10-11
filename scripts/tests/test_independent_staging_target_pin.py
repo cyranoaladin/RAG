@@ -448,6 +448,8 @@ def test_sql_identity_functions_are_schema_qualified() -> None:
     assert "pg_catalog.pg_control_system()" in sql
     assert "pg_catalog.current_database()" in sql
     assert "pg_catalog.inet_server_addr()" in sql
+    # PostgreSQL inet::text inclut /32 ou /128, Docker inspect donne l'IP nue.
+    assert "pg_catalog.host(pg_catalog.inet_server_addr())" in sql
     assert "::pg_catalog.text" in sql
 
 
