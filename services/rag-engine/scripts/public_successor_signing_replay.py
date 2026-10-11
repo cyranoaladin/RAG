@@ -98,7 +98,7 @@ def _replay_live_scope_review(
     args = (
         repository_root, receipt_path,
         bundle_root / "authorities/public_scope_authority_sha256.bin",
-        bundle_root / "scopes",
+        bundle_root,
     )
     if review[1] == 294:
         observed = checker.check_pr294_scope_review_receipt(*args)

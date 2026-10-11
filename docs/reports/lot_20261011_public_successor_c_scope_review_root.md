@@ -1,0 +1,9 @@
+# Lot 2026-10-11 — racine du rejeu de revue B par le signer C
+
+Base relue après `git fetch origin main` : `origin/main=525db1d34d1e247c512d12d6625a546fd232413e`, tree `d7380c9927357460c4fc25e02fc920e366a1c72b`. Travail effectué dans un nouveau worktree propre et un venv Python 3.11 propre, avec `nexus-contracts` et `nexus-release-chain` installés depuis ce worktree. Aucun staging ni production n'a été modifié.
+
+Le registre B référence chaque artefact par `scopes/<scope_id>.json`. Le vérificateur canonique `pr294_scope_review_receipt.py` ouvre ce chemin **depuis la racine du bundle**. Le signer C lui transmettait pourtant `bundle_root/scopes`, ce qui lui faisait chercher `bundle_root/scopes/scopes/<scope_id>.json` et refusait le rejeu live malgré un bundle valide. Le correctif transmet `bundle_root` ; les vérifications du reçu, des onze digests, du HEAD, de GitHub et du verdict `PUBLICATION_AUTHORIZED=false` restent inchangées.
+
+Le test existant du signer a été renforcé avant toute modification du code. Il a échoué en RED avec l'argument observé `…/scopes` au lieu de la racine attendue, puis est passé en GREEN après le changement d'une ligne. La vérification ciblée `services/rag-engine/tests/test_public_successor_scope_review_replay.py`, `scripts/tests/test_pr294_scope_review_receipt.py` et `packages/release-chain/tests/test_public_successor_activation.py` donne **66 passed**, exit 0. Ruff ciblé et `git diff --check` donnent exit 0.
+
+Cette PR ne contient aucun scope émis, aucune autorisation LOT41A, aucune signature et aucune enveloppe C. Elle doit rester distincte de la PR #329 : tant que celle-ci porte une revue exacte en cours, fusionner ce correctif dans `main` ferait changer sa base et invaliderait son challenge. L'intégration de cette PR attend donc le contrôle de fermeture de #329 ; le signer C doit ensuite être relu depuis le `main` qui inclut le correctif avant toute signature réelle.

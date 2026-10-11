@@ -31,10 +31,13 @@ def test_signer_replays_fresh_scope_review_with_explicit_binding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _receipt(tmp_path, kind="PR330_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1", pull_request=330)
-    calls: list[int] = []
+    calls: list[tuple[int, Path]] = []
 
-    def check(*_args: object, review_binding: object) -> dict[str, object]:
-        calls.append(review_binding.pull_request)
+    def check(
+        _repository_root: Path, _receipt_path: Path, _registry_path: Path,
+        scope_bundle_root: Path, *, review_binding: object,
+    ) -> dict[str, object]:
+        calls.append((review_binding.pull_request, scope_bundle_root))
         return {
             "PR330_SCOPE_REVIEW_PASS": True, "PUBLICATION_AUTHORIZED": False,
             "PUBLIC_SCOPE_AUTHORITY_SHA256": SHA, "SCOPE_COUNT": 11,
@@ -45,7 +48,7 @@ def test_signer_replays_fresh_scope_review_with_explicit_binding(
         check_scope_review_receipt=check,
     ))
     replay._replay_live_scope_review(ROOT, tmp_path, SHA, 11)
-    assert calls == [330]
+    assert calls == [(330, tmp_path)]
 
 
 def test_signer_refuses_kind_pr_mismatch_before_checker(
