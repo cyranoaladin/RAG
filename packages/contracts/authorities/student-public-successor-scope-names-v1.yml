@@ -1,6 +1,6 @@
 # Nommage des onze scopes V3 proposés ; aucun scope émis par ce fichier.
 authority_id: PRODUCTION_PROFILE_SCOPE_SUCCESSORS_V1
-release_id: student-public-successor-20261010-fcc84331e7700042
+release_id: student-public-successor-20261010-40b956c6f5ec0c60
 bindings:
 - collection: rag_nexus_dgemc_terminale_option
   scope_id: student_public_dgemc_terminale_option_v1

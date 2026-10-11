@@ -2,10 +2,10 @@ authority_kind: NEXUS_STUDENT_PUBLIC_SUCCESSOR_SCOPE_PROPOSAL_V1
 status: PENDING_EXACT_HEAD_AUTHORITY_REVIEW
 source_pr: 323
 scope_artifact_version: '3'
-successor_release_id: student-public-successor-20261010-fcc84331e7700042
-successor_release_manifest_sha256: b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78
-preparation_index_sha256: bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4
-public_profile_registry_sha256: f165782c0404762e7869c1f7b2d17edc8d62087b124442f29ebe4243644f0d9b
+successor_release_id: student-public-successor-20261010-40b956c6f5ec0c60
+successor_release_manifest_sha256: efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85
+preparation_index_sha256: 9996d56501ef5fdb2b55a01ad357eef9cdbb6cd981d2b7ef452b8340aa9abedd
+public_profile_registry_sha256: 5fded0322eccdfa54436e0a9f21d6a3344709c1becbd05f9cc46f93a0b0beb86
 rights_authority_sha256: 013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1
 expected_population:
   placements: 377
@@ -20,7 +20,7 @@ exact_head_authority_reviewer: abenrhouma
 exact_head_review_receipt: null
 bindings:
 - collection: rag_nexus_dgemc_terminale_option
-  prepared_subject_sha256: 11694699f9c6128624fa54c0ea12ddf623479ee0524abf56f34259641f51177b
+  prepared_subject_sha256: 7ff33ed32b289b54e515f4f32bb51c7c667ae0c4c18b307bfc457e8f0084452d
   final_subject_sha256: null
   profile_fingerprint: 5aa62d9b655d50fd7449223d904a0e37cf7c9cb502bd7e19d9e2f73b2077bfce
   proposed_scope_id: student_public_dgemc_terminale_option_v1
@@ -49,7 +49,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A
 - collection: rag_nexus_hggsp_premiere_specialite
-  prepared_subject_sha256: 993d6a4c4a294a5b5fcdef60c9d738a57bc1e520b36cb9918c596779e5f0d06e
+  prepared_subject_sha256: 6fdd49d67ba29fdcd3dbcfda382062f2f0aea31e313263d795185d99afa27d38
   final_subject_sha256: null
   profile_fingerprint: 558df51ef8720ddf2992e06fed40e0006b61880644a12da97f37d48337ec2801
   proposed_scope_id: student_public_hggsp_premiere_specialite_v1
@@ -78,7 +78,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_hggsp_terminale_specialite
-  prepared_subject_sha256: 7df591d677da24eb7165d17a56280120085207edd85061ddbd43d933ae017b31
+  prepared_subject_sha256: 977c727605afe0dd0d7e9150ca4914354912dda43c6f19426421cb2236e0defe
   final_subject_sha256: null
   profile_fingerprint: 36f283ce5d668517ca9200e05fdfd637d47d6c9d632fa92d7931832da0f37289
   proposed_scope_id: student_public_hggsp_terminale_specialite_v1
@@ -107,7 +107,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_hlp_premiere_specialite
-  prepared_subject_sha256: bc35a10a00aa41f9a297f6a0e8a8367c67468d8ba25c4e3b2a2d1c5e40f752c5
+  prepared_subject_sha256: ad3db6c5b3ff368821588a00c354c2a059d93d412d7715fc1bee23e5598c17a3
   final_subject_sha256: null
   profile_fingerprint: 2b4b4f5796b5d51d0b4bdddf7886f77a1609f43ed886c6dcc2cf4c33c657eb8f
   proposed_scope_id: student_public_hlp_premiere_specialite_v1
@@ -136,7 +136,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_hlp_terminale_specialite
-  prepared_subject_sha256: 8c5c0c1c5bfcf50ccb3f99cd65336ff180935e523f04655d0d3ccf8f7abdf2e2
+  prepared_subject_sha256: 6b21053f94d78626a9232f5420089ecd80ca1c8295a9b162006939cbade073dc
   final_subject_sha256: null
   profile_fingerprint: e5e56fa8f049cd5c122ff1e7af108ae0e0e552568a3ea5184cfb8c84f961ab70
   proposed_scope_id: student_public_hlp_terminale_specialite_v1
@@ -165,7 +165,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_nsi_premiere_specialite
-  prepared_subject_sha256: 7061eb991a46ea457058b3c8f5a70eeae10f96330db19db56379f053d5a5494b
+  prepared_subject_sha256: 8c3cd3b3605b1b04955385d4e37ef19043f73c0b3614aa0d9a015771ff86d113
   final_subject_sha256: null
   profile_fingerprint: 5ef2b6a6e6e2c345b4b716cffd3cb3ddbd06d0c5591e6405b737d6c0d421527b
   proposed_scope_id: student_public_nsi_premiere_specialite_v1
@@ -194,7 +194,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_nsi_terminale_specialite
-  prepared_subject_sha256: cd8dbebfedcab3179fc70a3ec8051e9fb794826d45f786302f61106184f57513
+  prepared_subject_sha256: 0fcb326d429e3dde1050315308722c7d7ae4bf134e3b9be3a189a18858bf8a7d
   final_subject_sha256: null
   profile_fingerprint: 1b52a71083bd20c43e21057c7b940e8cd616eb3f6b273a35ed2cc754d6ccce68
   proposed_scope_id: student_public_nsi_terminale_specialite_v1
@@ -223,7 +223,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_ses_premiere_specialite
-  prepared_subject_sha256: 0b92c5894bc028f2a0c14a0d6c8f56256a78764f59420599ad451bfad4a66a17
+  prepared_subject_sha256: 81095ec4b1f6b6f93b99ce4f9c172110a2a8c6658a61dbd993f290c12ef35287
   final_subject_sha256: null
   profile_fingerprint: 8255e174f22b6d25d697b9d0bd05435e77f09ee1dee2c9a152ba6a0598b7bb58
   proposed_scope_id: student_public_ses_premiere_specialite_v1
@@ -252,7 +252,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_ses_terminale_specialite
-  prepared_subject_sha256: 128dd506a6f2ff4c2c55302976a33c6406c542791ec64c91a415a89a73fc165e
+  prepared_subject_sha256: 837a2af663d76d4ad47f89dedd295d66f1c8df38053a73d56684e02b4dda6d18
   final_subject_sha256: null
   profile_fingerprint: 3b0227c5e0d7180659f350fe30cc1f1483d2c4fadb80c6e3a5823ee5260d901d
   proposed_scope_id: student_public_ses_terminale_specialite_v1
@@ -281,7 +281,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_svt_premiere_specialite
-  prepared_subject_sha256: e631069e547a93603cd3e85a6e26cb8f790d7ee2ea4f709af7752ed8cbb29dd4
+  prepared_subject_sha256: d4a3edce57ed287c5d9b4e9687b046cca80f810dcf7bd54e9686d78b1028879d
   final_subject_sha256: null
   profile_fingerprint: 3116e953cb8089fa42b86054c9e07c69bc407e426ce928f9262a65b48e1a01de
   proposed_scope_id: student_public_svt_premiere_specialite_v1
@@ -310,7 +310,7 @@ bindings:
   - aefe
   programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_svt_terminale_specialite
-  prepared_subject_sha256: 63f92ba389fdc7f5f2cfd59a03d41da62115dc5eda1884f453e982f3dfdde034
+  prepared_subject_sha256: ee7fda04542f7ec7a3a450ed4b0dd0c131b25b813ee18f5b0704dc869e04a201
   final_subject_sha256: null
   profile_fingerprint: dd88fb4f3259fe1a6e088d31a1b60a451d8fe5febd0cefff5ad79864c2f3a317
   proposed_scope_id: student_public_svt_terminale_specialite_v1

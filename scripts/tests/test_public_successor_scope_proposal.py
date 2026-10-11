@@ -34,7 +34,7 @@ def test_prepared_successor_binds_eleven_unissued_student_scopes() -> None:
     proposal = _proposal()
     assert proposal["scope_artifact_version"] == "3"
     assert proposal["successor_release_id"] == (
-        "student-public-successor-20261010-fcc84331e7700042"
+        "student-public-successor-20261010-40b956c6f5ec0c60"
     )
     assert proposal["source_pr"] == 323
     assert check_public_successor_scope_proposal(ROOT, proposal) == 11
