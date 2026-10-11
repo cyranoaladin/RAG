@@ -1,6 +1,6 @@
 # Lot — propositions LOT41A-V2 du successeur public
 
-Date UTC : 2026-10-11. Source actuelle : `origin/main=3bfe1c6d17f48be1d33106c9ed4aa1013f5893c1`, arbre `f67ea269a6e43c55a7f582ad9ed5773d91a48b9e`. Rebase propre de #329 ; worktree et venv isolés. Ce lot ne modifie ni staging ni production et ne produit aucune revue, signature ou autorisation enregistrée.
+Date UTC : 2026-10-11. Source actuelle : `origin/main=525db1d34d1e247c512d12d6625a546fd232413e`, arbre `d7380c9927357460c4fc25e02fc920e366a1c72b`. Rebase propre de #329 après #331 ; worktree et venv isolés. Ce lot ne modifie ni staging ni production et ne produit aucune revue, signature ou autorisation enregistrée.
 
 ## Population et décisions préparées
 
