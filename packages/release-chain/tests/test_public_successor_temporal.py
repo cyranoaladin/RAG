@@ -14,6 +14,7 @@ from nexus_release_chain.public_successor_activation import verify_content_ancho
 from nexus_release_chain.public_successor_temporal import (
     PublicSuccessorTemporalError,
     build_temporal_successor,
+    verify_temporal_authority_preissuance,
     verify_temporal_successor,
 )
 
@@ -91,6 +92,22 @@ def test_a2_seven_day_authority_and_fresh_c_pulse(content, report):
     assert expiry == ISSUED + timedelta(days=7)
     assert authority["excluded_source_count"] == 62
     assert authority["cftr_disposition"] == "EXCLUDE"
+
+
+def test_preissuance_accepts_only_exact_sealed_a2_without_claiming_c(content):
+    raw = (ROOT / "docs/reports/go_live/student_public_successor_temporal_continuity_a2_20261011_v2.json").read_bytes()
+    expiry = verify_temporal_authority_preissuance(
+        content, raw, now_utc=datetime.fromisoformat("2026-10-12T00:00:00+00:00")
+    )
+    assert expiry == datetime.fromisoformat("2026-10-18T21:54:37.014823+00:00")
+    changed = json.loads(raw)
+    changed["activation_allowed"] = True
+    with pytest.raises(PublicSuccessorTemporalError):
+        verify_temporal_authority_preissuance(content, canonical(changed), now_utc=ISSUED)
+    with pytest.raises(PublicSuccessorTemporalError):
+        verify_temporal_authority_preissuance(
+            content, raw, now_utc=datetime.fromisoformat("2026-10-18T00:00:00+00:00")
+        )
 
 
 @pytest.mark.parametrize("mutation", [

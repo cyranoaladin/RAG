@@ -48,6 +48,7 @@ ANCHOR = (
     ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
 )
 ANCHOR_SHA = "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0"
+A2 = ROOT / "docs/reports/go_live/student_public_successor_temporal_continuity_a2_20261011_v2.json"
 NOW = datetime(2026, 10, 11, 16, tzinfo=UTC)
 TEST_SEED = "11" * 32
 
@@ -58,6 +59,7 @@ def _test_material(
     pii_evidence: str | None = None,
     allowed_domains: tuple[str, ...] = ("eduscol.education.gouv.fr",),
     exclusions: tuple[str, ...] = (),
+    a2: bool = False,
 ) -> tuple[tuple[str, ...], dict[str, bytes], TrustAnchor]:
     """Onze signatures de fixture ; aucune review GitHub réelle n'est revendiquée."""
     content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
@@ -75,7 +77,7 @@ def _test_material(
     ids: list[str] = []
     for position, (digest, values) in enumerate(sorted(by_scope.items())):
         entry = first_entry[digest]
-        authorization_id = f"lot41a-public-test-{position:02d}"
+        authorization_id = f"lot41a-public-test-{position:02d}" + ("-v2" if a2 else "")
         ids.append(authorization_id)
         authorization = ScopeAuthorizationArtifactV2.model_validate(
             {
@@ -93,8 +95,10 @@ def _test_material(
                 "pii_absence_attested": True,
                 "pii_absence_evidence": pii_evidence
                 or ("profile_gate/public_pii_registry.json@sha256:" + pii_sha),
-                "valid_from": datetime(2026, 10, 11, 15, tzinfo=UTC),
-                "valid_until": datetime(2026, 10, 12, 13, tzinfo=UTC),
+                "valid_from": (datetime(2026, 10, 11, 21, 54, 37, 14823, tzinfo=UTC)
+                               if a2 else datetime(2026, 10, 11, 15, tzinfo=UTC)),
+                "valid_until": (datetime(2026, 10, 18, 21, 54, 37, 14823, tzinfo=UTC)
+                                if a2 else datetime(2026, 10, 12, 13, tzinfo=UTC)),
                 "allowed_content_sha256": sorted(set(values)),
             }
         )
@@ -119,7 +123,7 @@ def _test_material(
                 "reviewer_login": "abenrhouma",
                 "reviewer_permission": "admin",
                 "author_login": "cyranoaladin",
-                "submitted_at": datetime(2026, 10, 11, 15, 10, tzinfo=UTC),
+                "submitted_at": datetime(2026, 10, 11, 22 if a2 else 15, 10, tzinfo=UTC),
                 "challenge_protocol": "NEXUS-TRUSTED-REVIEW-V1",
                 "challenge_digest": expected_challenge_digest(
                     repository="cyranoaladin/RAG",
@@ -130,9 +134,10 @@ def _test_material(
                     author="cyranoaladin",
                     reviewer="abenrhouma",
                 ),
-                "verified_at": datetime(2026, 10, 11, 15, 20, tzinfo=UTC),
+                "verified_at": datetime(2026, 10, 11, 22 if a2 else 15, 20, tzinfo=UTC),
                 "verifier_version": "fixture-v1",
-                "expires_at": datetime(2026, 10, 12, 13, tzinfo=UTC),
+                "expires_at": (datetime(2026, 10, 18, 21, 54, 37, 14823, tzinfo=UTC)
+                               if a2 else datetime(2026, 10, 12, 13, tzinfo=UTC)),
             }
         )
         files[canonical_review_binding_path(authorization_id)] = sign_review_binding(
@@ -175,6 +180,44 @@ def test_complete_synthetic_reviews_produce_exact_v2_set() -> None:
     assert result.authorization_count == 11
     assert result.unique_content_count == 253
     assert result.authorization_binding_count == 377
+
+
+def test_a2_adapter_uses_sealed_temporal_authority_after_a1_expiry() -> None:
+    ids, files, trust_anchor = _test_material(a2=True)
+    result = build_public_lot41a_set(
+        anchor_path=ANCHOR, anchor_sha256=ANCHOR_SHA, release_root=RELEASE,
+        temporal_authority_raw=A2.read_bytes(), authorization_ids=ids,
+        release_files=files, trust_anchor=trust_anchor, environment="test",
+        now_utc=datetime(2026, 10, 13, tzinfo=UTC),
+        accepted_reviewers=("abenrhouma",),
+        revocation_registry_raw=(ROOT / "governance/trust-anchors/authorization-revocations-v1.json").read_bytes(),
+    )
+    assert (result.authorization_count, result.unique_content_count, result.authorization_binding_count) == (11, 253, 377)
+
+
+def test_a2_adapter_refuses_old_authorization_ids_even_before_a1_expiry() -> None:
+    ids, files, trust_anchor = _test_material()
+    with pytest.raises(PublicLot41AError, match="temporal|A2"):
+        build_public_lot41a_set(
+            anchor_path=ANCHOR, anchor_sha256=ANCHOR_SHA, release_root=RELEASE,
+            temporal_authority_raw=A2.read_bytes(), authorization_ids=ids,
+            release_files=files, trust_anchor=trust_anchor, environment="test",
+            now_utc=datetime(2026, 10, 11, 23, tzinfo=UTC),
+            accepted_reviewers=("abenrhouma",),
+            revocation_registry_raw=(ROOT / "governance/trust-anchors/authorization-revocations-v1.json").read_bytes(),
+        )
+
+
+def test_cli_accepts_a2_authority_but_still_requires_real_review_material() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/go_live/produce_public_lot41a_v2.py"),
+         "--anchor-path", str(ANCHOR), "--anchor-sha256", ANCHOR_SHA,
+         "--release-root", str(RELEASE), "--temporal-authority-path", str(A2),
+         "--material-root", str(ROOT), "--authorization-id", "missing-review-v2"],
+        capture_output=True, check=False,
+    )
+    assert result.returncode != 0 and result.stdout == b""
+    assert b"review material missing" in result.stderr
 
 
 def test_actual_a_requires_all_eleven_reviewed_authorizations() -> None:

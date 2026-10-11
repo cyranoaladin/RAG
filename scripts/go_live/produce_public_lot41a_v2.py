@@ -54,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--anchor-path", type=Path, required=True)
     parser.add_argument("--anchor-sha256", required=True)
     parser.add_argument("--release-root", type=Path, required=True)
+    parser.add_argument("--temporal-authority-path", type=Path)
     parser.add_argument("--material-root", type=Path, required=True)
     parser.add_argument("--authorization-id", action="append", required=True)
     args = parser.parse_args(argv)
@@ -71,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
             anchor_path=args.anchor_path,
             anchor_sha256=args.anchor_sha256,
             release_root=args.release_root,
+            temporal_authority_raw=(
+                _material(args.temporal_authority_path.parent, args.temporal_authority_path.name)
+                if args.temporal_authority_path is not None else None
+            ),
             authorization_ids=ids,
             release_files=files,
             trust_anchor=parse_trust_anchor(

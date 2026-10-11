@@ -22,6 +22,7 @@ POLICY_ID = "PUBLIC_SUCCESSOR_A2_SEVEN_DAY_CURRENTNESS_V1"
 POLICY_SHA256 = "13a9f27279c552968326920f9186735eeb55cc0f248a1094eb428ce15df8577c"
 APPROVED_A1_ANCHOR_SHA256 = "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0"
 APPROVED_A1_RELEASE_ID = "student-public-successor-20261010-40b956c6f5ec0c60"
+APPROVED_A2_AUTHORITY_SHA256 = "5beccf115b3d23473dd310f20fdd6ce31cc8bc38e0cc23918d936300c1fec9b4"
 CFTR_SHA256 = "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6"
 VALIDITY = timedelta(days=7)
 CAPTURE_WINDOW = timedelta(hours=1)
@@ -104,12 +105,18 @@ def _identity(content: PublicSuccessorContentVerdict, release_root: Path) -> tup
             or not isinstance(rows, list) or len(rows) != 253
             or not isinstance(entries, list) or len(entries) != 253):
         raise PublicSuccessorTemporalError("A1 source/CAS identity differs")
-    pairs = {row.get("content_sha256"): row.get("source_pdf_sha256")
-             for row in rows if isinstance(row, dict)}
-    artifact_by_sha = {row.get("content_sha256"): row for row in rows
-                       if isinstance(row, dict)}
-    sealed_pairs = {row.get("content_sha256"): row.get("source_pdf_sha256")
-                    for row in entries if isinstance(row, dict)}
+    pairs: dict[str, str] = {}
+    artifact_by_sha: dict[str, dict[str, Any]] = {}
+    sealed_pairs: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("content_sha256"), str) or not isinstance(row.get("source_pdf_sha256"), str):
+            raise PublicSuccessorTemporalError("A1 artifact identity malformed")
+        pairs[row["content_sha256"]] = row["source_pdf_sha256"]
+        artifact_by_sha[row["content_sha256"]] = row
+    for row in entries:
+        if not isinstance(row, dict) or not isinstance(row.get("content_sha256"), str) or not isinstance(row.get("source_pdf_sha256"), str):
+            raise PublicSuccessorTemporalError("A1 currentness identity malformed")
+        sealed_pairs[row["content_sha256"]] = row["source_pdf_sha256"]
     if (len(pairs) != 253 or len(sealed_pairs) != 253 or pairs != sealed_pairs
             or CFTR_SHA256 in pairs.values()
             or any(not isinstance(a, str) or not SHA256.fullmatch(a)
@@ -158,6 +165,8 @@ def _verify_source_report(
         derivative = row.get("derivative_content_sha256")
         source = row.get("source_pdf_sha256")
         artifact = artifact_by_sha.get(derivative) if isinstance(derivative, str) else None
+        if artifact is None:
+            raise PublicSuccessorTemporalError("source derivative absent from A1")
         citation = artifact.get("citation") if isinstance(artifact, dict) else None
         unsigned = {k: v for k, v in row.items() if k != "evidence_sha256"}
         if (not isinstance(derivative, str) or derivative in seen
@@ -215,7 +224,7 @@ def _exclusion_set(
             or any(not isinstance(sha, str) or not SHA256.fullmatch(sha)
                    for sha in source_shas)):
         raise PublicSuccessorTemporalError("PR300 source identities invalid")
-    excluded = sorted(set(source_shas) - set(included_pairs.values()))
+    excluded = sorted({str(sha) for sha in source_shas} - set(included_pairs.values()))
     if (not set(included_pairs.values()).issubset(source_shas)
             or len(excluded) != 62 or CFTR_SHA256 not in excluded):
         raise PublicSuccessorTemporalError("A1 exclusion set or CFTR differs")
@@ -287,6 +296,47 @@ def build_temporal_successor(
         "valid_until_utc": _stamp(issued_at_utc + VALIDITY),
         "c_time_source_revalidation_required": True,
     }
+
+
+def verify_temporal_authority_preissuance(
+    content: PublicSuccessorContentVerdict, authority_raw: bytes, *, now_utc: datetime,
+) -> datetime:
+    """Lire l'autorité A2 figée pour proposer B, sans prétendre à la preuve C.
+
+    Son empreinte est celle de l'émission dont les captures privées ont été
+    rejouées. Le constat indépendant de révocation reste obligatoire à C.
+    """
+    _stamp(now_utc)
+    if _sha(authority_raw) != APPROVED_A2_AUTHORITY_SHA256:
+        raise PublicSuccessorTemporalError("approved A2 authority digest differs")
+    authority = _document(authority_raw, "A2 authority")
+    issued = _time(authority.get("issued_at_utc"))
+    valid_from = _time(authority.get("valid_from_utc"))
+    expiry = _time(authority.get("valid_until_utc"))
+    if (content.content_anchor_sha256 != APPROVED_A1_ANCHOR_SHA256
+            or content.release_id != APPROVED_A1_RELEASE_ID
+            or authority.get("content_anchor_sha256") != content.content_anchor_sha256
+            or authority.get("release_id") != content.release_id
+            or authority.get("content_manifest_sha256") != content.content_manifest_sha256
+            or authority.get("preparation_index_sha256") != content.preparation_index_sha256
+            or authority.get("artifact_registry_sha256") != content.artifact_registry_sha256
+            or authority.get("currentness_registry_sha256") != content.currentness_registry_sha256
+            or authority.get("release_registry_sha256") != content.release_registry_sha256
+            or authority.get("expected_counts") != content.expected_counts
+            or authority.get("subject_sha256_by_collection") != content.subject_sha256_by_collection
+            or authority.get("profile_sha256_by_collection") != content.profile_sha256_by_collection
+            or authority.get("kind") != KIND or authority.get("policy_id") != POLICY_ID
+            or authority.get("policy_sha256") != POLICY_SHA256
+            or authority.get("status") != "TEMPORAL_AUTHORITY_ONLY_NOT_ACTIVABLE"
+            or authority.get("activation_allowed") is not False
+            or authority.get("c_time_source_revalidation_required") is not True
+            or authority.get("excluded_source_count") != 62
+            or authority.get("cftr_disposition") != "EXCLUDE"
+            or issued != valid_from or expiry - issued != VALIDITY
+            or not valid_from <= now_utc < expiry
+            or expiry - now_utc < timedelta(hours=24)):
+        raise PublicSuccessorTemporalError("A2 preissuance identity or validity differs")
+    return expiry
 
 
 def verify_temporal_successor(

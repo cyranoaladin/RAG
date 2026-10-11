@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Proposer onze LOT41A-V2 publics à partir du contenu A scellé.
 
 Ces fichiers sont des décisions à relire dans une PR. Ils ne portent aucune
@@ -22,6 +21,9 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_anchor,
     verify_content_currentness,
 )
+from nexus_release_chain.public_successor_temporal import (
+    verify_temporal_authority_preissuance,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,7 +33,7 @@ def _load_json(path: Path) -> dict:
         raise ValueError(f"sealed file absent or linked: {path.name}")
     document = json.loads(path.read_bytes())
     if not isinstance(document, dict):
-        raise ValueError(f"sealed file malformed: {path.name}")
+        raise TypeError(f"sealed file malformed: {path.name}")
     return document
 
 
@@ -40,29 +42,47 @@ def build_proposals(
     anchor_path: Path,
     anchor_sha256: str,
     release_root: Path,
-    currentness_attestation_path: Path,
+    currentness_attestation_path: Path | None,
     now_utc: datetime,
+    temporal_authority_path: Path | None = None,
 ) -> dict[str, bytes]:
     """Dériver les seuls octets LOT41A à approuver, sans fabriquer de revue."""
     content = verify_content_anchor(anchor_path, anchor_sha256, release_root)
-    expiry = verify_content_currentness(release_root, content, now_utc)
+    if (currentness_attestation_path is None) == (temporal_authority_path is None):
+        raise ValueError("exactly one A1 attestation or A2 authority required")
+    if temporal_authority_path is not None:
+        if temporal_authority_path.is_symlink() or not temporal_authority_path.is_file():
+            raise ValueError("A2 authority absent or linked")
+        temporal_raw = temporal_authority_path.read_bytes()
+        expiry = verify_temporal_authority_preissuance(
+            content, temporal_raw, now_utc=now_utc,
+        )
+        temporal = json.loads(temporal_raw)
+        valid_from = datetime.fromisoformat(temporal["valid_from_utc"])
+        suffix = "-v2"
+    else:
+        expiry = verify_content_currentness(release_root, content, now_utc)
+        if currentness_attestation_path is None:
+            raise ValueError("A1 attestation absent")
+        index = _load_json(release_root / "preparation-index.json")
+        attestation_raw = currentness_attestation_path.read_bytes()
+        if hashlib.sha256(attestation_raw).hexdigest() != index.get(
+            "source_currentness_attestation_sha256"
+        ):
+            raise ValueError("currentness attestation differs from A")
+        attestation = _load_json(currentness_attestation_path)
+        artifact_count = content.expected_counts["unique_artifacts"]
+        if attestation.get("status_counts") != {"PASS": artifact_count}:
+            raise ValueError("currentness attestation lacks complete passes")
+        valid_from = datetime.fromisoformat(attestation["attested_at_utc"])
+        if valid_from.tzinfo is None or valid_from >= expiry:
+            raise ValueError("currentness attestation time invalid")
+        suffix = "-v1"
     projection = derive_public_release_scope_placement(release_root, content)
     gate = release_root / "profile_gate"
-    index = _load_json(release_root / "preparation-index.json")
-    attestation_raw = currentness_attestation_path.read_bytes()
-    if hashlib.sha256(attestation_raw).hexdigest() != index.get(
-        "source_currentness_attestation_sha256"
-    ):
-        raise ValueError("currentness attestation differs from A")
-    attestation = _load_json(currentness_attestation_path)
     artifact_count = content.expected_counts["unique_artifacts"]
     if content.expected_counts["subjects"] != 11:
         raise ValueError("eleven public subjects required")
-    if attestation.get("status_counts") != {"PASS": artifact_count}:
-        raise ValueError("currentness attestation lacks complete passes")
-    valid_from = datetime.fromisoformat(attestation["attested_at_utc"].replace("Z", "+00:00"))
-    if valid_from.tzinfo is None or valid_from >= expiry:
-        raise ValueError("currentness attestation time invalid")
 
     registry = _load_json(gate / "artifacts.release.json")
     rights = _load_json(gate / "public_rights_registry.json")
@@ -75,6 +95,9 @@ def build_proposals(
         for rows in (artifacts, rights_rows, pii_rows)
     ):
         raise ValueError("A rights, PII or derivative population incomplete")
+    assert isinstance(artifacts, list)
+    assert isinstance(rights_rows, list)
+    assert isinstance(pii_rows, list)
     if (
         rights.get("authorized_use") != "student_retrieval_excerpt_only"
         or rights.get("full_pdf_redistribution_allowed") is not False
@@ -131,7 +154,7 @@ def build_proposals(
         authorization_id = (
             "lot41a-student-public-"
             + collection.removeprefix("rag_nexus_").replace("_", "-")
-            + "-v1"
+            + suffix
         )
         artifact = ScopeAuthorizationArtifactV2.model_validate(
             {
@@ -167,7 +190,9 @@ def main() -> int:
     parser.add_argument("--anchor-path", required=True, type=Path)
     parser.add_argument("--anchor-sha256", required=True)
     parser.add_argument("--release-root", required=True, type=Path)
-    parser.add_argument("--currentness-attestation-path", required=True, type=Path)
+    authority = parser.add_mutually_exclusive_group(required=True)
+    authority.add_argument("--currentness-attestation-path", type=Path)
+    authority.add_argument("--temporal-authority-path", type=Path)
     args = parser.parse_args()
     try:
         proposals = build_proposals(
@@ -175,6 +200,7 @@ def main() -> int:
             anchor_sha256=args.anchor_sha256,
             release_root=args.release_root,
             currentness_attestation_path=args.currentness_attestation_path,
+            temporal_authority_path=args.temporal_authority_path,
             now_utc=datetime.now(UTC),
         )
         for relative, raw in proposals.items():

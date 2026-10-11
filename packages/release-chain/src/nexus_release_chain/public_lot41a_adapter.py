@@ -38,6 +38,9 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_anchor,
     verify_content_currentness,
 )
+from nexus_release_chain.public_successor_temporal import (
+    verify_temporal_authority_preissuance,
+)
 
 
 class PublicLot41AError(ValueError):
@@ -156,13 +159,24 @@ def build_public_lot41a_set(
     now_utc: datetime,
     accepted_reviewers: tuple[str, ...],
     revocation_registry_raw: bytes,
+    temporal_authority_raw: bytes | None = None,
 ) -> AuthorizationSetV2:
     """Dériver le set V2 de A puis vérifier chaque revue signée avant sortie.
 
     Aucun SHA d'autorisation ou de revue n'est fabriqué depuis les placements.
     """
     content = verify_content_anchor(anchor_path, anchor_sha256, release_root)
-    expiry = verify_content_currentness(release_root, content, now_utc)
+    expiry = (
+        verify_content_currentness(release_root, content, now_utc)
+        if temporal_authority_raw is None
+        else verify_temporal_authority_preissuance(
+            content, temporal_authority_raw, now_utc=now_utc,
+        )
+    )
+    a2_valid_from = (
+        datetime.fromisoformat(json.loads(temporal_authority_raw)["valid_from_utc"])
+        if temporal_authority_raw is not None else None
+    )
     projection = derive_public_release_scope_placement(release_root, content)
     if len(authorization_ids) != len(content.subject_sha256_by_collection) or len(
         set(authorization_ids)
@@ -237,6 +251,11 @@ def build_public_lot41a_set(
             != ("public_allowed",)
             or authorization.pii_absence_evidence != pii_ref
             or authorization.valid_until > expiry
+            or (a2_valid_from is not None and (
+                not authorization_id.endswith("-v2")
+                or authorization.valid_from != a2_valid_from
+                or authorization.valid_until != expiry
+            ))
             or tuple(authorization.allowed_domains)
             != tuple(
                 sorted(
@@ -247,6 +266,8 @@ def build_public_lot41a_set(
                 )
             )
         ):
+            if a2_valid_from is not None and not authorization_id.endswith("-v2"):
+                raise PublicLot41AError("A2 temporal authorization ID required")
             raise PublicLot41AError(
                 "public LOT41A scope, rights or validity differs from A"
             )
