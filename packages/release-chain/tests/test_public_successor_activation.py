@@ -478,6 +478,7 @@ def test_content_anchor_without_final_envelope_cannot_activate(tmp_path: Path) -
             expected_registry_sha256="3f34f56c18e514ba4b0e92698f4b9a15deaa425818a0513ab51d48877ea24028",
             expected_scope_authority_sha256="e" * 64,
             expected_target_pin_sha256="d" * 64,
+            now_utc=datetime(2026, 10, 10, 21, tzinfo=UTC),
         )
 
 

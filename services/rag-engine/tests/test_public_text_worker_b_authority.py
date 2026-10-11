@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 
 import pytest
@@ -25,6 +25,7 @@ RELEASE = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027"
     / "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
 )
+HISTORICAL_NOW = datetime(2026, 10, 10, 21, tzinfo=UTC)
 
 
 def _sha(path: Path) -> str:
@@ -44,7 +45,7 @@ def _activation(*, expires_at: datetime | None = None) -> PublicSuccessorActivat
         subject_sha256_by_collection=content.subject_sha256_by_collection,
         scope_sha256_by_id={},
         counts=content.expected_counts,
-        expires_at_utc=expires_at or datetime.now(UTC) + timedelta(minutes=5),
+        expires_at_utc=expires_at or HISTORICAL_NOW + timedelta(minutes=5),
     )
 
 
@@ -70,6 +71,7 @@ def _load(tmp_path: Path, *, activation: PublicSuccessorActivationVerdict | None
         activation=activation,
         transfer_manifest_path=transfer,
         expected_transfer_manifest_sha256=digest,
+        now_utc=HISTORICAL_NOW,
     )
 
 
@@ -82,7 +84,7 @@ def test_worker_b_public_adapter_requires_typed_c_before_building_any_authority(
 
 def test_worker_b_public_adapter_rejects_expired_or_foreign_c(tmp_path: Path) -> None:
     with pytest.raises(PublicTextRuntimeAuthorityError, match="expired"):
-        _load(tmp_path, activation=_activation(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        _load(tmp_path, activation=_activation(expires_at=HISTORICAL_NOW - timedelta(seconds=1)))
     foreign = _activation()
     object.__setattr__(foreign, "content_manifest_sha256", "f" * 64)
     with pytest.raises(PublicTextRuntimeAuthorityError, match="differs"):
@@ -90,8 +92,17 @@ def test_worker_b_public_adapter_rejects_expired_or_foreign_c(tmp_path: Path) ->
 
 
 def test_worker_b_public_adapter_resolves_text_derivative_and_exact_student_scope(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from ingestor.ingestion_worker import public_text_runtime_authority as runtime
+
+    class HistoricalDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            instant = HISTORICAL_NOW
+            return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(runtime, "datetime", HistoricalDatetime)
     authorities = _load(tmp_path, activation=_activation())
     assert authorities.release_id.startswith("student-public-successor-")
     assert len(authorities.sealed_release_catalog.artifacts) == 253

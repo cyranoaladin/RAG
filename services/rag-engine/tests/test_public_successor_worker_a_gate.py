@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -95,7 +96,16 @@ def test_worker_a_refuses_changed_receipt_even_when_digest_recomputed(tmp_path: 
         )
 
 
-def test_worker_a_accepts_a_for_ingestion_only_with_exact_signed_inputs(tmp_path: Path) -> None:
+def test_worker_a_accepts_a_for_ingestion_only_with_exact_signed_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class HistoricalDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            instant = datetime(2026, 10, 10, 21, tzinfo=UTC)
+            return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(cli, "datetime", HistoricalDatetime)
     receipt, digest = _receipt(tmp_path)
     content = cli._require_public_candidate_ingestion_authority(
         _readiness(digest), RELEASE / "profile_gate", ANCHOR,
