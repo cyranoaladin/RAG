@@ -66,13 +66,15 @@ class ScopeReviewReceiptError(ValueError):
 
 def _validate_pr294_trusted_workflow_run(
     status: Mapping[str, Any], run: Mapping[str, Any], *, approved_head_sha: str,
+    review_submitted_at: str, merged_at: str, expected_attempt: int,
 ) -> None:
-    """Lier le statut #294 au run pull_request_target du HEAD effectivement revu."""
+    """Lier le statut au run *et à sa tentative* avant la fusion #294."""
     target = status.get("target_url")
     match = RUN_URL.fullmatch(target if isinstance(target, str) else "")
     if (
         match is None or run.get("id") != int(match.group(1))
-        or type(run.get("run_attempt")) is not int or run["run_attempt"] <= 0
+        or type(run.get("run_attempt")) is not int
+        or run["run_attempt"] != expected_attempt or expected_attempt <= 0
         or run.get("name") != "Trusted human review"
         or run.get("path") != ".github/workflows/trusted-human-review.yml"
         or run.get("event") != "pull_request_target"
@@ -80,7 +82,13 @@ def _validate_pr294_trusted_workflow_run(
         or run.get("conclusion") != "success"
         or run.get("head_sha") != approved_head_sha
         or status.get("state") != "success"
-        or _utc(run.get("created_at")) > _utc(status.get("created_at"))
+        or not (
+            _utc(review_submitted_at)
+            <= _utc(run.get("run_started_at"))
+            <= _utc(status.get("created_at"))
+            <= _utc(run.get("updated_at"))
+            <= _utc(merged_at)
+        )
     ):
         raise ScopeReviewReceiptError("PR294 trusted workflow provenance invalid")
 
@@ -345,6 +353,9 @@ def validate_pr294_scope_receipt(
     try:
         _validate_pr294_trusted_workflow_run(
             status, run, approved_head_sha=r["head_sha"],
+            review_submitted_at=r["review_submitted_at"],
+            merged_at=str(pr.get("merged_at")),
+            expected_attempt=r["workflow_run_attempt"],
         )
         reviewed_at = _utc(r["review_submitted_at"])
         status_at = _utc(r["trusted_status_created_at"])
@@ -410,8 +421,13 @@ def _live_evidence(root: Path) -> tuple[dict, dict, dict, dict, str]:
     match = RUN_URL.fullmatch(str(trusted.get("target_url", "")))
     if match is None:
         raise ScopeReviewReceiptError("trusted workflow URL invalid")
-    run = _read_gh(f"repos/{REPOSITORY}/actions/runs/{match.group(1)}")
-    if not isinstance(run, dict):
+    latest_run = _read_gh(f"repos/{REPOSITORY}/actions/runs/{match.group(1)}")
+    if (
+        not isinstance(latest_run, dict)
+        or latest_run.get("id") != int(match.group(1))
+        or type(latest_run.get("run_attempt")) is not int
+        or not 1 <= latest_run["run_attempt"] <= 20
+    ):
         raise ScopeReviewReceiptError("trusted workflow unavailable")
     merge = pr.get("merge_commit_sha")
     if not _is_sha(merge, SHA40):
@@ -429,16 +445,25 @@ def _live_evidence(root: Path) -> tuple[dict, dict, dict, dict, str]:
         or decision.get("reviewer") != REVIEWER
     ):
         raise ScopeReviewReceiptError("exact merged PR294 review absent")
-    _validate_pr294_trusted_workflow_run(
-        trusted, run, approved_head_sha=head,
-    )
-    if not (
-        _utc(decision.get("submitted_at"))
-        <= _utc(trusted.get("created_at"))
-        <= _utc(pr.get("merged_at"))
-    ):
-        raise ScopeReviewReceiptError("review/status outside merge window")
-    return pr, decision, dict(trusted), run, merge_tree
+    matching_attempts: list[dict[str, Any]] = []
+    for number in range(1, latest_run["run_attempt"] + 1):
+        attempt = _read_gh(
+            f"repos/{REPOSITORY}/actions/runs/{match.group(1)}/attempts/{number}"
+        )
+        if not isinstance(attempt, dict) or attempt.get("run_attempt") != number:
+            raise ScopeReviewReceiptError("trusted workflow attempt unavailable")
+        try:
+            _validate_pr294_trusted_workflow_run(
+                trusted, attempt, approved_head_sha=head,
+                review_submitted_at=str(decision.get("submitted_at")),
+                merged_at=str(pr.get("merged_at")), expected_attempt=number,
+            )
+        except (ScopeReviewReceiptError, AuthorityReceiptError):
+            continue
+        matching_attempts.append(attempt)
+    if len(matching_attempts) != 1:
+        raise ScopeReviewReceiptError("trusted status has no unique pre-merge attempt")
+    return pr, decision, dict(trusted), matching_attempts[0], merge_tree
 
 
 def _read_registry(path: Path) -> bytes:

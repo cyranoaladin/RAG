@@ -139,6 +139,8 @@ def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[
         "path": ".github/workflows/trusted-human-review.yml",
         "event": "pull_request_target", "status": "completed", "conclusion": "success",
         "head_sha": head, "created_at": "2026-10-10T07:08:35Z",
+        "run_started_at": "2026-10-10T07:08:35Z",
+        "updated_at": "2026-10-10T07:08:55Z",
     }
     receipt["workflow_run_attempt"] = 2
     return receipt, registry_raw, pr, decision, trusted, run, {
@@ -208,6 +210,20 @@ def test_post_merge_or_external_proof_sabotage_fails_closed(
         )
 
 
+def test_late_successful_rerun_cannot_claim_premerge_status(tmp_path: Path) -> None:
+    parts = list(_fixture(tmp_path))
+    receipt = parts[0]
+    run = parts[5]
+    receipt["workflow_run_attempt"] = 3
+    run.update({
+        "run_attempt": 3,
+        "run_started_at": "2026-10-10T07:10:00Z",
+        "updated_at": "2026-10-10T07:10:25Z",
+    })
+    with pytest.raises(ScopeReviewReceiptError, match="workflow"):
+        _validate(tuple(parts))
+
+
 def test_post_merge_builder_and_checker_replay_live_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -258,9 +274,13 @@ def test_live_merged_review_replay_refuses_divergent_authority(
     elif sabotage == "run_head":
         run["head_sha"] = "e" * 40
 
+    failed_attempt = {**run, "run_attempt": 1, "conclusion": "failure",
+                      "run_started_at": "2026-10-10T07:05:00Z",
+                      "updated_at": "2026-10-10T07:05:30Z"}
     monkeypatch.setattr(checker, "_read_gh", lambda endpoint: (
         pr if endpoint.endswith("/pulls/294") else
-        {"statuses": [trusted]} if endpoint.endswith("/status") else run
+        {"statuses": [trusted]} if endpoint.endswith("/status") else
+        failed_attempt if endpoint.endswith("/attempts/1") else run
     ))
     monkeypatch.setattr(
         checker, "_git", lambda _root, *args: (
@@ -283,6 +303,41 @@ def test_live_merged_review_replay_refuses_divergent_authority(
     else:
         with pytest.raises(ScopeReviewReceiptError):
             checker._live_evidence(ROOT)
+
+
+def test_live_review_selects_status_producing_attempt_after_later_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, _registry, pr, decision, trusted, attempt2, _files, _bundle = _fixture(tmp_path)
+    attempt1 = {**attempt2, "run_attempt": 1, "conclusion": "failure",
+                "run_started_at": "2026-10-10T07:05:00Z",
+                "updated_at": "2026-10-10T07:05:30Z"}
+    attempt3 = {**attempt2, "run_attempt": 3,
+                "run_started_at": "2026-10-10T07:10:00Z",
+                "updated_at": "2026-10-10T07:10:25Z"}
+    def read_gh(endpoint: str) -> dict:
+        if endpoint.endswith("/pulls/294"):
+            return pr
+        if endpoint.endswith("/status"):
+            return {"statuses": [trusted]}
+        if endpoint.endswith("/attempts/1"):
+            return attempt1
+        if endpoint.endswith("/attempts/2"):
+            return attempt2
+        if endpoint.endswith("/attempts/3"):
+            return attempt3
+        return attempt3
+
+    monkeypatch.setattr(checker, "_read_gh", read_gh)
+    monkeypatch.setattr(checker, "_git", lambda _root, *_args: receipt["head_tree_sha"])
+    import trusted_human_review_github as adapter
+    monkeypatch.setattr(adapter, "_evaluate_snapshot", lambda **_kw: SimpleNamespace(
+        decision=TrustedReviewDecision(
+            repository="cyranoaladin/RAG", pull_request=294, **decision,
+        ),
+    ))
+    observed = checker._live_evidence(ROOT)
+    assert observed[3]["run_attempt"] == 2
 
 
 @pytest.mark.parametrize("sabotage", ["missing", "altered", "aefe", "teacher", "tenant"])
