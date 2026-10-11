@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -28,6 +30,7 @@ from nexus_contracts.review_binding import (
 )
 from nexus_release_chain.public_lot41a_adapter import (
     PublicLot41AError,
+    _positive_derivative_facts,
     build_public_lot41a_set,
 )
 from nexus_release_chain.public_successor_activation import (
@@ -54,6 +57,7 @@ def _test_material(
     rights_categories: tuple[str, ...] = ("public_allowed",),
     pii_evidence: str | None = None,
     allowed_domains: tuple[str, ...] = ("eduscol.education.gouv.fr",),
+    exclusions: tuple[str, ...] = (),
 ) -> tuple[tuple[str, ...], dict[str, bytes], TrustAnchor]:
     """Onze signatures de fixture ; aucune review GitHub réelle n'est revendiquée."""
     content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
@@ -85,7 +89,7 @@ def _test_material(
                 "profile_fingerprint": entry.profile_fingerprint,
                 "allowed_domains": allowed_domains,
                 "rights_categories": rights_categories,
-                "exclusions": [],
+                "exclusions": exclusions,
                 "pii_absence_attested": True,
                 "pii_absence_evidence": pii_evidence
                 or ("profile_gate/public_pii_registry.json@sha256:" + pii_sha),
@@ -207,6 +211,66 @@ def test_reviewed_artifact_must_prove_public_derivatives(
 ) -> None:
     ids, files, trust_anchor = _test_material(**override)
     with pytest.raises(PublicLot41AError, match=expected):
+        build_public_lot41a_set(
+            anchor_path=ANCHOR,
+            anchor_sha256=ANCHOR_SHA,
+            release_root=RELEASE,
+            authorization_ids=ids,
+            release_files=files,
+            trust_anchor=trust_anchor,
+            environment="test",
+            now_utc=NOW,
+            accepted_reviewers=("abenrhouma",),
+            revocation_registry_raw=(
+                ROOT / "governance/trust-anchors/authorization-revocations-v1.json"
+            ).read_bytes(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("registry_name", "field", "replacement"),
+    [
+        ("public_rights_registry.json", "kind", "UNRELATED_RIGHTS_REGISTRY"),
+        ("public_rights_registry.json", "status", "AUTHORIZED"),
+        ("public_rights_registry.json", "release_id", "unrelated-release"),
+        ("public_pii_registry.json", "kind", "UNRELATED_PII_REGISTRY"),
+        ("public_pii_registry.json", "status", "AUTHORIZED"),
+        ("public_pii_registry.json", "release_id", "unrelated-release"),
+    ],
+)
+def test_sealed_registry_provenance_must_match_a(
+    tmp_path: Path, registry_name: str, field: str, replacement: str
+) -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    gate = tmp_path / "profile_gate"
+    gate.mkdir()
+    for name in (
+        "artifacts.release.json",
+        "public_rights_registry.json",
+        "public_pii_registry.json",
+    ):
+        shutil.copyfile(RELEASE / "profile_gate" / name, gate / name)
+    changed = json.loads((gate / registry_name).read_bytes())
+    changed[field] = replacement
+    changed_raw = json.dumps(changed, sort_keys=True).encode()
+    (gate / registry_name).write_bytes(changed_raw)
+    anchor = json.loads(ANCHOR.read_bytes())
+    anchor["preparation_sidecars"][registry_name] = sha256(changed_raw).hexdigest()
+    anchor_path = tmp_path / "anchor.json"
+    anchor_raw = json.dumps(anchor, sort_keys=True).encode()
+    anchor_path.write_bytes(anchor_raw)
+    changed_content = replace(
+        content, content_anchor_sha256=sha256(anchor_raw).hexdigest()
+    )
+    with pytest.raises(PublicLot41AError, match="rights or PII"):
+        _positive_derivative_facts(tmp_path, changed_content, anchor_path)
+
+
+def test_reviewed_authorization_cannot_exclude_sealed_source() -> None:
+    ids, files, trust_anchor = _test_material(
+        exclusions=("eduscol.education.gouv.fr",)
+    )
+    with pytest.raises(PublicLot41AError, match="exclusion"):
         build_public_lot41a_set(
             anchor_path=ANCHOR,
             anchor_sha256=ANCHOR_SHA,

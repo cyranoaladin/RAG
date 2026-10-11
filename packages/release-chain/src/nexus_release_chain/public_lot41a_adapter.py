@@ -86,6 +86,13 @@ def _positive_derivative_facts(
         or len(rows) != content.expected_counts["unique_artifacts"]
         or len(rights_rows) != len(rows)
         or len(pii_rows) != len(rows)
+        or rights.get("kind")
+        != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_RIGHTS_REGISTRY_V2"
+        or pii.get("kind") != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_PII_REGISTRY_V2"
+        or rights.get("status") != "CANDIDATE_NOT_AUTHORIZED"
+        or pii.get("status") != "CANDIDATE_NOT_AUTHORIZED"
+        or rights.get("release_id") != content.release_id
+        or pii.get("release_id") != content.release_id
         or rights.get("authorized_use") != "student_retrieval_excerpt_only"
         or rights.get("full_pdf_redistribution_allowed") is not False
         or rights.get("answer_generation_allowed") is not False
@@ -215,6 +222,8 @@ def build_public_lot41a_set(
         authorization = parse_scope_authorization_artifact(raw)
         if not isinstance(authorization, ScopeAuthorizationArtifactV2):
             raise PublicLot41AError("public LOT41A requires V2 artifacts")
+        if authorization.exclusions:
+            raise PublicLot41AError("public LOT41A authorization exclusions refused")
         digest = scope_digest(authorization.scope)
         scope_entries = projection_by_scope.get(digest)
         collection = str(authorization.scope.collection)
