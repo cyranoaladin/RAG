@@ -42,6 +42,7 @@ def _utc_now() -> datetime:
 class ScopePolicyReviewEvidence:
     head_sha: str
     tree_sha: str
+    checkout_head_sha: str
     reviewer: str
     policy_registry_sha256: str
     successor_authority_sha256: str
@@ -85,80 +86,43 @@ def verify_live_scope_policy_review(
     successor_authority: Path, successor_authority_sha256: str,
     anchor_path: Path, anchor_sha256: str,
 ) -> ScopePolicyReviewEvidence:
-    """Rejouer GitHub et les octets du HEAD approuvé pour la politique #294."""
+    """Rejouer le merge/review #294 et les entrées inchangées sur main courant."""
     root = repo_root.resolve()
+    head = _git(root, "rev-parse", "HEAD")
+    if head != _git(root, "rev-parse", "origin/main"):
+        raise StudentPublicScopeEmissionError("checkout is not current origin/main")
+    from pr294_scope_review_receipt import (
+        FILES,
+        _live_evidence,
+        _read_reviewed_files,
+    )
+
+    pr, decision, _status, _run, tree = _live_evidence(root)
+    reviewed_head = pr["head"]["sha"]
+    if (
+        decision.get("approved") is not True
+        or decision.get("head_sha") != reviewed_head
+        or decision.get("reviewer") != REVIEWER
+    ):
+        raise StudentPublicScopeEmissionError("exact-head scope policy review absent")
+    reviewed_files = _read_reviewed_files(root, reviewed_head)
     for path, digest in (
         (policy_registry, policy_registry_sha256),
         (successor_authority, successor_authority_sha256),
         (anchor_path, anchor_sha256),
     ):
         _require_file_at_head(root, path, digest)
-    head = _git(root, "rev-parse", "HEAD")
-    tree = _git(root, "rev-parse", "HEAD^{tree}")
-    github_path = root / "scripts/github"
-    if str(github_path) not in sys.path:
-        sys.path.insert(0, str(github_path))
-    from trusted_human_review_github import (
-        check_github_review,
-        run_gh_api,
-    )
-
-    result = check_github_review(
-        repository=REPOSITORY, pull_request_number=PR_NUMBER,
-        expected_head=head,
-        config_path=github_path / "trusted-reviewers.json",
-    )
-    decision = result.decision
-    if (
-        decision.approved is not True or decision.reason != "approved"
-        or decision.head_sha != head or decision.reviewer != REVIEWER
+    for label, path, digest in (
+        ("policy", policy_registry, policy_registry_sha256),
+        ("names", successor_authority, successor_authority_sha256),
+        ("anchor", anchor_path, anchor_sha256),
     ):
-        raise StudentPublicScopeEmissionError("exact-head scope policy review absent")
-    response = run_gh_api([
-        "gh", "api", f"repos/{REPOSITORY}/commits/{head}/status",
-    ])
-    statuses = response.get("statuses") if isinstance(response, dict) else None
-    if not isinstance(statuses, list):
-        raise StudentPublicScopeEmissionError("trusted review status unavailable")
-    relevant = [s for s in statuses if isinstance(s, dict)
-                and s.get("context") == STATUS_CONTEXT]
-    if not relevant:
-        raise StudentPublicScopeEmissionError("trusted review status missing")
-    latest = max(relevant, key=lambda s: str(s.get("created_at", "")))
-    try:
-        status_time = datetime.fromisoformat(str(latest["created_at"]))
-        review_time = datetime.fromisoformat(str(decision.submitted_at))
-    except (KeyError, TypeError, ValueError) as error:
-        raise StudentPublicScopeEmissionError("trusted review timestamp invalid") from error
-    if (
-        status_time.tzinfo is None or review_time.tzinfo is None
-        or status_time.utcoffset() != UTC.utcoffset(status_time)
-        or review_time.utcoffset() != UTC.utcoffset(review_time)
-        or latest.get("state") != "success" or status_time < review_time
-    ):
-        raise StudentPublicScopeEmissionError("trusted review status is not current success")
-    target = latest.get("target_url")
-    match = re.fullmatch(
-        rf"https://github\.com/{re.escape(REPOSITORY)}/actions/runs/([1-9][0-9]*)",
-        target if isinstance(target, str) else "",
-    )
-    if match is None:
-        raise StudentPublicScopeEmissionError("trusted review workflow provenance absent")
-    run = run_gh_api([
-        "gh", "api", f"repos/{REPOSITORY}/actions/runs/{match.group(1)}",
-    ])
-    if (
-        not isinstance(run, dict) or run.get("id") != int(match.group(1))
-        or run.get("name") != "Trusted human review"
-        or run.get("path") != ".github/workflows/trusted-human-review.yml"
-        or run.get("event") != "issue_comment"
-        or run.get("status") != "completed"
-        or run.get("conclusion") != "success"
-        or run.get("head_sha") != decision.base_sha
-    ):
-        raise StudentPublicScopeEmissionError("trusted review workflow provenance invalid")
+        if path.resolve() != (root / FILES[label]).resolve() or hashlib.sha256(
+            reviewed_files[label]
+        ).hexdigest() != digest:
+            raise StudentPublicScopeEmissionError("reviewed authority path or bytes differ")
     return ScopePolicyReviewEvidence(
-        head, tree, REVIEWER, policy_registry_sha256,
+        reviewed_head, tree, head, REVIEWER, policy_registry_sha256,
         successor_authority_sha256, anchor_sha256,
     )
 
@@ -216,10 +180,9 @@ def emit_student_public_scopes(
     except (ValueError, OSError, RuntimeError) as error:
         raise StudentPublicScopeEmissionError("exact-head policy review refused") from error
     head = _git(repo_root, "rev-parse", "HEAD")
-    tree = _git(repo_root, "rev-parse", "HEAD^{tree}")
     if (
         not isinstance(review, ScopePolicyReviewEvidence)
-        or review.head_sha != head or review.tree_sha != tree
+        or review.checkout_head_sha != head
         or review.reviewer != REVIEWER
         or review.policy_registry_sha256 != policy_registry_sha256
         or review.successor_authority_sha256 != successor_authority_sha256

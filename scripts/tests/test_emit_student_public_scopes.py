@@ -8,7 +8,6 @@ import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -65,8 +64,9 @@ def _review() -> issuer.ScopePolicyReviewEvidence:
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     tree = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=ROOT, text=True).strip()
     return issuer.ScopePolicyReviewEvidence(
-        head_sha=head,
+        head_sha="a" * 40,
         tree_sha=tree,
+        checkout_head_sha=head,
         reviewer="abenrhouma",
         policy_registry_sha256="b" * 64,
         successor_authority_sha256="c" * 64,
@@ -210,54 +210,79 @@ def test_real_preissuance_verifier_rejects_receipt_before_emitter(
     assert not params["artifacts_dir"].exists()
 
 
-@pytest.mark.parametrize("status", ["success", "failure"])
-def test_live_review_requires_current_exact_head_and_trusted_status(
-    monkeypatch: pytest.MonkeyPatch, status: str,
+def test_live_review_binds_merged_pr_head_and_current_checkout(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    github = ROOT / "scripts/github"
-    if str(github) not in sys.path:
-        sys.path.insert(0, str(github))
+    import pr294_scope_review_receipt as receipt
     import trusted_human_review_github as adapter
 
-    head = "a" * 40
-    base = "b" * 40
-    tree = "c" * 40
-    checked_files = []
-    monkeypatch.setattr(issuer, "_require_file_at_head", lambda *_a: checked_files.append(1))
-    monkeypatch.setattr(issuer, "_git", lambda _root, *args: tree if args[-1] == "HEAD^{tree}" else head)
-    decision = SimpleNamespace(
-        approved=True, reason="approved", head_sha=head, base_sha=base,
-        reviewer="abenrhouma", submitted_at="2026-10-10T10:00:00Z",
-    )
-    monkeypatch.setattr(adapter, "check_github_review", lambda **_k: SimpleNamespace(
-        decision=decision,
+    monkeypatch.setattr(adapter, "check_github_review", lambda **_kwargs: (_ for _ in ()).throw(
+        issuer.StudentPublicScopeEmissionError("closed PR cannot use open review verifier")
     ))
-    def api(argv: list[str]) -> dict[str, object]:
-        if argv[-1].endswith("/status"):
-            return {"statuses": [{
-                "context": "trusted-human-review/head-pinned",
-                "state": status, "created_at": "2026-10-10T10:01:00Z",
-                "target_url": "https://github.com/cyranoaladin/RAG/actions/runs/123",
-            }]}
-        return {
-            "id": 123, "name": "Trusted human review",
-            "path": ".github/workflows/trusted-human-review.yml",
-            "event": "issue_comment", "status": "completed", "conclusion": "success",
-            "head_sha": base,
-        }
-    monkeypatch.setattr(adapter, "run_gh_api", api)
-    args = (
-        ROOT, ROOT / "policy.yml", "d" * 64,
-        ROOT / "names.yml", "e" * 64,
+
+    checkout = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    original_git = issuer._git
+    monkeypatch.setattr(issuer, "_git", lambda root, *args: (
+        checkout if args == ("rev-parse", "origin/main") else original_git(root, *args)
+    ))
+    approved_head = "a" * 40
+    merge = "b" * 40
+    approved_tree = "c" * 40
+    files = {
+        "anchor": ANCHOR.read_bytes(),
+        "policy": (ROOT / receipt.FILES["policy"]).read_bytes(),
+        "names": (ROOT / receipt.FILES["names"]).read_bytes(),
+    }
+    monkeypatch.setattr(receipt, "_live_evidence", lambda _root: (
+        {"head": {"sha": approved_head}, "merge_commit_sha": merge},
+        {"approved": True, "reason": "approved", "head_sha": approved_head,
+         "reviewer": "abenrhouma"},
+        {"state": "success"}, {"event": "pull_request_target"}, approved_tree,
+    ))
+    monkeypatch.setattr(receipt, "_read_reviewed_files", lambda _root, _head: files)
+    review = issuer.verify_live_scope_policy_review(
+        ROOT, ROOT / receipt.FILES["policy"], _sha(ROOT / receipt.FILES["policy"]),
+        ROOT / receipt.FILES["names"], _sha(ROOT / receipt.FILES["names"]),
         ANCHOR, _sha(ANCHOR),
     )
-    if status == "failure":
-        with pytest.raises(issuer.StudentPublicScopeEmissionError, match="status"):
-            issuer.verify_live_scope_policy_review(*args)
-    else:
-        review = issuer.verify_live_scope_policy_review(*args)
-        assert review.head_sha == head
-        assert review.tree_sha == tree
-        assert review.reviewer == "abenrhouma"
-        assert review.policy_registry_sha256 == "d" * 64
-    assert len(checked_files) == 3
+    assert review.head_sha == approved_head
+    assert review.tree_sha == approved_tree
+    assert review.checkout_head_sha == checkout
+
+
+@pytest.mark.parametrize("sabotage", ["policy", "head"])
+def test_live_review_refuses_changed_reviewed_input_or_checkout(
+    monkeypatch: pytest.MonkeyPatch, sabotage: str,
+) -> None:
+    import pr294_scope_review_receipt as receipt
+    import trusted_human_review_github as adapter
+
+    monkeypatch.setattr(adapter, "check_github_review", lambda **_kwargs: (_ for _ in ()).throw(
+        issuer.StudentPublicScopeEmissionError("closed PR cannot use open review verifier")
+    ))
+    checkout = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    original_git = issuer._git
+    monkeypatch.setattr(issuer, "_git", lambda root, *args: (
+        checkout if args == ("rev-parse", "origin/main") else original_git(root, *args)
+    ))
+
+    files = {
+        "anchor": ANCHOR.read_bytes(),
+        "policy": (ROOT / receipt.FILES["policy"]).read_bytes(),
+        "names": (ROOT / receipt.FILES["names"]).read_bytes(),
+    }
+    if sabotage == "policy":
+        files["policy"] += b"\n"
+    monkeypatch.setattr(receipt, "_live_evidence", lambda _root: (
+        {"head": {"sha": "a" * 40}, "merge_commit_sha": "b" * 40},
+        {"approved": True, "reason": "approved", "head_sha":
+         "f" * 40 if sabotage == "head" else "a" * 40, "reviewer": "abenrhouma"},
+        {"state": "success"}, {"event": "pull_request_target"}, "c" * 40,
+    ))
+    monkeypatch.setattr(receipt, "_read_reviewed_files", lambda _root, _head: files)
+    with pytest.raises(issuer.StudentPublicScopeEmissionError):
+        issuer.verify_live_scope_policy_review(
+            ROOT, ROOT / receipt.FILES["policy"], _sha(ROOT / receipt.FILES["policy"]),
+            ROOT / receipt.FILES["names"], _sha(ROOT / receipt.FILES["names"]),
+            ANCHOR, _sha(ANCHOR),
+        )

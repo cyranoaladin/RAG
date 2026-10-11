@@ -26,7 +26,6 @@ from pr300_authority_receipt import (
     _read_gh,
     _select_trusted_status_at_merge,
     _utc,
-    _validate_trusted_workflow_run,
 )
 
 GITHUB_DIR = Path(__file__).resolve().parents[1] / "github"
@@ -63,6 +62,27 @@ KEYS = frozenset({
 
 class ScopeReviewReceiptError(ValueError):
     """Le reçu ou une de ses preuves externes ne tient pas."""
+
+
+def _validate_pr294_trusted_workflow_run(
+    status: Mapping[str, Any], run: Mapping[str, Any], *, approved_head_sha: str,
+) -> None:
+    """Lier le statut #294 au run pull_request_target du HEAD effectivement revu."""
+    target = status.get("target_url")
+    match = RUN_URL.fullmatch(target if isinstance(target, str) else "")
+    if (
+        match is None or run.get("id") != int(match.group(1))
+        or type(run.get("run_attempt")) is not int or run["run_attempt"] <= 0
+        or run.get("name") != "Trusted human review"
+        or run.get("path") != ".github/workflows/trusted-human-review.yml"
+        or run.get("event") != "pull_request_target"
+        or run.get("status") != "completed"
+        or run.get("conclusion") != "success"
+        or run.get("head_sha") != approved_head_sha
+        or status.get("state") != "success"
+        or _utc(run.get("created_at")) > _utc(status.get("created_at"))
+    ):
+        raise ScopeReviewReceiptError("PR294 trusted workflow provenance invalid")
 
 
 def canonical_bytes(document: Mapping[str, Any]) -> bytes:
@@ -323,7 +343,9 @@ def validate_pr294_scope_receipt(
     if match is None or int(match.group(1)) != r["workflow_run_id"]:
         raise ScopeReviewReceiptError("trusted workflow target invalid")
     try:
-        _validate_trusted_workflow_run(status, run, expected_base_sha=r["base_sha"])
+        _validate_pr294_trusted_workflow_run(
+            status, run, approved_head_sha=r["head_sha"],
+        )
         reviewed_at = _utc(r["review_submitted_at"])
         status_at = _utc(r["trusted_status_created_at"])
         merged_at = _utc(pr.get("merged_at"))
@@ -399,7 +421,24 @@ def _live_evidence(root: Path) -> tuple[dict, dict, dict, dict, str]:
     if merge_tree != approved_tree:
         raise ScopeReviewReceiptError("merge tree differs from approved HEAD")
     _git(root, "merge-base", "--is-ancestor", merge, "HEAD")
-    return pr, asdict(result.decision), dict(trusted), run, merge_tree
+    decision = asdict(result.decision)
+    if (
+        decision.get("approved") is not True or decision.get("reason") != "approved"
+        or decision.get("head_sha") != head
+        or decision.get("base_sha") != pr.get("base", {}).get("sha")
+        or decision.get("reviewer") != REVIEWER
+    ):
+        raise ScopeReviewReceiptError("exact merged PR294 review absent")
+    _validate_pr294_trusted_workflow_run(
+        trusted, run, approved_head_sha=head,
+    )
+    if not (
+        _utc(decision.get("submitted_at"))
+        <= _utc(trusted.get("created_at"))
+        <= _utc(pr.get("merged_at"))
+    ):
+        raise ScopeReviewReceiptError("review/status outside merge window")
+    return pr, decision, dict(trusted), run, merge_tree
 
 
 def _read_registry(path: Path) -> bytes:
