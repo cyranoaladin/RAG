@@ -24,13 +24,28 @@ sys.path.insert(0, str(ROOT / "scripts/go_live"))
 import build_public_lot41a_authorizations as generator  # noqa: E402
 from build_public_lot41a_authorizations import build_proposals  # noqa: E402
 
-ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
+ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
 RELEASE = ROOT / (
     "services/rag-pedago/data/releases/prerentree_2026_2027/"
-    "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+    "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60"
 )
-ATTESTATION = ROOT / "docs/reports/go_live/student_derivative_source_currentness_20261010.json"
-NOW = datetime(2026, 10, 11, 7, tzinfo=UTC)
+ATTESTATION = ROOT / "docs/reports/go_live/student_derivative_source_currentness_20261011.json"
+NOW = datetime(2026, 10, 11, 16, tzinfo=UTC)
+ANCHOR_SHA256 = "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0"
+ATTESTATION_SHA256 = "76c68ea269f6031244d9f8824186abe0299f2810494e1d28b02e13cc4e2d912c"
+EXPECTED_PROPOSAL_SHA256 = {
+    "dgemc-terminale-option": "5f262cd9ece3a0d8a21e567ae5cc02d716d7c2505ee5da2de2d7684f7ce4ef45",
+    "hggsp-premiere-specialite": "6d150e54f28b5ca954094c008cf9842e03d2b98af407c89fa2fbbe5fe2fca18c",
+    "hggsp-terminale-specialite": "726c3484d63ff7de4b7c1b2edab6b9f56f0bdc931e7d8bb8164ab701835f6271",
+    "hlp-premiere-specialite": "6ad6009102b8485877ea383e8c158cc9d2083200ff1093ce2668c371814a90d1",
+    "hlp-terminale-specialite": "34ae3b8e740484a38f3ed3d90bada4a48b353446bc490ceb6f12502559ddb00e",
+    "nsi-premiere-specialite": "50fa0b2ec42c2f8988a26a9577faad00bb5136a5c0f9e5bd179598ad2eca3158",
+    "nsi-terminale-specialite": "56840efb09d102535ba87c34daeb9724f215b7833c932cdde6583c8f1ed6fd56",
+    "ses-premiere-specialite": "5417b457f724593cc14de6ca099c84f1b7fbba5d44cd6bb64caa91511e882fc6",
+    "ses-terminale-specialite": "cfd6865868d2ce44f0e32766fe2539b5f2b25256e6d298c8e9b86c6a614d85aa",
+    "svt-premiere-specialite": "6e321483785b980a5e9bc7674898f3ba7f91f8a1d95cd85c3a42be99592cbf1f",
+    "svt-terminale-specialite": "349186c4af739eb0daf16c22e1afddaa1f1e23724ab53a3696355b1e4d2ca731",
+}
 
 
 def _proposals() -> dict[str, bytes]:
@@ -44,12 +59,19 @@ def _proposals() -> dict[str, bytes]:
 
 
 def test_real_a_proposes_exact_eleven_public_lot41a_artifacts() -> None:
+    assert hashlib.sha256(ANCHOR.read_bytes()).hexdigest() == ANCHOR_SHA256
+    assert hashlib.sha256(ATTESTATION.read_bytes()).hexdigest() == ATTESTATION_SHA256
     proposals = _proposals()
     content = verify_content_anchor(
         ANCHOR, hashlib.sha256(ANCHOR.read_bytes()).hexdigest(), RELEASE
     )
     projection = derive_public_release_scope_placement(RELEASE, content)
     assert len(proposals) == 11
+    assert {
+        Path(path).name.removeprefix("lot41a-student-public-").removesuffix("-v1.json"):
+        hashlib.sha256(raw).hexdigest()
+        for path, raw in proposals.items()
+    } == EXPECTED_PROPOSAL_SHA256
     parsed = [parse_scope_authorization_artifact(raw) for raw in proposals.values()]
     assert all(isinstance(row, ScopeAuthorizationArtifactV2) for row in parsed)
     assert set(proposals) == {row.canonical_path() for row in parsed}
@@ -88,7 +110,7 @@ def test_real_a_proposes_exact_eleven_public_lot41a_artifacts() -> None:
         row.pii_absence_evidence.startswith("profile_gate/public_pii_registry.json@sha256:")
         for row in parsed
     )
-    assert all(row.valid_until == datetime(2026, 10, 11, 13, 39, 22, 520000, tzinfo=UTC) for row in parsed)
+    assert all(row.valid_until == datetime(2026, 10, 12, 13, 58, 41, 752000, tzinfo=UTC) for row in parsed)
     assert all(b"review_id" not in raw and b"signature" not in raw for raw in proposals.values())
 
 
@@ -99,7 +121,7 @@ def test_expired_a_cannot_generate_new_proposals() -> None:
             anchor_sha256=hashlib.sha256(ANCHOR.read_bytes()).hexdigest(),
             release_root=RELEASE,
             currentness_attestation_path=ATTESTATION,
-            now_utc=datetime(2026, 10, 12, tzinfo=UTC),
+            now_utc=datetime(2026, 10, 13, tzinfo=UTC),
         )
 
 

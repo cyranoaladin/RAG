@@ -1,35 +1,55 @@
 # Lot — propositions LOT41A-V2 du successeur public
 
-Date UTC : 2026-10-11. Source initiale : `origin/main=96975735a128d0a2ed4a914c35ace5b28d40e4e5`, arbre `b15a2f9b09e2a0be2c938ab5706a0c147044491f`. Rebase après #328 : `origin/main=25605df14773460c8cbed4d71150b50cc0939cec`. Worktree et venv isolés. Ce lot ne modifie ni staging ni production et ne produit aucune revue, signature ou autorisation enregistrée.
+Date UTC : 2026-10-11. Source actuelle : `origin/main=3bfe1c6d17f48be1d33106c9ed4aa1013f5893c1`, arbre `f67ea269a6e43c55a7f582ad9ed5773d91a48b9e`. Rebase propre de #329 ; worktree et venv isolés. Ce lot ne modifie ni staging ni production et ne produit aucune revue, signature ou autorisation enregistrée.
 
 ## Population et décisions préparées
 
-La première exécution historique du générateur `scripts/go_live/build_public_lot41a_authorizations.py` relisait l'ancre A `docs/reports/go_live/student_public_successor_content_anchor_20261010.json` (SHA-256 `159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0`), son manifeste `b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78`, ses onze subjects et profils, le registre des 253 dérivés, les 253 entrées de droits et PII, et l'attestation d'actualité liée par A (SHA-256 `4882c95b47e807f0efe55ee5768637b47907af4d5f91e331a0e273acf684e62d`). Elle produisait onze `ScopeAuthorizationArtifactV2` pour **377 placements** de A, soit **253 identités uniques**. Ces onze propositions ont été retirées de la PR après l'expiration scellée d'A le `2026-10-11T13:39:22.520Z` ; elles ne sont plus des matériaux de décision courants.
+Le générateur `scripts/go_live/build_public_lot41a_authorizations.py` a relu l'ancre A renouvelée `docs/reports/go_live/student_public_successor_content_anchor_20261011.json` (SHA-256 `1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0`), son manifeste `efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85`, les onze subjects et profils, le registre des 253 dérivés, les 253 entrées de droits et PII, et l'attestation d'actualité `docs/reports/go_live/student_derivative_source_currentness_20261011.json` (SHA-256 `76c68ea269f6031244d9f8824186abe0299f2810494e1d28b02e13cc4e2d912c`). Il a écrit et relu avec `--check` onze `ScopeAuthorizationArtifactV2` canoniques pour **377 placements**, **253 identités uniques** et **11 collections**. L'ancien A 20261010 a expiré et n'est pas repris.
 
-Chaque proposition future portera la portée publique du profil de sa collection, `rights_categories=[public_allowed]`, le domaine `eduscol.education.gouv.fr`, le registre PII scellé de la **nouvelle** A, `pii_absence_attested=true`, et la décision `AUTHORIZE_INGESTION_SCOPE`. Toutes les entrées de droits devront porter `EDUSCOL_ETALAB_2_0_SITEWIDE` ; toutes les entrées PII devront être positives et liées aux mêmes dérivés et PDF sources. Les dates de début et de fin proviendront respectivement de la nouvelle attestation scellée et du nouvel index de préparation. Le générateur refuse après l'expiration sans prolonger la date. Les PDF originaux restent hors des listes positives ; aucun nouveau scope n'est émis par ce lot.
+Chaque proposition porte la portée publique du profil de sa collection, `rights_categories=[public_allowed]`, le domaine `eduscol.education.gouv.fr`, le registre PII scellé de A, `pii_absence_attested=true`, et la décision `AUTHORIZE_INGESTION_SCOPE`. Les contrôles exigent `EDUSCOL_ETALAB_2_0_SITEWIDE` pour les droits et un contrôle PII positif lié aux mêmes dérivés et PDF sources. `valid_from=2026-10-11T14:05:36Z` provient de l'attestation ; `valid_until=2026-10-12T13:58:41.752Z` vient de l'index scellé. Le générateur refuse après cette échéance. Les PDF originaux restent hors des listes positives ; aucun nouveau scope n'est émis par ce lot.
 
-Le CLI exige maintenant explicitement `--anchor-path`, `--anchor-sha256`, `--release-root` et `--currentness-attestation-path` : aucune ancienne identité n'est codée comme valeur par défaut. Il n'écrit les onze propositions qu'avec `--write` et les compare à la nouvelle A avec `--check`. Il refuse une divergence préexistante avant toute écriture. Les tests sur l'A historique contrôlent la dérivation et les refus pour un droit négatif, une preuve PII négative, l'expiration, un placement divergent ou un scope `internal` ; ils ne qualifient pas une nouvelle A encore absente.
+Le CLI exige explicitement `--anchor-path`, `--anchor-sha256`, `--release-root` et `--currentness-attestation-path` : aucune ancienne identité n'est codée comme valeur par défaut. Il n'écrit les onze propositions qu'avec `--write` et les compare à A avec `--check`. Il refuse une divergence préexistante avant toute écriture. Les tests sont désormais épinglés aux SHA de A, de l'attestation et des onze propositions, et couvrent la dérivation et les refus pour un droit négatif, une preuve PII négative, l'expiration, un placement divergent ou un scope `internal`.
 
-Les quatre entrées concrètes manquent encore : chemin et SHA-256 opposable de la nouvelle ancre A, racine immuable de sa release, chemin de l'attestation d'actualité liée par son `preparation-index.json`. Après réception de ces octets, depuis le checkout propre au HEAD courant de cette PR :
+Exécution locale depuis le worktree #329 rebasé, avec venv propre de ce worktree :
 
 ```bash
-./.venv/bin/python scripts/go_live/build_public_lot41a_authorizations.py \
-  --write --anchor-path "$NEXUS_A_ANCHOR" --anchor-sha256 "$NEXUS_A_ANCHOR_SHA256" \
-  --release-root "$NEXUS_A_RELEASE_ROOT" \
-  --currentness-attestation-path "$NEXUS_A_CURRENTNESS_ATTESTATION"
-./.venv/bin/python scripts/go_live/build_public_lot41a_authorizations.py \
-  --check --anchor-path "$NEXUS_A_ANCHOR" --anchor-sha256 "$NEXUS_A_ANCHOR_SHA256" \
-  --release-root "$NEXUS_A_RELEASE_ROOT" \
-  --currentness-attestation-path "$NEXUS_A_CURRENTNESS_ATTESTATION"
+python scripts/go_live/build_public_lot41a_authorizations.py \
+  --write --anchor-path docs/reports/go_live/student_public_successor_content_anchor_20261011.json \
+  --anchor-sha256 1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0 \
+  --release-root services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60 \
+  --currentness-attestation-path docs/reports/go_live/student_derivative_source_currentness_20261011.json
+python scripts/go_live/build_public_lot41a_authorizations.py \
+  --check --anchor-path docs/reports/go_live/student_public_successor_content_anchor_20261011.json \
+  --anchor-sha256 1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0 \
+  --release-root services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60 \
+  --currentness-attestation-path docs/reports/go_live/student_derivative_source_currentness_20261011.json
 ```
 
-Les comptes de dérivés et placements seront recalculés depuis cette A. En présence d'un sujet absent, d'une source hors autorité, d'un droit ou contrôle PII non positif, ou d'une expiration, la génération s'arrête sans décision positive.
+Les deux commandes ont rendu `PROPOSALS=11 REVIEW_BINDINGS=0`. En présence d'un sujet absent, d'une source hors autorité, d'un droit ou contrôle PII non positif, ou d'une expiration, la génération s'arrête sans décision positive.
+
+Les chemins ci-dessous sont sous `governance/authorizations/` et suivent la forme `lot41a-student-public-<suffixe>-v1.json` :
+
+| Suffixe | SHA-256 des octets canoniques | Placements |
+|---|---|---:|
+| `dgemc-terminale-option` | `5f262cd9ece3a0d8a21e567ae5cc02d716d7c2505ee5da2de2d7684f7ce4ef45` | 6 |
+| `hggsp-premiere-specialite` | `6d150e54f28b5ca954094c008cf9842e03d2b98af407c89fa2fbbe5fe2fca18c` | 32 |
+| `hggsp-terminale-specialite` | `726c3484d63ff7de4b7c1b2edab6b9f56f0bdc931e7d8bb8164ab701835f6271` | 28 |
+| `hlp-premiere-specialite` | `6ad6009102b8485877ea383e8c158cc9d2083200ff1093ce2668c371814a90d1` | 98 |
+| `hlp-terminale-specialite` | `34ae3b8e740484a38f3ed3d90bada4a48b353446bc490ceb6f12502559ddb00e` | 73 |
+| `nsi-premiere-specialite` | `50fa0b2ec42c2f8988a26a9577faad00bb5136a5c0f9e5bd179598ad2eca3158` | 20 |
+| `nsi-terminale-specialite` | `56840efb09d102535ba87c34daeb9724f215b7833c932cdde6583c8f1ed6fd56` | 34 |
+| `ses-premiere-specialite` | `5417b457f724593cc14de6ca099c84f1b7fbba5d44cd6bb64caa91511e882fc6` | 26 |
+| `ses-terminale-specialite` | `cfd6865868d2ce44f0e32766fe2539b5f2b25256e6d298c8e9b86c6a614d85aa` | 25 |
+| `svt-premiere-specialite` | `6e321483785b980a5e9bc7674898f3ba7f91f8a1d95cd85c3a42be99592cbf1f` | 10 |
+| `svt-terminale-specialite` | `349186c4af739eb0daf16c22e1afddaa1f1e23724ab53a3696355b1e4d2ca731` | 25 |
+
+La somme des placements vaut 377 ; des dérivés apparaissent dans plusieurs scopes, donc les identités uniques restent 253.
 
 ## Frontière de revue et de signature
 
-Les futurs onze fichiers seront des **propositions**, pas onze autorisations utilisables. La PR qui les portera doit rester ouverte jusqu'au contrôle de fermeture de LOT41A. Le rebase technique sur #328 est fait ; cette PR reste draft tant que la nouvelle A et ses onze propositions manquent. Après leur intégration et une CI verte, elle pourra être rendue prête et recevoir une unique review GitHub `APPROVED` de `abenrhouma` sur son HEAD/base/challenge exacts. Le vérificateur canonique refuse une PR draft, fermée ou à HEAD divergent. Le contexte `trusted-human-review/head-pinned` doit être `success` avant tout usage. Une seule review peut couvrir les onze blobs de la même PR, mais chacun exige son propre `ScopeAuthorizationReviewBindingV1` signé, avec son chemin, SHA-256 et Git blob SHA-1 exacts.
+Les onze fichiers sont des **propositions**, pas onze autorisations utilisables. La PR #329 doit rester ouverte jusqu'au contrôle de fermeture de LOT41A. Elle reste draft tant que la CI et le HEAD final ne sont pas validés. Ensuite, une unique review GitHub `APPROVED` de `abenrhouma` sur son HEAD/base/challenge exacts peut couvrir les onze blobs. Le vérificateur canonique refuse une PR draft, fermée ou à HEAD divergent. Le contexte `trusted-human-review/head-pinned` doit être `success` avant tout usage. Chaque artefact exige son propre `ScopeAuthorizationReviewBindingV1` signé, avec chemin, SHA-256 et Git blob SHA-1 exacts.
 
-Le chemin de scope V3 actuel ne peut pas être rejoué sur la nouvelle A avec la seule review #294 : `pr294_scope_review_receipt.FILES["anchor"]` lie la review fusionnée aux octets de l'ancre `20261010`, et `emit_student_public_scopes.verify_live_scope_policy_review` exige ce chemin et son SHA inchangés dans le HEAD revu. Une nouvelle ancre et de nouveaux `subject_sha256` nécessitent une autorité de scope revue pour ces nouveaux octets avant émission B. Changer seulement le paramètre de l'émetteur ne résout pas ce blocage.
+Le chemin B pour la nouvelle A dépend de la review exacte de #330 et de son reçu post-fusion ; les onze autorisations proposées ici n'accordent aucune portée B à elles seules.
 
 La clé privée Ed25519 correspondant à l'ancre `governance/trust-anchors/review-binding-v1.json`, `key_id=review-binding-v1-2026-08-25`, est détenue par l'opérateur hors Git/CI/serveur. Elle ne se déduit pas de l'ancre et ne doit jamais être fournie dans le chat. Le producteur officiel est `services/rag-engine/src/ingestor/ingestion_worker/issue_review_binding_cli.py`; il relit la PR et le blob depuis GitHub, recalcule le challenge et écrit un seul reçu canonique sur stdout après auto-contrôle. Le jeton GitHub est lu depuis `NEXUS_GITHUB_TOKEN_FILE` de préférence. Préparer un venv propre de **ce** worktree avec `nexus-contracts`, `httpx`, `psycopg[binary]` puis, seulement après review et statut requis verts, exécuter dans un checkout au HEAD revu :
 
@@ -64,4 +84,4 @@ L'enregistrement éventuel des onze lignes `scope_authorizations` dans une cible
 
 ## Vérification locale et état
 
-Venv isolé de ce worktree : suite `packages/release-chain/tests` **107 réussites** avant l'expiration d'A. Sur l'ancien HEAD de #329, les sept tests initiaux et la CI standard 14/14 ont passé. Après rebase #328, deux tests CLI ont d'abord échoué sur les valeurs figées puis passé avec l'interface explicite ; la suite ciblée rend **9 réussites**, Ruff passe et `--check` sur l'ancienne A refuse `currentness expired`. La suite élargie rend 115 réussites et un échec temporel : `test_content_anchor_without_final_envelope_cannot_activate` attend `authority envelope` mais reçoit l'expiration d'A. Cet échec identique a été reproduit sur un worktree détaché propre de `origin/main=25605df` et son venv distinct ; sa correction est hors de #329. Les onze anciens fichiers sont retirés ; aucune vérification `--write/--check` sur une nouvelle A n'est encore possible. Ces résultats locaux ne valent pas CI du nouveau HEAD ni qualification staging. `CURRENT_AUTHORIZATION_PROPOSALS=0`, `AUTHORIZATION_SET_V2_PUBLIC_ISSUED=false`, `REVIEW_BINDINGS_SIGNED=0`, `STAGING_MUTATED=false`, `PRODUCTION_MUTATED=false`.
+Venv non contaminé de ce worktree : `scripts/tests/test_build_public_lot41a_authorizations.py` **9/9**, Ruff ciblé vert, `--write` puis `--check` **11/11** sur A 20261011. La CI du nouveau HEAD et toute qualification de staging restent distinctes de cette preuve locale. `CURRENT_AUTHORIZATION_PROPOSALS=11`, `AUTHORIZATION_SET_V2_PUBLIC_ISSUED=false`, `REVIEW_BINDINGS_SIGNED=0`, `STAGING_MUTATED=false`, `PRODUCTION_MUTATED=false`.
