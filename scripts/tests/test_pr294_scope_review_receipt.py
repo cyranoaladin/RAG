@@ -7,6 +7,7 @@ import json
 import sys
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -24,7 +25,7 @@ from pr294_scope_review_receipt import (
     check_pr294_scope_review_receipt,
     validate_pr294_scope_receipt,
 )
-from trusted_human_review import build_challenge
+from trusted_human_review import TrustedReviewDecision, build_challenge
 
 ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
 POLICY = ROOT / "governance/student_public_rights/student_public_successor_scope_policy_registry_v1.yml"
@@ -134,11 +135,14 @@ def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[
         "created_at": "2026-10-10T07:08:51Z", "target_url": status_url,
     }
     run = {
-        "id": 12345, "run_attempt": 1, "name": "Trusted human review",
+        "id": 12345, "run_attempt": 2, "name": "Trusted human review",
         "path": ".github/workflows/trusted-human-review.yml",
-        "event": "issue_comment", "status": "completed", "conclusion": "success",
-        "head_sha": base, "created_at": "2026-10-10T07:08:35Z",
+        "event": "pull_request_target", "status": "completed", "conclusion": "success",
+        "head_sha": head, "created_at": "2026-10-10T07:08:35Z",
+        "run_started_at": "2026-10-10T07:08:35Z",
+        "updated_at": "2026-10-10T07:08:55Z",
     }
+    receipt["workflow_run_attempt"] = 2
     return receipt, registry_raw, pr, decision, trusted, run, {
         "anchor": ANCHOR.read_bytes(), "policy": POLICY.read_bytes(),
         "names": NAMES.read_bytes(),
@@ -179,7 +183,7 @@ def test_receipt_sabotage_fails_closed(tmp_path: Path, sabotage: str) -> None:
         _validate(tuple(parts))
 
 
-@pytest.mark.parametrize("sabotage", ["not_merged", "status", "run", "tree", "index"])
+@pytest.mark.parametrize("sabotage", ["not_merged", "status", "run", "event", "tree", "index"])
 def test_post_merge_or_external_proof_sabotage_fails_closed(
     tmp_path: Path, sabotage: str,
 ) -> None:
@@ -190,6 +194,8 @@ def test_post_merge_or_external_proof_sabotage_fails_closed(
         parts[4]["state"] = "failure"
     elif sabotage == "run":
         parts[5]["head_sha"] = "f" * 40
+    elif sabotage == "event":
+        parts[5]["event"] = "issue_comment"
     elif sabotage == "tree":
         parts[0]["head_tree_sha"] = "f" * 40
     else:
@@ -202,6 +208,20 @@ def test_post_merge_or_external_proof_sabotage_fails_closed(
             review_decision=parts[3], trusted_status=parts[4],
             workflow_run=parts[5], head_tree_sha="c" * 40,
         )
+
+
+def test_late_successful_rerun_cannot_claim_premerge_status(tmp_path: Path) -> None:
+    parts = list(_fixture(tmp_path))
+    receipt = parts[0]
+    run = parts[5]
+    receipt["workflow_run_attempt"] = 3
+    run.update({
+        "run_attempt": 3,
+        "run_started_at": "2026-10-10T07:10:00Z",
+        "updated_at": "2026-10-10T07:10:25Z",
+    })
+    with pytest.raises(ScopeReviewReceiptError, match="workflow"):
+        _validate(tuple(parts))
 
 
 def test_post_merge_builder_and_checker_replay_live_evidence(
@@ -233,6 +253,91 @@ def test_post_merge_builder_and_checker_replay_live_evidence(
     trusted["state"] = "failure"
     with pytest.raises(ScopeReviewReceiptError):
         check_pr294_scope_review_receipt(tmp_path, receipt_path, registry_path, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "sabotage",
+    [None, "old_head", "base", "tree", "status", "event", "run_head", "ancestor"],
+)
+def test_live_merged_review_replay_refuses_divergent_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sabotage: str | None,
+) -> None:
+    receipt, _registry, pr, decision, trusted, run, _files, _bundle = _fixture(tmp_path)
+    if sabotage == "old_head":
+        decision["head_sha"] = "e" * 40
+    elif sabotage == "base":
+        decision["base_sha"] = "e" * 40
+    elif sabotage == "status":
+        trusted["state"] = "failure"
+    elif sabotage == "event":
+        run["event"] = "issue_comment"
+    elif sabotage == "run_head":
+        run["head_sha"] = "e" * 40
+
+    failed_attempt = {**run, "run_attempt": 1, "conclusion": "failure",
+                      "run_started_at": "2026-10-10T07:05:00Z",
+                      "updated_at": "2026-10-10T07:05:30Z"}
+    monkeypatch.setattr(checker, "_read_gh", lambda endpoint: (
+        pr if endpoint.endswith("/pulls/294") else
+        {"statuses": [trusted]} if endpoint.endswith("/status") else
+        failed_attempt if endpoint.endswith("/attempts/1") else run
+    ))
+    monkeypatch.setattr(
+        checker, "_git", lambda _root, *args: (
+            (_ for _ in ()).throw(ScopeReviewReceiptError("not ancestor"))
+            if sabotage == "ancestor" and args[0] == "merge-base" else
+            "e" * 40 if sabotage == "tree" and args[-1].startswith(receipt["head_sha"])
+            else receipt["head_tree_sha"]
+        ),
+    )
+    import trusted_human_review_github as adapter
+    monkeypatch.setattr(adapter, "_evaluate_snapshot", lambda **_kw: SimpleNamespace(
+        decision=TrustedReviewDecision(
+            repository="cyranoaladin/RAG", pull_request=294, **decision,
+        ),
+    ))
+    if sabotage is None:
+        observed = checker._live_evidence(ROOT)
+        assert observed[0]["merge_commit_sha"] == receipt["merge_commit_sha"]
+        assert observed[1]["head_sha"] == receipt["head_sha"]
+    else:
+        with pytest.raises(ScopeReviewReceiptError):
+            checker._live_evidence(ROOT)
+
+
+def test_live_review_selects_status_producing_attempt_after_later_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, _registry, pr, decision, trusted, attempt2, _files, _bundle = _fixture(tmp_path)
+    attempt1 = {**attempt2, "run_attempt": 1, "conclusion": "failure",
+                "run_started_at": "2026-10-10T07:05:00Z",
+                "updated_at": "2026-10-10T07:05:30Z"}
+    attempt3 = {**attempt2, "run_attempt": 3,
+                "run_started_at": "2026-10-10T07:10:00Z",
+                "updated_at": "2026-10-10T07:10:25Z"}
+    def read_gh(endpoint: str) -> dict:
+        if endpoint.endswith("/pulls/294"):
+            return pr
+        if endpoint.endswith("/status"):
+            return {"statuses": [trusted]}
+        if endpoint.endswith("/attempts/1"):
+            return attempt1
+        if endpoint.endswith("/attempts/2"):
+            return attempt2
+        if endpoint.endswith("/attempts/3"):
+            return attempt3
+        return attempt3
+
+    monkeypatch.setattr(checker, "_read_gh", read_gh)
+    monkeypatch.setattr(checker, "_git", lambda _root, *_args: receipt["head_tree_sha"])
+    import trusted_human_review_github as adapter
+    monkeypatch.setattr(adapter, "_evaluate_snapshot", lambda **_kw: SimpleNamespace(
+        decision=TrustedReviewDecision(
+            repository="cyranoaladin/RAG", pull_request=294, **decision,
+        ),
+    ))
+    observed = checker._live_evidence(ROOT)
+    assert observed[3]["run_attempt"] == 2
 
 
 @pytest.mark.parametrize("sabotage", ["missing", "altered", "aefe", "teacher", "tenant"])
