@@ -75,11 +75,14 @@ def _review() -> issuer.ScopePolicyReviewEvidence:
 
 
 def test_verified_preissuance_and_exact_review_reach_v3_builder(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = []
     now = datetime.now(UTC)
     params = _inputs(tmp_path)
+    monkeypatch.setattr(
+        issuer, "_require_current_clean_main", lambda _root: _review().checkout_head_sha,
+    )
 
     def preissuance(*_args: object) -> PreissuanceVerdict:
         calls.append("preissuance")
@@ -112,6 +115,9 @@ def test_source_currentness_expiring_during_review_refuses_before_scope_write(
     calls: list[str] = []
     params = _inputs(tmp_path)
     monkeypatch.setattr(issuer, "_utc_now", lambda: current[0], raising=False)
+    monkeypatch.setattr(
+        issuer, "_require_current_clean_main", lambda _root: _review().checkout_head_sha,
+    )
 
     def preissuance(*_args: object) -> PreissuanceVerdict:
         calls.append("preissuance")
@@ -130,6 +136,36 @@ def test_source_currentness_expiring_during_review_refuses_before_scope_write(
         )
     assert calls == ["preissuance", "review"]
     assert not params["artifacts_dir"].exists()
+
+
+def test_origin_main_moving_during_review_refuses_before_scope_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    params = _inputs(tmp_path)
+    checkout = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    calls: list[str] = []
+
+    def git(_root: Path, *args: str) -> str:
+        if args == ("rev-parse", "HEAD"):
+            return checkout
+        if args == ("rev-parse", "origin/main"):
+            return checkout
+        if args == ("ls-remote", "--exit-code", "origin", "refs/heads/main"):
+            return f"{'f' * 40}\trefs/heads/main"
+        if args == ("status", "--porcelain"):
+            return ""
+        raise AssertionError(args)
+
+    monkeypatch.setattr(issuer, "_git", git)
+    with pytest.raises(issuer.StudentPublicScopeEmissionError, match="main"):
+        issuer.emit_student_public_scopes(
+            **params, now_utc=now,
+            preissuance_verifier=lambda *_args: _preissuance(now + timedelta(hours=1)),
+            policy_review_verifier=lambda *_args: _review(),
+            scope_emitter=lambda **_kwargs: calls.append("emit"),
+        )
+    assert calls == []
 
 
 @pytest.mark.parametrize("sabotage", ["missing", "tampered", "expired", "review"])
@@ -222,8 +258,18 @@ def test_live_review_binds_merged_pr_head_and_current_checkout(
 
     checkout = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     original_git = issuer._git
+    git_preflight: list[tuple[str, ...]] = []
+    def checked_git(root: Path, *args: str) -> str:
+        git_preflight.append(args)
+        if args == ("rev-parse", "origin/main"):
+            return checkout
+        if args == ("ls-remote", "--exit-code", "origin", "refs/heads/main"):
+            return f"{checkout}\trefs/heads/main"
+        if args == ("status", "--porcelain"):
+            return ""
+        return original_git(root, *args)
     monkeypatch.setattr(issuer, "_git", lambda root, *args: (
-        checkout if args == ("rev-parse", "origin/main") else original_git(root, *args)
+        checked_git(root, *args)
     ))
     approved_head = "a" * 40
     merge = "b" * 40
@@ -248,9 +294,11 @@ def test_live_review_binds_merged_pr_head_and_current_checkout(
     assert review.head_sha == approved_head
     assert review.tree_sha == approved_tree
     assert review.checkout_head_sha == checkout
+    assert ("ls-remote", "--exit-code", "origin", "refs/heads/main") in git_preflight
+    assert ("status", "--porcelain") in git_preflight
 
 
-@pytest.mark.parametrize("sabotage", ["policy", "head"])
+@pytest.mark.parametrize("sabotage", ["policy", "head", "remote", "dirty"])
 def test_live_review_refuses_changed_reviewed_input_or_checkout(
     monkeypatch: pytest.MonkeyPatch, sabotage: str,
 ) -> None:
@@ -263,7 +311,12 @@ def test_live_review_refuses_changed_reviewed_input_or_checkout(
     checkout = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     original_git = issuer._git
     monkeypatch.setattr(issuer, "_git", lambda root, *args: (
-        checkout if args == ("rev-parse", "origin/main") else original_git(root, *args)
+        checkout if args == ("rev-parse", "origin/main") else
+        f"{'f' * 40 if sabotage == 'remote' else checkout}\trefs/heads/main"
+        if args == ("ls-remote", "--exit-code", "origin", "refs/heads/main") else
+        " M scripts/go_live/emit_student_public_scopes.py"
+        if args == ("status", "--porcelain") and sabotage == "dirty" else
+        "" if args == ("status", "--porcelain") else original_git(root, *args)
     ))
 
     files = {

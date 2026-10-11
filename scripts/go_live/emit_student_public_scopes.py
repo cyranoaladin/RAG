@@ -59,13 +59,28 @@ def _sha(path: Path) -> str:
 
 
 def _git(root: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=root, text=True, capture_output=True,
-        check=False, timeout=20,
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=root, text=True, capture_output=True,
+            check=False, timeout=20,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise StudentPublicScopeEmissionError("exact-head Git binding unavailable") from error
     if result.returncode != 0:
         raise StudentPublicScopeEmissionError("exact-head Git binding unavailable")
     return result.stdout.strip()
+
+
+def _require_current_clean_main(root: Path) -> str:
+    head = _git(root, "rev-parse", "HEAD")
+    tracking = _git(root, "rev-parse", "origin/main")
+    live = _git(root, "ls-remote", "--exit-code", "origin", "refs/heads/main")
+    if (
+        head != tracking or live != f"{head}\trefs/heads/main"
+        or _git(root, "status", "--porcelain")
+    ):
+        raise StudentPublicScopeEmissionError("checkout is not clean current origin/main")
+    return head
 
 
 def _require_file_at_head(root: Path, path: Path, expected_sha256: str) -> None:
@@ -88,9 +103,7 @@ def verify_live_scope_policy_review(
 ) -> ScopePolicyReviewEvidence:
     """Rejouer le merge/review #294 et les entrées inchangées sur main courant."""
     root = repo_root.resolve()
-    head = _git(root, "rev-parse", "HEAD")
-    if head != _git(root, "rev-parse", "origin/main"):
-        raise StudentPublicScopeEmissionError("checkout is not current origin/main")
+    head = _require_current_clean_main(root)
     from pr294_scope_review_receipt import (
         FILES,
         _live_evidence,
@@ -199,6 +212,8 @@ def emit_student_public_scopes(
     )
 
     emit = scope_emitter or emit_from_policy_registry
+    if _require_current_clean_main(repo_root) != review.checkout_head_sha:
+        raise StudentPublicScopeEmissionError("main moved after scope policy review")
     fresh_now = _utc_now()
     if (
         fresh_now.tzinfo is None
