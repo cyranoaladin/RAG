@@ -629,6 +629,27 @@ def test_reviewed_scope_policy_reconstructs_exact_v3(tmp_path: Path) -> None:
     assert observed == {scopes[0].scope_id: scopes[0].sha256_digest()}
 
 
+def test_fresh_scope_review_receipt_requires_explicit_pr330_kind(tmp_path: Path) -> None:
+    path, sha, content, policy, names, receipt = _reviewed_scope_policy_fixture(tmp_path)
+    scopes = verify_public_scope_registry(path, sha, content, RELEASE)
+    doc = json.loads(receipt)
+    doc["kind"] = "PR330_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1"
+    doc["pull_request"] = 330
+    fresh = (json.dumps(doc, sort_keys=True, ensure_ascii=False, indent=2) + "\n").encode()
+    assert verify_reviewed_public_scope_policy(
+        path, sha, content, scopes, policy_raw=policy, names_raw=names,
+        receipt_raw=fresh, expected_receipt_sha256=hashlib.sha256(fresh).hexdigest(),
+    ) == {scopes[0].scope_id: scopes[0].sha256_digest()}
+    doc["pull_request"] = 294
+    forged = (json.dumps(doc, sort_keys=True, ensure_ascii=False, indent=2) + "\n").encode()
+    with pytest.raises(PublicSuccessorActivationError):
+        verify_reviewed_public_scope_policy(
+            path, sha, content, scopes, policy_raw=policy, names_raw=names,
+            receipt_raw=forged,
+            expected_receipt_sha256=hashlib.sha256(forged).hexdigest(),
+        )
+
+
 def test_reviewed_scope_policy_refuses_resealed_audience_expansion(tmp_path: Path) -> None:
     path, _sha, content, policy, names, receipt = _reviewed_scope_policy_fixture(tmp_path)
     registry = json.loads(path.read_bytes())

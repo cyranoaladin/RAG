@@ -373,7 +373,7 @@ def verify_reviewed_public_scope_policy(
     receipt_raw: bytes,
     expected_receipt_sha256: str,
 ) -> dict[str, str]:
-    """Comparer B à la politique et au nommage de la revue exacte #294.
+    """Comparer B à la politique et au nommage de sa revue exacte.
 
     Le reçu est revérifié en ligne au scellement ; ce lecteur portable contrôle
     ses liaisons et les octets de chaque V3 sans revendiquer un accès GitHub.
@@ -393,11 +393,13 @@ def verify_reviewed_public_scope_policy(
             or not isinstance(policy, dict) or not isinstance(names, dict)):
         raise PublicSuccessorActivationError("reviewed scope authority malformed")
     if (
-        receipt.get("kind") != "PR294_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1"
+        (receipt.get("kind"), receipt.get("pull_request")) not in {
+            ("PR294_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1", 294),
+            ("PR330_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1", 330),
+        }
         or receipt.get("status") != "REVIEWED_SCOPES_NOT_PUBLICATION_AUTHORITY"
         or receipt.get("activation_allowed") is not False
         or receipt.get("repository") != "cyranoaladin/RAG"
-        or receipt.get("pull_request") != 294
         or receipt.get("reviewer") != "abenrhouma"
         or any(not isinstance(receipt.get(field), str)
                or re.fullmatch(r"[0-9a-f]{40}", receipt[field]) is None

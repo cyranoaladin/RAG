@@ -47,6 +47,7 @@ class ScopePolicyReviewEvidence:
     policy_registry_sha256: str
     successor_authority_sha256: str
     content_anchor_sha256: str
+    review_pr_number: int = 294
 
 
 def _sha(path: Path) -> str:
@@ -99,18 +100,22 @@ def _require_file_at_head(root: Path, path: Path, expected_sha256: str) -> None:
 def verify_live_scope_policy_review(
     repo_root: Path, policy_registry: Path, policy_registry_sha256: str,
     successor_authority: Path, successor_authority_sha256: str,
-    anchor_path: Path, anchor_sha256: str,
+    anchor_path: Path, anchor_sha256: str, *, review_pr_number: int = 294,
 ) -> ScopePolicyReviewEvidence:
-    """Rejouer le merge/review #294 et les entrées inchangées sur main courant."""
+    """Rejouer la PR de scope explicitement choisie sur main courant."""
     root = repo_root.resolve()
     head = _require_current_clean_main(root)
     from pr294_scope_review_receipt import (
-        FILES,
+        REVIEW_BINDINGS,
         _live_evidence,
         _read_reviewed_files,
     )
-
-    pr, decision, _status, _run, tree = _live_evidence(root)
+    binding = REVIEW_BINDINGS.get(review_pr_number)
+    if binding is None:
+        raise StudentPublicScopeEmissionError("unknown exact-head scope review PR")
+    pr, decision, _status, _run, tree = (
+        _live_evidence(root) if review_pr_number == 294 else _live_evidence(root, binding)
+    )
     reviewed_head = pr["head"]["sha"]
     if (
         decision.get("approved") is not True
@@ -118,7 +123,9 @@ def verify_live_scope_policy_review(
         or decision.get("reviewer") != REVIEWER
     ):
         raise StudentPublicScopeEmissionError("exact-head scope policy review absent")
-    reviewed_files = _read_reviewed_files(root, reviewed_head)
+    reviewed_files = (_read_reviewed_files(root, reviewed_head)
+                      if review_pr_number == 294 else
+                      _read_reviewed_files(root, reviewed_head, binding))
     for path, digest in (
         (policy_registry, policy_registry_sha256),
         (successor_authority, successor_authority_sha256),
@@ -130,13 +137,13 @@ def verify_live_scope_policy_review(
         ("names", successor_authority, successor_authority_sha256),
         ("anchor", anchor_path, anchor_sha256),
     ):
-        if path.resolve() != (root / FILES[label]).resolve() or hashlib.sha256(
+        if path.resolve() != (root / binding.files[label]).resolve() or hashlib.sha256(
             reviewed_files[label]
         ).hexdigest() != digest:
             raise StudentPublicScopeEmissionError("reviewed authority path or bytes differ")
     return ScopePolicyReviewEvidence(
         reviewed_head, tree, head, REVIEWER, policy_registry_sha256,
-        successor_authority_sha256, anchor_sha256,
+        successor_authority_sha256, anchor_sha256, review_pr_number,
     )
 
 
@@ -159,6 +166,7 @@ def emit_student_public_scopes(
     preissuance_verifier: Callable[..., PreissuanceVerdict] = verify_preissuance_authority,
     policy_review_verifier: Callable[..., ScopePolicyReviewEvidence] = verify_live_scope_policy_review,
     scope_emitter: Callable[..., Any] | None = None,
+    scope_review_pr_number: int = 294,
 ) -> Any:
     """Vérifier deux autorités indépendantes avant la première écriture."""
     now = now_utc or datetime.now(UTC)
@@ -185,11 +193,14 @@ def emit_student_public_scopes(
     ):
         raise StudentPublicScopeEmissionError("preissuance verdict differs or expired")
     try:
-        review = policy_review_verifier(
+        review_args = (
             repo_root, policy_registry, policy_registry_sha256,
             successor_authority, successor_authority_sha256,
             anchor_path, anchor_sha256,
         )
+        review = (policy_review_verifier(*review_args)
+                  if scope_review_pr_number == 294 else
+                  policy_review_verifier(*review_args, review_pr_number=scope_review_pr_number))
     except (ValueError, OSError, RuntimeError) as error:
         raise StudentPublicScopeEmissionError("exact-head policy review refused") from error
     head = _git(repo_root, "rev-parse", "HEAD")
@@ -200,6 +211,7 @@ def emit_student_public_scopes(
         or review.policy_registry_sha256 != policy_registry_sha256
         or review.successor_authority_sha256 != successor_authority_sha256
         or review.content_anchor_sha256 != anchor_sha256
+        or review.review_pr_number != scope_review_pr_number
         or _sha(anchor_path) != anchor_sha256
     ):
         raise StudentPublicScopeEmissionError("scope review or anchor differs")
@@ -335,6 +347,7 @@ def main() -> int:
         "successor-authority-sha256",
     ):
         parser.add_argument(f"--{field}", required=True)
+    parser.add_argument("--scope-review-pr-number", type=int, choices=[294, 330], default=294)
     args = parser.parse_args()
     try:
         result = emit_student_public_scopes(**vars(args))

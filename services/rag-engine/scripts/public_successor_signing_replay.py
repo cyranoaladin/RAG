@@ -77,6 +77,44 @@ def _checkout_module(name: str) -> ModuleType:
     return module
 
 
+def _replay_live_scope_review(
+    repository_root: Path, bundle_root: Path, scope_sha256: str, subject_count: int,
+) -> None:
+    """Le C scellé choisit seulement une liaison PR explicitement reconnue."""
+    receipt_path = bundle_root / "authorities/exact_head_scope_review_receipt_sha256.bin"
+    try:
+        receipt = json.loads(_bytes(receipt_path))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise PublicationSigningReplayRefused("scope review receipt invalid") from error
+    if not isinstance(receipt, dict):
+        raise PublicationSigningReplayRefused("scope review receipt invalid")
+    review = (receipt.get("kind"), receipt.get("pull_request"))
+    if review not in {
+        ("PR294_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1", 294),
+        ("PR330_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1", 330),
+    }:
+        raise PublicationSigningReplayRefused("scope review PR/kind not governed")
+    checker = _checkout_module("pr294_scope_review_receipt")
+    args = (
+        repository_root, receipt_path,
+        bundle_root / "authorities/public_scope_authority_sha256.bin",
+        bundle_root / "scopes",
+    )
+    if review[1] == 294:
+        observed = checker.check_pr294_scope_review_receipt(*args)
+    else:
+        observed = checker.check_scope_review_receipt(
+            *args, review_binding=checker.REVIEW_BINDINGS[330],
+        )
+    expected_flag = f"PR{review[1]}_SCOPE_REVIEW_PASS"
+    if (not isinstance(observed, dict)
+            or observed.get(expected_flag) is not True
+            or observed.get("PUBLICATION_AUTHORIZED") is not False
+            or observed.get("PUBLIC_SCOPE_AUTHORITY_SHA256") != scope_sha256
+            or observed.get("SCOPE_COUNT") != subject_count):
+        raise PublicationSigningReplayRefused("live scope review differs from C")
+
+
 def _verified_external_target_pin_sha256(
     *, repository_root: Path, target_pin_receipt_path: Path,
     target_pin_path: Path, target_pin_pull_request: int,
@@ -215,19 +253,9 @@ def replay_public_successor_publication(
     ):
         raise PublicationSigningReplayRefused("typed C verdict differs from signed release")
 
-    # Module #294: tant que sa PR n'est pas fusionnée dans ce checkout, il
-    # reste volontairement absent et l'émission est refusée.
-    scope_review = _checkout_module("pr294_scope_review_receipt")
-    scope_result = scope_review.check_pr294_scope_review_receipt(
-        inputs.repository_root,
-        root / "authorities/exact_head_scope_review_receipt_sha256.bin",
-        root / "authorities/public_scope_authority_sha256.bin",
-        root / "scopes",
+    _replay_live_scope_review(
+        inputs.repository_root, root, scope_sha, verdict.counts["subjects"],
     )
-    if (scope_result.get("PR294_SCOPE_REVIEW_PASS") is not True
-            or scope_result.get("PUBLIC_SCOPE_AUTHORITY_SHA256") != scope_sha
-            or scope_result.get("SCOPE_COUNT") != verdict.counts["subjects"]):
-        raise PublicationSigningReplayRefused("live #294 scope review differs from C")
 
     preissuance = _checkout_module("check_public_successor_preissuance")
     receipt_sha = _sha(_bytes(inputs.preissuance_receipt_path))

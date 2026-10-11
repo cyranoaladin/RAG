@@ -13,7 +13,7 @@ import json
 import re
 import sys
 from collections.abc import Mapping
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +44,36 @@ FILES = {
     "policy": "governance/student_public_rights/student_public_successor_scope_policy_registry_v1.yml",
     "names": "packages/contracts/authorities/student-public-successor-scope-names-v1.yml",
 }
+
+
+@dataclass(frozen=True)
+class ScopeReviewBinding:
+    """Seules les deux revues explicitement gouvernées sont acceptées."""
+
+    pull_request: int
+    kind: str
+    result_key: str
+    files: Mapping[str, str]
+
+
+PR294_BINDING = ScopeReviewBinding(PR_NUMBER, KIND, "PR294_SCOPE_REVIEW_PASS", FILES)
+PR330_BINDING = ScopeReviewBinding(
+    330, "PR330_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1",
+    "PR330_SCOPE_REVIEW_PASS",
+    {
+        **FILES,
+        "anchor": "docs/reports/go_live/student_public_successor_content_anchor_20261011.json",
+    },
+)
+REVIEW_BINDINGS = {294: PR294_BINDING, 330: PR330_BINDING}
+
+
+def _known_binding(binding: ScopeReviewBinding) -> ScopeReviewBinding:
+    if REVIEW_BINDINGS.get(binding.pull_request) != binding:
+        raise ScopeReviewReceiptError("unknown scope review binding")
+    return binding
+
+
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 SHA64 = re.compile(r"[0-9a-f]{64}\Z")
 SCOPE_ID = re.compile(r"student_public_[a-z0-9_]+_v1\Z")
@@ -250,14 +280,15 @@ def validate_pr294_scope_receipt(
     reviewed_files: Mapping[str, bytes], scope_bundle_root: Path, *,
     pull_request: Mapping[str, Any], review_decision: Mapping[str, Any],
     trusted_status: Mapping[str, Any], workflow_run: Mapping[str, Any],
-    head_tree_sha: str,
+    head_tree_sha: str, review_binding: ScopeReviewBinding = PR294_BINDING,
 ) -> dict[str, Any]:
     """Validation déterministe ; le caller fournit des observations indépendantes."""
+    binding = _known_binding(review_binding)
     r = receipt
     if (
-        set(r) != KEYS or r.get("kind") != KIND or r.get("status") != STATUS
+        set(r) != KEYS or r.get("kind") != binding.kind or r.get("status") != STATUS
         or r.get("activation_allowed") is not False
-        or r.get("repository") != REPOSITORY or r.get("pull_request") != PR_NUMBER
+        or r.get("repository") != REPOSITORY or r.get("pull_request") != binding.pull_request
         or r.get("base_ref") != "main" or r.get("reviewer") != REVIEWER
         or type(r.get("review_id")) is not int or r["review_id"] <= 0
         or type(r.get("workflow_run_id")) is not int or r["workflow_run_id"] <= 0
@@ -278,13 +309,13 @@ def validate_pr294_scope_receipt(
         raise ScopeReviewReceiptError("receipt shape or authority invalid")
     challenge = build_challenge({
         "protocol": "NEXUS-TRUSTED-REVIEW-V1", "repository": REPOSITORY,
-        "pull_request": PR_NUMBER, "base_ref": r["base_ref"],
+        "pull_request": binding.pull_request, "base_ref": r["base_ref"],
         "base_sha": r["base_sha"], "head_sha": r["head_sha"],
         "author": r["author"], "reviewer": REVIEWER,
     })
     if r["challenge"] != challenge:
         raise ScopeReviewReceiptError("challenge does not derive from exact PR revision")
-    if set(reviewed_files) != set(FILES):
+    if set(reviewed_files) != set(binding.files):
         raise ScopeReviewReceiptError("reviewed file population invalid")
     for label, key in (
         ("anchor", "content_anchor_sha256"),
@@ -314,7 +345,7 @@ def validate_pr294_scope_receipt(
     )
     pr = pull_request
     if (
-        pr.get("number") != PR_NUMBER or pr.get("state") != "closed"
+        pr.get("number") != binding.pull_request or pr.get("state") != "closed"
         or pr.get("merged") is not True
         or pr.get("merge_commit_sha") != r["merge_commit_sha"]
         or not isinstance(pr.get("base"), dict)
@@ -365,7 +396,7 @@ def validate_pr294_scope_receipt(
     if not reviewed_at <= status_at <= merged_at:
         raise ScopeReviewReceiptError("review/status outside merge window")
     return {
-        "PR294_SCOPE_REVIEW_PASS": True,
+        binding.result_key: True,
         "PUBLICATION_AUTHORIZED": False,
         "SCOPE_COUNT": len(observed),
         "PUBLIC_SCOPE_AUTHORITY_SHA256": r["public_scope_authority_sha256"],
@@ -374,9 +405,28 @@ def validate_pr294_scope_receipt(
     }
 
 
-def _read_reviewed_files(root: Path, head: str) -> dict[str, bytes]:
+def validate_scope_review_receipt(
+    receipt: Mapping[str, Any], scope_registry_bytes: bytes,
+    reviewed_files: Mapping[str, bytes], scope_bundle_root: Path, *,
+    review_binding: ScopeReviewBinding,
+    pull_request: Mapping[str, Any], review_decision: Mapping[str, Any],
+    trusted_status: Mapping[str, Any], workflow_run: Mapping[str, Any],
+    head_tree_sha: str,
+) -> dict[str, Any]:
+    return validate_pr294_scope_receipt(
+        receipt, scope_registry_bytes, reviewed_files, scope_bundle_root,
+        pull_request=pull_request, review_decision=review_decision,
+        trusted_status=trusted_status, workflow_run=workflow_run,
+        head_tree_sha=head_tree_sha, review_binding=review_binding,
+    )
+
+
+def _read_reviewed_files(
+    root: Path, head: str, review_binding: ScopeReviewBinding = PR294_BINDING,
+) -> dict[str, bytes]:
+    binding = _known_binding(review_binding)
     files: dict[str, bytes] = {}
-    for label, relative in FILES.items():
+    for label, relative in binding.files.items():
         path = root / relative
         if path.is_symlink() or not path.is_file():
             raise ScopeReviewReceiptError(f"reviewed {label} file missing or symlink")
@@ -388,7 +438,10 @@ def _read_reviewed_files(root: Path, head: str) -> dict[str, bytes]:
     return files
 
 
-def _live_evidence(root: Path) -> tuple[dict, dict, dict, dict, str]:
+def _live_evidence(
+    root: Path, review_binding: ScopeReviewBinding = PR294_BINDING,
+) -> tuple[dict, dict, dict, dict, str]:
+    binding = _known_binding(review_binding)
     from trusted_human_review_github import (
         DEFAULT_CONFIG_PATH,
         _evaluate_snapshot,
@@ -396,15 +449,15 @@ def _live_evidence(root: Path) -> tuple[dict, dict, dict, dict, str]:
         run_gh_api,
     )
 
-    pr = _read_gh(f"repos/{REPOSITORY}/pulls/{PR_NUMBER}")
+    pr = _read_gh(f"repos/{REPOSITORY}/pulls/{binding.pull_request}")
     if not isinstance(pr, dict) or pr.get("state") != "closed" or pr.get("merged") is not True:
-        raise ScopeReviewReceiptError("PR #294 is not merged")
+        raise ScopeReviewReceiptError("reviewed scope PR is not merged")
     result = _evaluate_snapshot(
         pull_request={**pr, "state": "open", "draft": False},
-        repository=REPOSITORY, pull_request_number=PR_NUMBER,
+        repository=REPOSITORY, pull_request_number=binding.pull_request,
         config=load_config(DEFAULT_CONFIG_PATH), runner=run_gh_api,
     )
-    readback = _read_gh(f"repos/{REPOSITORY}/pulls/{PR_NUMBER}")
+    readback = _read_gh(f"repos/{REPOSITORY}/pulls/{binding.pull_request}")
     if not isinstance(readback, dict) or any(readback.get(key) != pr.get(key) for key in (
         "state", "merged", "merge_commit_sha", "base", "head",
     )):
@@ -474,19 +527,24 @@ def _read_registry(path: Path) -> bytes:
 
 def build_pr294_scope_receipt(
     root: Path, scope_registry_path: Path, scope_bundle_root: Path,
+    review_binding: ScopeReviewBinding = PR294_BINDING,
 ) -> dict[str, Any]:
     """Construire seulement après fusion et rejeu live de GitHub/git."""
-    pr, decision, trusted, run, tree = _live_evidence(root)
+    binding = _known_binding(review_binding)
+    pr, decision, trusted, run, tree = (
+        _live_evidence(root) if binding == PR294_BINDING else _live_evidence(root, binding)
+    )
     head = pr["head"]["sha"]
-    files = _read_reviewed_files(root, head)
+    files = (_read_reviewed_files(root, head) if binding == PR294_BINDING
+             else _read_reviewed_files(root, head, binding))
     registry_raw = _read_registry(scope_registry_path)
     registry = _object(registry_raw, "scope registry")
     rows = registry.get("scopes")
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
         raise ScopeReviewReceiptError("scope registry rows invalid")
     receipt = {
-        "kind": KIND, "status": STATUS, "activation_allowed": False,
-        "repository": REPOSITORY, "pull_request": PR_NUMBER,
+        "kind": binding.kind, "status": STATUS, "activation_allowed": False,
+        "repository": REPOSITORY, "pull_request": binding.pull_request,
         "base_ref": pr["base"]["ref"], "base_sha": pr["base"]["sha"],
         "head_sha": head, "head_tree_sha": tree,
         "merge_commit_sha": pr["merge_commit_sha"],
@@ -507,26 +565,50 @@ def build_pr294_scope_receipt(
     validate_pr294_scope_receipt(
         receipt, registry_raw, files, scope_bundle_root, pull_request=pr,
         review_decision=decision, trusted_status=trusted,
-        workflow_run=run, head_tree_sha=tree,
+        workflow_run=run, head_tree_sha=tree, review_binding=binding,
     )
     return receipt
 
 
 def check_pr294_scope_review_receipt(
     root: Path, receipt_path: Path, scope_registry_path: Path,
-    scope_bundle_root: Path,
+    scope_bundle_root: Path, review_binding: ScopeReviewBinding = PR294_BINDING,
 ) -> dict[str, Any]:
     """Rejouer GitHub live avant qu'un signer C accepte le reçu scellé."""
+    binding = _known_binding(review_binding)
     receipt_raw = _read_registry(receipt_path)
     receipt = _object(receipt_raw, "scope review receipt")
     if receipt_raw != canonical_bytes(receipt):
         raise ScopeReviewReceiptError("scope review receipt is not canonical JSON")
-    pr, decision, trusted, run, tree = _live_evidence(root)
-    files = _read_reviewed_files(root, pr["head"]["sha"])
+    pr, decision, trusted, run, tree = (
+        _live_evidence(root) if binding == PR294_BINDING else _live_evidence(root, binding)
+    )
+    files = (_read_reviewed_files(root, pr["head"]["sha"])
+             if binding == PR294_BINDING else
+             _read_reviewed_files(root, pr["head"]["sha"], binding))
     return validate_pr294_scope_receipt(
         receipt, _read_registry(scope_registry_path), files, scope_bundle_root,
         pull_request=pr, review_decision=decision,
         trusted_status=trusted, workflow_run=run, head_tree_sha=tree,
+        review_binding=binding,
+    )
+
+
+def build_scope_review_receipt(
+    root: Path, scope_registry_path: Path, scope_bundle_root: Path, *,
+    review_binding: ScopeReviewBinding,
+) -> dict[str, Any]:
+    return build_pr294_scope_receipt(
+        root, scope_registry_path, scope_bundle_root, review_binding,
+    )
+
+
+def check_scope_review_receipt(
+    root: Path, receipt_path: Path, scope_registry_path: Path,
+    scope_bundle_root: Path, *, review_binding: ScopeReviewBinding,
+) -> dict[str, Any]:
+    return check_pr294_scope_review_receipt(
+        root, receipt_path, scope_registry_path, scope_bundle_root, review_binding,
     )
 
 
@@ -535,14 +617,16 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--scope-registry", type=Path, required=True)
     parser.add_argument("--scope-bundle-root", type=Path, required=True)
+    parser.add_argument("--review-pr-number", type=int, choices=sorted(REVIEW_BINDINGS), default=294)
     operation = parser.add_mutually_exclusive_group(required=True)
     operation.add_argument("--write-receipt", type=Path)
     operation.add_argument("--check-receipt", type=Path)
     args = parser.parse_args()
     try:
+        binding = REVIEW_BINDINGS[args.review_pr_number]
         if args.write_receipt:
             receipt = build_pr294_scope_receipt(
-                args.repo_root, args.scope_registry, args.scope_bundle_root,
+                args.repo_root, args.scope_registry, args.scope_bundle_root, binding,
             )
             if args.write_receipt.exists() or args.write_receipt.is_symlink():
                 raise ScopeReviewReceiptError("receipt target already exists")
@@ -550,12 +634,12 @@ def main() -> int:
             args.write_receipt.write_bytes(canonical_bytes(receipt))
             verdict = check_pr294_scope_review_receipt(
                 args.repo_root, args.write_receipt, args.scope_registry,
-                args.scope_bundle_root,
+                args.scope_bundle_root, binding,
             )
         else:
             verdict = check_pr294_scope_review_receipt(
                 args.repo_root, args.check_receipt, args.scope_registry,
-                args.scope_bundle_root,
+                args.scope_bundle_root, binding,
             )
     except (ScopeReviewReceiptError, AuthorityReceiptError, OSError, KeyError,
             TypeError, ValueError) as error:
