@@ -32,7 +32,7 @@ from pr300_authority_receipt import (
 GITHUB_DIR = Path(__file__).resolve().parents[1] / "github"
 if str(GITHUB_DIR) not in sys.path:
     sys.path.insert(0, str(GITHUB_DIR))
-from trusted_human_review import build_challenge
+from trusted_human_review import build_challenge  # noqa: E402
 
 REPOSITORY = "cyranoaladin/RAG"
 PR_NUMBER = 294
