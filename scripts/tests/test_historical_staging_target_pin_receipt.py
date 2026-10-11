@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "go_live"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "github"))
 from historical_staging_target_pin_receipt import (  # noqa: E402
     HistoricalPinRefused,
+    _run_pr_candidates_endpoint,
     build_historical_pin_receipt,
     canonical_receipt,
     check_historical_pin_receipt,
@@ -82,7 +83,7 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         "number": 999, "state": "closed", "merged": True,
         "merged_at": "2026-10-10T18:05:00Z", "merge_commit_sha": MERGE,
         "base": {"ref": "main", "sha": "9" * 40},
-        "head": {"sha": HEAD, "repo": {"full_name": "cyranoaladin/RAG"}},
+        "head": {"sha": HEAD, "ref": "feature", "repo": {"full_name": "cyranoaladin/RAG"}},
         "user": {"login": "nexus-agent"},
     }
     decision = {
@@ -100,6 +101,10 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         "id": 123, "run_attempt": 1, "name": "Trusted human review",
         "path": ".github/workflows/trusted-human-review.yml",
         "event": "issue_comment", "head_sha": BASE,
+        "head_branch": "feature",
+        "head_repository": {"full_name": "cyranoaladin/RAG"},
+        "repository": {"full_name": "cyranoaladin/RAG"},
+        "pull_requests": [],
         "status": "completed", "conclusion": "success",
         "created_at": "2026-10-10T18:01:00Z",
     }
@@ -115,6 +120,13 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         database_name="nexus_rag", destination_realpath=str(destination),
         destination_device=physical.st_dev, destination_inode=physical.st_ino,
     )
+    candidate = {
+        "number": 999, "created_at": "2026-10-10T17:00:00Z",
+        "closed_at": "2026-10-10T18:05:00Z",
+        "head": {"ref": "feature", "sha": HEAD,
+                 "repo": {"full_name": "cyranoaladin/RAG"}},
+        "base": {"ref": "main"},
+    }
     return dict(
         receipt=receipt, pin_raw=raw, destination_root=destination,
         expected_pin_path="governance/staging_target_pins/target.json",
@@ -124,11 +136,13 @@ def fixture(tmp_path: Path) -> dict[str, object]:
         merge_tree_sha=TREE, merge_parent_sha=BASE,
         reviewed_head_pin_blob=raw, main_pin_blob=raw,
         checkout_head_sha=MAIN, github_main_sha=MAIN, merge_is_ancestor=True,
+        run_pr_candidates=[candidate],
     )
 
 
 def test_postmerge_receipt_accepts_historical_base_not_current_pr_base(tmp_path: Path) -> None:
     evidence = fixture(tmp_path)
+    evidence["run_pr_candidates"] = None  # issue_comment ne dépend pas du binding PR du rerun
     verdict = validate_historical_pin_receipt(**evidence)
     assert verdict["HISTORICAL_STAGING_TARGET_PIN_PASS"] is True
     assert verdict["EXPECTED_TARGET_PIN_SHA256"] == evidence["receipt"]["target_pin_sha256"]
@@ -160,6 +174,9 @@ def test_postmerge_receipt_accepts_trusted_pull_request_target_rerun(tmp_path: P
     ("workflow_run", "name", "Different workflow"),
     ("workflow_run", "path", ".github/workflows/other.yml"),
     ("workflow_run", "created_at", "2026-10-10T18:04:00Z"),
+    ("workflow_run", "head_branch", "other-branch"),
+    ("workflow_run", "head_repository", {"full_name": "other/repo"}),
+    ("workflow_run", "pull_requests", [{"number": 998}]),
     ("workflow_attempt", "run_started_at", "2026-10-10T17:59:00Z"),
 ])
 def test_postmerge_rerun_sabotage_refused(
@@ -174,6 +191,48 @@ def test_postmerge_rerun_sabotage_refused(
     evidence["workflow_attempt"]["head_sha"] = HEAD
     evidence["workflow_attempt"]["run_attempt"] = 2
     evidence[part][key] = value
+    with pytest.raises(HistoricalPinRefused):
+        validate_historical_pin_receipt(**evidence)
+
+
+@pytest.mark.parametrize("candidate_change", [
+    "missing", "other_pr_same_head", "other_pr_same_branch_different_head",
+    "other_branch_same_head",
+    "wrong_number", "wrong_head", "missing_page", "created_after_run",
+    "closed_before_run", "full_page",
+])
+def test_rerun_requires_unique_active_pr_on_same_branch(
+    tmp_path: Path, candidate_change: str,
+) -> None:
+    evidence = fixture(tmp_path)
+    evidence["workflow_run"]["event"] = "pull_request_target"
+    evidence["workflow_run"]["head_sha"] = HEAD
+    evidence["workflow_attempt"]["event"] = "pull_request_target"
+    evidence["workflow_attempt"]["head_sha"] = HEAD
+    candidate = evidence["run_pr_candidates"][0]
+    if candidate_change == "missing":
+        evidence["run_pr_candidates"] = []
+    elif candidate_change == "other_pr_same_head":
+        evidence["run_pr_candidates"].append({**candidate, "number": 998})
+    elif candidate_change == "other_pr_same_branch_different_head":
+        evidence["run_pr_candidates"].append({
+            **candidate, "number": 998,
+            "head": {**candidate["head"], "sha": BASE},
+        })
+    elif candidate_change == "other_branch_same_head":
+        candidate["head"] = {**candidate["head"], "ref": "other-branch"}
+    elif candidate_change == "wrong_number":
+        candidate["number"] = 998
+    elif candidate_change == "wrong_head":
+        candidate["head"] = {**candidate["head"], "sha": BASE}
+    elif candidate_change == "missing_page":
+        evidence["run_pr_candidates"] = None
+    elif candidate_change == "created_after_run":
+        candidate["created_at"] = "2026-10-10T18:02:00Z"
+    elif candidate_change == "closed_before_run":
+        candidate["closed_at"] = "2026-10-10T18:00:00Z"
+    elif candidate_change == "full_page":
+        evidence["run_pr_candidates"] = [candidate] * 100
     with pytest.raises(HistoricalPinRefused):
         validate_historical_pin_receipt(**evidence)
 
@@ -272,6 +331,8 @@ def test_historical_replay_reads_live_github_and_main_blob(
     status = evidence["trusted_status"]
     attempt = evidence["workflow_attempt"]
     decision = evidence["review_decision"]
+    candidate = evidence["run_pr_candidates"][0]
+    candidate["head"]["sha"] = head
     run["event"] = event
     attempt["event"] = event
     run["head_sha"] = base if event == "issue_comment" else head
@@ -294,6 +355,7 @@ def test_historical_replay_reads_live_github_and_main_blob(
         "repos/cyranoaladin/RAG/actions/runs/123": run,
         f"repos/cyranoaladin/RAG/actions/runs/123/attempts/{run['run_attempt']}": attempt,
         "repos/cyranoaladin/RAG/branches/main": {"commit": {"sha": main_sha}},
+        _run_pr_candidates_endpoint("feature"): [candidate],
     }
     monkeypatch.setattr("historical_staging_target_pin_receipt._read_gh",
                         lambda endpoint: by_endpoint[endpoint])
