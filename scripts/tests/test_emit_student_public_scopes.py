@@ -1,5 +1,7 @@
 """L'orchestrateur d'émission refuse toute écriture avant les deux gates live."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import hashlib
@@ -31,6 +33,34 @@ MANIFEST = ROOT / (
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_remote_main_check_allows_slow_valid_git_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La latence TLS de GitHub ne doit pas écarter un main exact vérifié live."""
+    expected = "a" * 40 + "\trefs/heads/main"
+
+    def slow_remote(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert args == ["git", "ls-remote", "--exit-code", "origin", "refs/heads/main"]
+        if kwargs["timeout"] < 60:
+            raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+        return subprocess.CompletedProcess(args, 0, expected + "\n", "")
+
+    monkeypatch.setattr(issuer.subprocess, "run", slow_remote)
+    assert issuer._git(ROOT, "ls-remote", "--exit-code", "origin", "refs/heads/main") == expected
+
+
+def test_remote_main_check_still_refuses_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert kwargs["timeout"] == issuer.REMOTE_MAIN_CHECK_TIMEOUT_SECONDS
+        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+    monkeypatch.setattr(issuer.subprocess, "run", unavailable)
+    with pytest.raises(issuer.StudentPublicScopeEmissionError, match="unavailable"):
+        issuer._git(ROOT, "ls-remote", "--exit-code", "origin", "refs/heads/main")
 
 
 def _inputs(tmp_path: Path) -> dict[str, object]:

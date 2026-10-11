@@ -28,6 +28,7 @@ REPOSITORY = "cyranoaladin/RAG"
 PR_NUMBER = 294
 REVIEWER = "abenrhouma"
 STATUS_CONTEXT = "trusted-human-review/head-pinned"
+REMOTE_MAIN_CHECK_TIMEOUT_SECONDS = 90
 
 
 class StudentPublicScopeEmissionError(ValueError):
@@ -60,10 +61,17 @@ def _sha(path: Path) -> str:
 
 
 def _git(root: Path, *args: str) -> str:
+    # La lecture distante inclut DNS/TLS et garde sa comparaison au SHA exact.
+    # Les commandes locales conservent leur délai court.
+    timeout = (
+        REMOTE_MAIN_CHECK_TIMEOUT_SECONDS
+        if args == ("ls-remote", "--exit-code", "origin", "refs/heads/main")
+        else 20
+    )
     try:
         result = subprocess.run(
             ["git", *args], cwd=root, text=True, capture_output=True,
-            check=False, timeout=20,
+            check=False, timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise StudentPublicScopeEmissionError("exact-head Git binding unavailable") from error
