@@ -62,6 +62,14 @@ services:
   ingestor:
     networks: !override [rag_net, bff_net]
     build: !reset null
+    environment:
+      # Le runtime relit la readiness V2 signée, puis A/C et les révocations.
+      # Le registre du successeur est distinct des registres V4/V5 rehearsal.
+      NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT: /app/release
+      NEXUS_READINESS_MANIFEST_PATH: /app/release/readiness-manifest.json
+      NEXUS_RELEASE_SHA: ${NEXUS_RELEASE_SHA:?SHA final du code requis}
+      NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256: ${NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256:?scope public scelle requis}
+      RAG_RELEASE_REGISTRY_PATH: /app/release/release/release-registry.json
     # Le dépôt de l'image est fixe : la variable ne peut plus devenir un tag.
     # Le wrapper signé devra encore lier ce digest à la provenance du SHA final.
     image: ghcr.io/cyranoaladin/rag-ingestor@sha256:${NEXUS_INGESTOR_IMAGE_SHA256:?digest API de provenance requis}

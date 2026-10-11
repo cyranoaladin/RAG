@@ -11,12 +11,20 @@ Ce CLI ne connaît pas ``PG_RAG_DSN``, n'ouvre que la connexion
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import psycopg
+from nexus_release_chain.public_successor_activation import (
+    PublicSuccessorActivationError,
+    PublicSuccessorContentVerdict,
+    verify_content_anchor,
+    verify_content_currentness,
+)
 
 from ingestor.ingestion_control.attestation import (
     WorkerAttestationError,
@@ -122,6 +130,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--report-path", type=Path, default=None)
+    parser.add_argument("--public-successor-content-anchor-path", type=Path)
+    parser.add_argument("--public-successor-preissuance-receipt-path", type=Path)
+    parser.add_argument("--public-successor-preissuance-receipt-sha256")
     return parser
 
 
@@ -162,6 +173,70 @@ def _require_readiness_covers_this_release(readiness: object, facts: object) -> 
         )
 
 
+def _require_public_candidate_ingestion_authority(
+    readiness: object,
+    release_dir: Path,
+    anchor_path: Path,
+    receipt_path: Path,
+    receipt_sha256: str,
+) -> PublicSuccessorContentVerdict:
+    """Relire A et son checkpoint sous la readiness INGESTION déjà vérifiée.
+
+    Le checkpoint n'est pas une approbation autonome : l'orchestrateur doit
+    rejouer #300/#312/CAS avant la signature de cette readiness. Ici, la
+    signature lie explicitement son SHA à cette phase et à A.
+    """
+    manifest = readiness.manifest  # type: ignore[attr-defined]
+    if getattr(manifest, "public_successor_phase", None) != "INGESTION":
+        raise SealedReleaseIngestionError("public successor requires signed INGESTION phase")
+    anchor_sha = getattr(manifest, "public_successor_content_anchor_digest", None)
+    signed_receipt_sha = getattr(manifest, "public_successor_phase_authority_digest", None)
+    if not isinstance(anchor_sha, str) or not isinstance(signed_receipt_sha, str):
+        raise SealedReleaseIngestionError("public successor signed phase incomplete")
+    if signed_receipt_sha != receipt_sha256:
+        raise SealedReleaseIngestionError("public successor phase authority digest differs")
+    try:
+        content = verify_content_anchor(anchor_path, anchor_sha, release_dir.parent)
+        verify_content_currentness(release_dir.parent, content, datetime.now(UTC))
+        raw = receipt_path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != receipt_sha256:
+            raise SealedReleaseIngestionError("preissuance checkpoint digest differs")
+        receipt = json.loads(raw)
+        canonical = (json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+        index_path = release_dir.parent / "preparation-index.json"
+        index_raw = index_path.read_bytes()
+        if hashlib.sha256(index_raw).hexdigest() != content.preparation_index_sha256:
+            raise SealedReleaseIngestionError("preparation index differs from A")
+        index = json.loads(index_raw)
+    except (PublicSuccessorActivationError, OSError, ValueError) as error:
+        raise SealedReleaseIngestionError("public successor checkpoint or A invalid") from error
+    if not isinstance(receipt, dict) or raw != canonical or set(receipt) != {
+        "kind", "status", "content_anchor_sha256", "content_manifest_sha256",
+        "manifest_relative_path", "preparation_index_sha256",
+        "private_cas_index_sha256", "source_currentness_valid_until_utc",
+        "subject_sha256_by_collection",
+    } or receipt != {
+        "kind": "NEXUS_PUBLIC_SUCCESSOR_PREISSUANCE_CHECKPOINT_V1",
+        "status": "CHECKPOINT_ONLY_NOT_SCOPE_AUTHORITY",
+        "content_anchor_sha256": content.content_anchor_sha256,
+        "content_manifest_sha256": content.content_manifest_sha256,
+        "manifest_relative_path": receipt.get("manifest_relative_path"),
+        "preparation_index_sha256": content.preparation_index_sha256,
+        "private_cas_index_sha256": index.get("private_cas_manifest_sha256"),
+        "source_currentness_valid_until_utc": index.get("source_currentness_valid_until_utc"),
+        "subject_sha256_by_collection": content.subject_sha256_by_collection,
+    } or not isinstance(receipt["manifest_relative_path"], str) or not receipt[
+        "manifest_relative_path"
+    ].endswith("/profile_gate/production-profile-gate.release.json"):
+        raise SealedReleaseIngestionError("public successor checkpoint differs from A")
+    if (
+        manifest.allowed_release_id != content.release_id
+        or manifest.allowed_release_manifest_sha256 != content.content_manifest_sha256
+    ):
+        raise SealedReleaseIngestionError("signed INGESTION readiness differs from A")
+    return content
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
@@ -187,6 +262,25 @@ def main(argv: list[str] | None = None) -> int:
             control_dsn=get_ingestion_control_dsn(),
             product_dsn=os.environ.get("PG_RAG_DSN"),
         )
+        public_args = (
+            args.public_successor_content_anchor_path,
+            args.public_successor_preissuance_receipt_path,
+            args.public_successor_preissuance_receipt_sha256,
+        )
+        public_phase = getattr(readiness.manifest, "public_successor_phase", None)
+        if public_phase is not None or any(value is not None for value in public_args):
+            if any(value is None for value in public_args):
+                raise SealedReleaseIngestionError(
+                    "public successor INGESTION requires A and preissuance checkpoint"
+                )
+            public_content = _require_public_candidate_ingestion_authority(
+                readiness, args.release_dir,
+                args.public_successor_content_anchor_path,
+                args.public_successor_preissuance_receipt_path,
+                args.public_successor_preissuance_receipt_sha256,
+            )
+        else:
+            public_content = None
         profiles = load_profile_registry(args.profiles_dir)
         facts = load_sealed_release(
             args.release_dir,
@@ -195,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
             candidate_inventory_sha256=args.candidate_inventory_sha256,
             artifact_transfer_manifest_path=args.artifact_transfer_manifest_path,
             artifact_transfer_manifest_sha256=args.artifact_transfer_manifest_sha256,
+            public_successor_content=public_content,
         )
         authorizations = _scope_authorization_ids(args.scope_authorization)
         _require_readiness_covers_this_release(readiness, facts)
@@ -285,6 +380,17 @@ def main(argv: list[str] | None = None) -> int:
                 scope_authorization_ids=authorizations,
                 owner=args.owner,
                 expected_collections=args.expected_collection,
+                public_successor_ingestion_content=public_content,
+                public_successor_release_dir=args.release_dir if public_content else None,
+                public_successor_anchor_path=(
+                    args.public_successor_content_anchor_path if public_content else None
+                ),
+                public_successor_preissuance_receipt_path=(
+                    args.public_successor_preissuance_receipt_path if public_content else None
+                ),
+                public_successor_preissuance_receipt_sha256=(
+                    args.public_successor_preissuance_receipt_sha256 if public_content else None
+                ),
             )
             conn.commit()
     except AttributionBackfillError as exc:

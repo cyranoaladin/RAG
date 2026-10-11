@@ -53,6 +53,7 @@ from uuid import UUID
 import psycopg
 from nexus_contracts.ingestion import CollectionProfile, ResourceScope
 from nexus_contracts.resource_state import ResourceState
+from nexus_release_chain.public_successor_activation import PublicSuccessorContentVerdict
 
 from ingestor.ingestion_control.artifact_attribution import (
     ArtifactAttribution,
@@ -73,6 +74,10 @@ from ingestor.ingestion_control.scope_authority import (
 from ingestor.ingestion_control.sealed_release_catalog import TEXT_MEDIA_TYPE
 from ingestor.ingestion_control.transitions import cas_transition
 from ingestor.ingestion_profiles.registry import ProfileRegistry
+from ingestor.ingestion_profiles.staging_readiness_gate import (
+    StagingReadinessGateError,
+    enforce_staging_readiness_gate,
+)
 from ingestor.multilevel_evidence import (
     INVENTORY_KIND,
     STUDENT_PUBLIC_INVENTORY_KIND,
@@ -270,6 +275,7 @@ def load_sealed_release(
     candidate_inventory_sha256: str,
     artifact_transfer_manifest_path: Path,
     artifact_transfer_manifest_sha256: str,
+    public_successor_content: PublicSuccessorContentVerdict | None = None,
 ) -> SealedReleaseFacts:
     """Lire la release et son manifeste de transfert, tout vérifié par digest.
 
@@ -285,10 +291,25 @@ def load_sealed_release(
         "manifeste de release",
     )
     manifest = json.loads(manifest_raw.decode("utf-8"))
-    _require(
-        manifest.get("release_mode") != "candidate",
-        "public candidate release refused before ingestion control writes",
-    )
+    is_public_content_a = manifest.get("release_mode") == "candidate"
+    if is_public_content_a:
+        _require(
+            public_successor_content is not None
+            and public_successor_content.activation_allowed is False
+            and public_successor_content.release_id == manifest.get("release_id")
+            and public_successor_content.content_manifest_sha256
+                == release_manifest_sha256
+            and public_successor_content.artifact_registry_sha256
+                == artifacts_release_sha256
+            and public_successor_content.candidate_inventory_sha256
+                == candidate_inventory_sha256,
+            "public candidate release refused without exact A content verdict",
+        )
+    else:
+        _require(
+            public_successor_content is None,
+            "A content verdict supplied for a noncandidate release",
+        )
 
     # --- Scellement : ce qu'une release non scellée ne porte pas. ---------
     _require(
@@ -310,7 +331,7 @@ def load_sealed_release(
     )
     _require(
         isinstance(authorities, Mapping)
-        and "candidate_inventory_sha256" in authorities,
+        and (is_public_content_a or "candidate_inventory_sha256" in authorities),
         "release non scellée : autorités absentes du manifeste",
     )
     subjects = manifest.get("subjects")
@@ -325,12 +346,13 @@ def load_sealed_release(
         f"artifacts.release.json : la release nomme {registry['sha256']}, "
         f"l'appelant attend {artifacts_release_sha256}",
     )
-    _require(
-        authorities["candidate_inventory_sha256"] == candidate_inventory_sha256,
-        "candidate_inventory.json : la release nomme "
-        f"{authorities['candidate_inventory_sha256']}, l'appelant attend "
-        f"{candidate_inventory_sha256}",
-    )
+    if not is_public_content_a:
+        _require(
+            authorities["candidate_inventory_sha256"] == candidate_inventory_sha256,
+            "candidate_inventory.json : la release nomme "
+            f"{authorities['candidate_inventory_sha256']}, l'appelant attend "
+            f"{candidate_inventory_sha256}",
+        )
 
     artifacts_raw = _read_with_digest(
         release_dir / str(registry["path"]),
@@ -371,12 +393,20 @@ def load_sealed_release(
             )
         except MultilevelEvidenceError as exc:
             raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
-        _require_student_public_inventory_binding(
-            text_inventory, manifest=manifest,
-            artifact_registry_sha256=artifacts_release_sha256,
-            release_dir=release_dir,
-            artifacts=artifacts,
-        )
+        if is_public_content_a:
+            _require_student_public_preparation_binding(
+                text_inventory, manifest=manifest,
+                manifest_sha256=release_manifest_sha256,
+                artifact_registry_sha256=artifacts_release_sha256,
+                artifacts=artifacts,
+            )
+        else:
+            _require_student_public_inventory_binding(
+                text_inventory, manifest=manifest,
+                artifact_registry_sha256=artifacts_release_sha256,
+                release_dir=release_dir,
+                artifacts=artifacts,
+            )
     if manifest.get("release_mode") == "public_successor":
         raise SealedReleaseIngestionError(
             "public successor external authority gate unavailable before Worker A writes"
@@ -570,6 +600,42 @@ def _load_candidate_discovery(
         }
         for placement in inventory.placements
     }
+
+
+def _require_student_public_preparation_binding(
+    inventory: StudentPublicCandidateInventory, *, manifest: Mapping[str, Any],
+    manifest_sha256: str, artifact_registry_sha256: str,
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Lire A comme contenu scellé, jamais comme autorité d'écriture.
+
+    L'appelant doit encore présenter B signé puis les onze autorisations LOT41A
+    à `ingest_sealed_release`. Ce lecteur ne publie ni n'écrit aucun octet.
+    """
+    authorities = manifest.get("authorities")
+    _require(
+        manifest.get("release_mode") == "candidate"
+        and manifest.get("promotion_status") == "NOT_PROMOTABLE"
+        and manifest.get("review_status") == "PRE_REVIEW"
+        and manifest.get("activation_status") == "NO_PRODUCTION_ACTIVATION"
+        and isinstance(authorities, Mapping)
+        and inventory.release_id == manifest.get("release_id")
+        and inventory.release_manifest_sha256 == manifest_sha256
+        and inventory.artifact_registry_sha256 == artifact_registry_sha256
+        and inventory.candidate_manifest_sha256
+            == authorities.get("candidate_manifest_sha256")
+        and set(inventory.derivative_identities) == inventory.unique_content_sha256
+        and set(artifacts) == inventory.unique_content_sha256,
+        "public candidate A derivative inventory differs",
+    )
+    for derivative_sha, (source_sha, receipt_sha) in inventory.derivative_identities.items():
+        artifact = artifacts[derivative_sha]
+        _require(
+            artifact.get("content_sha256") == derivative_sha
+            and artifact.get("source_pdf_sha256") == source_sha
+            and artifact.get("derivative_receipt_sha256") == receipt_sha,
+            f"public candidate A derivative identity differs: {derivative_sha}",
+        )
 
 
 def _require_student_public_inventory_binding(
@@ -984,6 +1050,8 @@ def require_scope_authorizations(
 def require_public_release_activation(
     facts: SealedReleaseFacts,
     scopes: Mapping[str, ResourceScope],
+    *,
+    public_successor_ingestion_content: PublicSuccessorContentVerdict | None = None,
 ) -> None:
     """Refuser une candidate publique avant la première écriture de Worker A.
 
@@ -995,6 +1063,32 @@ def require_public_release_activation(
         raise SealedReleaseIngestionError(
             "public successor external authority gate unavailable before Worker A writes"
         )
+    if facts.release_mode == "candidate":
+        content = public_successor_ingestion_content
+        if content is None:
+            raise SealedReleaseIngestionError(
+                "public candidate A has no signed ingestion authority before Worker A writes"
+            )
+        _require(
+            facts.release_id == content.release_id
+            and facts.release_manifest_sha256 == content.content_manifest_sha256
+            and facts.artifacts_release_sha256 == content.artifact_registry_sha256
+            and facts.candidate_inventory_sha256 == content.candidate_inventory_sha256,
+            "public candidate A release digest differs from signed INGESTION content",
+        )
+        _require(
+            facts.expected_counts == content.expected_counts
+            and set(facts.collections) == set(content.subject_sha256_by_collection)
+            and set(scopes) == set(facts.collections)
+            and all(_dimension_value(scope.visibility) == "public" for scope in scopes.values())
+            and all(value == TEXT_MEDIA_TYPE for value in facts.artifact_media_types.values())
+            and facts.promotion_status == "NOT_PROMOTABLE"
+            and facts.review_status == "PRE_REVIEW"
+            and facts.activation_status == "NO_PRODUCTION_ACTIVATION"
+            and content.activation_allowed is False,
+            "public candidate A ingestion dimensions or status differ",
+        )
+        return
     if not facts.public_successor_release and facts.release_mode != "candidate":
         return
     if not any(
@@ -1049,6 +1143,11 @@ def ingest_sealed_release(
     owner: str,
     expected_collections: Iterable[str] | None = None,
     verifier: ScopeAuthorizationVerifier = verify_scope_authorization,
+    public_successor_ingestion_content: PublicSuccessorContentVerdict | None = None,
+    public_successor_release_dir: Path | None = None,
+    public_successor_anchor_path: Path | None = None,
+    public_successor_preissuance_receipt_path: Path | None = None,
+    public_successor_preissuance_receipt_sha256: str | None = None,
 ) -> IngestionReport:
     """Créer les lignes de contrôle jusqu'à ``NEEDS_REVIEW``, et rien au-delà.
 
@@ -1058,12 +1157,48 @@ def ingest_sealed_release(
 
     Ne committe pas : la transaction appartient à l'appelant, comme pour
     toutes les primitives ``ingestion_control``."""
+    if facts.release_mode == "candidate":
+        if (
+            public_successor_ingestion_content is None
+            or public_successor_release_dir is None
+            or public_successor_anchor_path is None
+            or public_successor_preissuance_receipt_path is None
+            or public_successor_preissuance_receipt_sha256 is None
+        ):
+            raise SealedReleaseIngestionError(
+                "public candidate requires signed INGESTION authority, not a bare A verdict"
+            )
+        try:
+            # Aucune preuve produite par l'appelant n'est ici une capacité :
+            # l'autorité signée est relue indépendamment, même hors du CLI.
+            signed = enforce_staging_readiness_gate()
+            from .sealed_release_ingestion_cli import (  # noqa: PLC0415
+                _require_public_candidate_ingestion_authority,
+            )
+
+            rechecked = _require_public_candidate_ingestion_authority(
+                signed, public_successor_release_dir,
+                public_successor_anchor_path,
+                public_successor_preissuance_receipt_path,
+                public_successor_preissuance_receipt_sha256,
+            )
+        except StagingReadinessGateError as error:
+            raise SealedReleaseIngestionError(
+                "public candidate signed INGESTION authority unavailable"
+            ) from error
+        if rechecked != public_successor_ingestion_content:
+            raise SealedReleaseIngestionError(
+                "public candidate bare or divergent A verdict refused"
+            )
     require_expected_counts(facts)
     if expected_collections is not None:
         require_collections_match(facts, expected_collections)
     paths = require_artifact_store_is_complete(facts, artifact_store_dir)
     scopes = resolve_scopes(facts, profile_registry)
-    require_public_release_activation(facts, scopes)
+    require_public_release_activation(
+        facts, scopes,
+        public_successor_ingestion_content=public_successor_ingestion_content,
+    )
     authorizations = require_scope_authorizations(
         conn,
         facts=facts,

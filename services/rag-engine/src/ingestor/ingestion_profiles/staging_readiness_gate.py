@@ -221,6 +221,13 @@ def require_running_image_matches_manifest(
             "the signed staging readiness manifest names no worker_image — "
             "there is nothing to bind the running image to"
         )
+    return require_running_image_matches_declared(declared, actual=actual)
+
+
+def require_running_image_matches_declared(
+    declared: str, *, actual: str | None = None
+) -> str:
+    """Comparer une image signée à l'identité réellement injectée sur l'hôte."""
     declared = declared.strip()
     if _PINNED_IMAGE_REF.fullmatch(declared) is None:
         raise _fail(
@@ -282,5 +289,6 @@ __all__ = [
     "StagingReadinessGateResult",
     "enforce_staging_readiness_gate",
     "require_control_dsn_differs_from_product",
+    "require_running_image_matches_declared",
     "require_running_image_matches_manifest",
 ]
