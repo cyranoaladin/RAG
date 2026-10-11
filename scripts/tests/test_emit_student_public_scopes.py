@@ -104,6 +104,34 @@ def test_verified_preissuance_and_exact_review_reach_v3_builder(
     assert calls == ["preissuance", "review", "emit"]
 
 
+def test_source_currentness_expiring_during_review_refuses_before_scope_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(UTC)
+    current = [now]
+    calls: list[str] = []
+    params = _inputs(tmp_path)
+    monkeypatch.setattr(issuer, "_utc_now", lambda: current[0], raising=False)
+
+    def preissuance(*_args: object) -> PreissuanceVerdict:
+        calls.append("preissuance")
+        return _preissuance(now + timedelta(seconds=1))
+
+    def review(*_args: object) -> issuer.ScopePolicyReviewEvidence:
+        calls.append("review")
+        current[0] = now + timedelta(seconds=2)
+        return _review()
+
+    with pytest.raises(issuer.StudentPublicScopeEmissionError, match="expired"):
+        issuer.emit_student_public_scopes(
+            **params, now_utc=now, preissuance_verifier=preissuance,
+            policy_review_verifier=review,
+            scope_emitter=lambda **_kwargs: calls.append("emit"),
+        )
+    assert calls == ["preissuance", "review"]
+    assert not params["artifacts_dir"].exists()
+
+
 @pytest.mark.parametrize("sabotage", ["missing", "tampered", "expired", "review"])
 def test_missing_or_invalid_gate_refuses_before_any_scope_write(
     tmp_path: Path, sabotage: str,

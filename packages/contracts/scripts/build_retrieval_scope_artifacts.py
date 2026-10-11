@@ -102,6 +102,10 @@ class ScopeEmissionError(RuntimeError):
     """Refus d'émission : aucune sortie n'est écrite quand il est levé."""
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 @dataclass(frozen=True)
 class StudentScopeEmissionEvidence:
     """Liaisons de deux vérifications *live* faites par l'orchestrateur.
@@ -1273,7 +1277,7 @@ def _require_external_preissuance_for_student_scopes(
     _require(
         expires.tzinfo is not None
         and expires.utcoffset() == UTC.utcoffset(expires)
-        and datetime.now(UTC) < expires,
+        and _utc_now() < expires,
         "student scopes: verified preissuance expired",
     )
 
@@ -1415,6 +1419,11 @@ def emit_from_policy_registry(
             )
         )
 
+    _require_external_preissuance_for_student_scopes(
+        subject_release_sha256, policy_registry_sha256,
+        successor_authority_sha256, registry,
+        student_scope_evidence,
+    )
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     for item in emitted:
         (artifacts_dir / item.resource_name).write_bytes(item.canonical_bytes)

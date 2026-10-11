@@ -299,6 +299,58 @@ def test_verified_external_preissuance_emits_v3_from_immutable_candidate_subject
     }
 
 
+def test_student_preissuance_expiring_during_scope_build_refuses_all_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = Path(__file__).resolve().parents[3]
+    candidate, registry, named = _candidate_student_registry(root)
+    monkeypatch.setattr(emitter, "load_policy_registry", lambda *_: registry)
+    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: named)
+    now = datetime.now(UTC)
+    expires = now + timedelta(minutes=10)
+    current = [now]
+    monkeypatch.setattr(emitter, "_utc_now", lambda: current[0], raising=False)
+    original_build = emitter._build_artifact_from_registry
+    built = 0
+
+    def delayed_build(*args: object) -> RetrievalScopeArtifactV3:
+        nonlocal built
+        artifact = original_build(*args)
+        built += 1
+        if built == 11:
+            current[0] = expires + timedelta(seconds=1)
+        assert isinstance(artifact, RetrievalScopeArtifactV3)
+        return artifact
+
+    monkeypatch.setattr(emitter, "_build_artifact_from_registry", delayed_build)
+    evidence = emitter.StudentScopeEmissionEvidence(
+        content_anchor_sha256="d" * 64,
+        content_manifest_sha256=registry.release_manifest_sha256,
+        subject_sha256_by_collection={
+            collection: entry.subject_manifest_sha256
+            for collection, entry in registry.entries.items()
+        },
+        expires_at_utc=expires,
+        reviewed_policy_registry_sha256="a" * 64,
+        reviewed_successor_authority_sha256="c" * 64,
+        reviewed_head_sha="b" * 40,
+    )
+    output = tmp_path / "scopes"
+    with pytest.raises(emitter.ScopeEmissionError, match="expired"):
+        emitter.emit_from_policy_registry(
+            subject_release=candidate,
+            subject_release_sha256=registry.release_manifest_sha256,
+            policy_registry=tmp_path / "reviewed-registry",
+            policy_registry_sha256="a" * 64,
+            successor_authority=tmp_path / "named-scopes",
+            successor_authority_sha256="c" * 64,
+            artifacts_dir=output, repo_root=root,
+            student_scope_evidence=evidence,
+        )
+    assert built == 11
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("sabotage", ["subject", "expired", "policy"])
 def test_external_preissuance_mismatch_refuses_before_scope_write(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sabotage: str,

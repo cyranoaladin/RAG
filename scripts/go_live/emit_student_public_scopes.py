@@ -34,6 +34,10 @@ class StudentPublicScopeEmissionError(ValueError):
     """Les preuves de pré-émission ou de review ne permettent pas d'écrire."""
 
 
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 @dataclass(frozen=True)
 class ScopePolicyReviewEvidence:
     head_sha: str
@@ -232,6 +236,13 @@ def emit_student_public_scopes(
     )
 
     emit = scope_emitter or emit_from_policy_registry
+    fresh_now = _utc_now()
+    if (
+        fresh_now.tzinfo is None
+        or fresh_now.utcoffset() != UTC.utcoffset(fresh_now)
+        or fresh_now >= pre.expires_at_utc
+    ):
+        raise StudentPublicScopeEmissionError("source currentness expired before scope write")
     return emit(
         subject_release=subject_release,
         subject_release_sha256=subject_release_sha256,
