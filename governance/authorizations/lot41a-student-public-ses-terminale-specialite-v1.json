@@ -1,0 +1,62 @@
+{
+  "allowed_content_sha256": [
+    "064bbc309e0c883056e4fe85ddb987abe983e8ec67967f212f2cce402b08d4cd",
+    "088b74841762d24c8a4df1962c5284e141042124e0d04a9641efa03d21d2624a",
+    "0a3e59b0b3311fac0449f01cc619be86e425ec31fb4ad9ce878efb682366a6f7",
+    "140adccb9702bdb2c84e89e3ce924b20b07be4efac0b73fe364ec47aa3be6087",
+    "354ec48b02f3c699fd08420daf6f8c32f9253ddbba6303375c372aa2f8e3dd62",
+    "3ace9507cce3c694cc782cacc820bf82c01fca5a1c770ba9454f26c543cb6a8f",
+    "3dfbb1023befb7f537c6d6394aaa24e0bb18b2dbe6875269f52bc00b3bc5977f",
+    "46a8d5fe767f5aca53b22775f819e4162f433db45bad0bb100e660c5fb7e09d1",
+    "590469cca43eb64786476d928c56f30c4b24eeecc89445b41ff6e492b6a45d0b",
+    "632600d0cd657614ee6735d33f48fe6546d85a0db5233451585ce932001f7dce",
+    "76ffc5ab30ec9f9521287500a93055fb480d64d2e61ca638e90896a4f9275af5",
+    "78b9175abf2e03527e8dcfd3e37d3c7421ef4cd7fe13c9379a1861dbddf68b6a",
+    "86696f92c73d8063fa72892389c88204b750e755d059f0d7c1fdfd96433f0f2b",
+    "8db2803875a07ea90e954b1b86fdc265cfc45709254f67ba44f0261827494831",
+    "a2c2e09005edaaebb5e9b5551293aec78341e69c938e6892580f5493b7b2439c",
+    "ae4124deabc33239644d24d9e72b9a4b0ec325d5512da8e05d6505c46c81b6b4",
+    "b147aeaedda46d21c238d39334e4396b92c4d28e0b90861ad1409762000d5a0c",
+    "bf56720e3e46a0206c464870d94680eca8ee3a2b392030bfe78883b427fea8bf",
+    "e0179c8d23f3826115d63c1fa20ed4cf16c7ae821fdec4d7f2e685ef95e1fc5d",
+    "e7142e171e21d54a1b91389cf79752bdf55eecf5bc735bc7f2bb5d2c47c16877",
+    "e964d0e98cafbc1f3d80cb65ae6b38bd3346d4d25f593dde8e54f905233c69a4",
+    "ec00fffff1dd7a0bb31488e20ebb47ccc45f2b1beec8a1e7706fadf020f832da",
+    "ecd824fddc514f888847c2733d5f7610a6bcb56d2b8fa30f61c8094850bd55f6",
+    "ecec86c2d18473b002f8efce5019037a3e8286086f6ea768fbdf7db8c32c83b6",
+    "ed8b08acb03ea809d8979dc3cbe22c00a114d133fb66d4c781bc0aa321de07c8"
+  ],
+  "allowed_domains": [
+    "eduscol.education.gouv.fr"
+  ],
+  "authorization_id": "lot41a-student-public-ses-terminale-specialite-v1",
+  "decision": "AUTHORIZE_INGESTION_SCOPE",
+  "exclusions": [],
+  "manifest_digest": "f165782c0404762e7869c1f7b2d17edc8d62087b124442f29ebe4243644f0d9b",
+  "pii_absence_attested": true,
+  "pii_absence_evidence": "profile_gate/public_pii_registry.json@sha256:393d5dd2bcd6896dd5063574cdfd08ad46d4d0612d0c31aea5d169d5117dce5b",
+  "profile_fingerprint": "800a23e5d82b002bb834073a60fa2f1ff37c5888041b1e88454b76db36828c4c",
+  "profile_id": "rag_nexus_ses_terminale_specialite",
+  "profile_version": "student-public-derivative-v1",
+  "protocol_version": "LOT41A-V2",
+  "rights_categories": [
+    "public_allowed"
+  ],
+  "scope": {
+    "audience": [
+      "aefe",
+      "libre"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_ses_terminale_specialite",
+    "matiere": "ses",
+    "niveau": "terminale",
+    "programme_version": "BOEN_special_8_2019-07-25",
+    "school_year": "2026-2027",
+    "tenant": "libre_terminale",
+    "visibility": "public",
+    "voie": "generale"
+  },
+  "valid_from": "2026-10-10T13:49:12.000000Z",
+  "valid_until": "2026-10-11T13:39:22.520000Z"
+}
