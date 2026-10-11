@@ -32,6 +32,7 @@ from independent_staging_target_pin import (
 )
 from pr300_authority_receipt import (
     AuthorityReceiptError,
+    TRUSTED_WORKFLOW_PATH,
     _git,
     _read_gh,
     _select_trusted_status_at_merge,
@@ -164,6 +165,12 @@ def validate_historical_pin_receipt(
     status = trusted_status
     run = workflow_run
     attempt = workflow_attempt
+    event = run.get("event")
+    expected_workflow_head = (
+        r["base_sha"] if event == "issue_comment"
+        else r["head_sha"] if event == "pull_request_target"
+        else None
+    )
     if (status.get("context") != r["trusted_status_context"] == STATUS_CONTEXT
             or status.get("state") != "success"
             or status.get("created_at") != r["trusted_status_created_at"]
@@ -172,8 +179,10 @@ def validate_historical_pin_receipt(
             or run.get("run_attempt") != r["workflow_run_attempt"]
             or attempt.get("id") != r["workflow_run_id"]
             or attempt.get("run_attempt") != r["workflow_run_attempt"]
-            or attempt.get("event") != "issue_comment"
-            or attempt.get("head_sha") != r["base_sha"]
+            or expected_workflow_head is None
+            or attempt.get("event") != event
+            or run.get("head_sha") != expected_workflow_head
+            or attempt.get("head_sha") != expected_workflow_head
             or attempt.get("status") != "completed"
             or attempt.get("conclusion") != "success"):
         raise HistoricalPinRefused("statut trusted ou run divergent")
@@ -181,7 +190,16 @@ def validate_historical_pin_receipt(
     if match is None or int(match.group(1)) != r["workflow_run_id"]:
         raise HistoricalPinRefused("run trusted hors URL canonique")
     try:
-        _validate_trusted_workflow_run(status, run, expected_base_sha=str(r["base_sha"]))
+        if event == "issue_comment":
+            _validate_trusted_workflow_run(
+                status, run, expected_base_sha=str(r["base_sha"]),
+            )
+        elif (run.get("name") != "Trusted human review"
+              or run.get("path") != TRUSTED_WORKFLOW_PATH
+              or run.get("status") != "completed"
+              or run.get("conclusion") != "success"
+              or _utc(run.get("created_at")) > _utc(status["created_at"])):
+            raise HistoricalPinRefused("provenance du rerun trusted invalide")
         pinned = _utc(json.loads(pin_raw)["pinned_at_utc"])
         reviewed = _utc(r["review_submitted_at"])
         started = _utc(attempt.get("run_started_at"))
@@ -254,9 +272,13 @@ def _live_evidence(root: Path, pin_path: Path, pull_request: int,
     base = pr.get("base")
     if not isinstance(base, dict):
         raise HistoricalPinRefused("base GitHub absente")
+    merge = pr.get("merge_commit_sha")
+    if not _sha(merge, SHA40):
+        raise HistoricalPinRefused("commit de fusion invalide")
+    merge_parent = _git(root, "rev-parse", f"{merge}^")
     historical_pr = {
         **pr, "state": "open", "draft": False,
-        "base": {**base, "sha": run["head_sha"]},
+        "base": {**base, "sha": merge_parent},
     }
     decision = _evaluate_snapshot(
         pull_request=historical_pr, repository=REPOSITORY,
@@ -268,12 +290,8 @@ def _live_evidence(root: Path, pin_path: Path, pull_request: int,
         "state", "merged", "merge_commit_sha", "base", "head", "user",
     )):
         raise HistoricalPinRefused("PR modifiée pendant le rejeu")
-    merge = pr.get("merge_commit_sha")
-    if not _sha(merge, SHA40):
-        raise HistoricalPinRefused("commit de fusion invalide")
     head_tree = _git(root, "rev-parse", f"{head}^{{tree}}")
     merge_tree = _git(root, "rev-parse", f"{merge}^{{tree}}")
-    merge_parent = _git(root, "rev-parse", f"{merge}^")
     checkout_head = _git(root, "rev-parse", "HEAD")
     github_main = _read_gh(f"repos/{REPOSITORY}/branches/main")
     if not isinstance(github_main, dict) or not isinstance(github_main.get("commit"), dict):
@@ -316,7 +334,7 @@ def build_historical_pin_receipt(
     receipt = {
         "kind": KIND, "status": STATUS, "repository": REPOSITORY,
         "pull_request": pull_request, "base_ref": "main",
-        "base_sha": run["head_sha"], "head_sha": pr["head"]["sha"],
+        "base_sha": evidence["merge_parent_sha"], "head_sha": pr["head"]["sha"],
         "head_tree_sha": evidence["head_tree_sha"],
         "merge_commit_sha": pr["merge_commit_sha"],
         "author": pr["user"]["login"], "reviewer": REVIEWER,
