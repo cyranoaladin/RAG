@@ -24,13 +24,6 @@ from nexus_release_chain.public_successor_activation import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
-ANCHOR_SHA256 = "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0"
-RELEASE = ROOT / (
-    "services/rag-pedago/data/releases/prerentree_2026_2027/"
-    "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
-)
-ATTESTATION = ROOT / "docs/reports/go_live/student_derivative_source_currentness_20261010.json"
 
 
 def _load_json(path: Path) -> dict:
@@ -63,6 +56,8 @@ def build_proposals(
         raise ValueError("currentness attestation differs from A")
     attestation = _load_json(currentness_attestation_path)
     artifact_count = content.expected_counts["unique_artifacts"]
+    if content.expected_counts["subjects"] != 11:
+        raise ValueError("eleven public subjects required")
     if attestation.get("status_counts") != {"PASS": artifact_count}:
         raise ValueError("currentness attestation lacks complete passes")
     valid_from = datetime.fromisoformat(attestation["attested_at_utc"].replace("Z", "+00:00"))
@@ -169,13 +164,17 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--write", action="store_true", help="Écrire les propositions canoniques dans governance/authorizations")
     mode.add_argument("--check", action="store_true", help="Comparer les onze fichiers gouvernés à A")
+    parser.add_argument("--anchor-path", required=True, type=Path)
+    parser.add_argument("--anchor-sha256", required=True)
+    parser.add_argument("--release-root", required=True, type=Path)
+    parser.add_argument("--currentness-attestation-path", required=True, type=Path)
     args = parser.parse_args()
     try:
         proposals = build_proposals(
-            anchor_path=ANCHOR,
-            anchor_sha256=ANCHOR_SHA256,
-            release_root=RELEASE,
-            currentness_attestation_path=ATTESTATION,
+            anchor_path=args.anchor_path,
+            anchor_sha256=args.anchor_sha256,
+            release_root=args.release_root,
+            currentness_attestation_path=args.currentness_attestation_path,
             now_utc=datetime.now(UTC),
         )
         for relative, raw in proposals.items():

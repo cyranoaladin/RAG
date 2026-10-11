@@ -103,6 +103,44 @@ def test_expired_a_cannot_generate_new_proposals() -> None:
         )
 
 
+def test_cli_requires_explicit_successor_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "argv", ["build_public_lot41a_authorizations.py", "--write"])
+    with pytest.raises(SystemExit) as error:
+        generator.main()
+    assert error.value.code == 2
+
+
+def test_cli_uses_supplied_successor_without_old_a_defaults(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    anchor = tmp_path / "new-anchor.json"
+    attestation = tmp_path / "new-attestation.json"
+    release = tmp_path / "new-release"
+    for path in (anchor, attestation):
+        path.write_text("{}\n")
+    release.mkdir()
+    seen: dict = {}
+
+    def proposed(**kwargs):
+        seen.update(kwargs)
+        return {"governance/authorizations/proposed.json": b"{}\n"}
+
+    monkeypatch.setattr(generator, "ROOT", tmp_path)
+    monkeypatch.setattr(generator, "build_proposals", proposed)
+    monkeypatch.setattr(sys, "argv", [
+        "build_public_lot41a_authorizations.py", "--write",
+        "--anchor-path", str(anchor), "--anchor-sha256", "a" * 64,
+        "--release-root", str(release),
+        "--currentness-attestation-path", str(attestation),
+    ])
+    assert generator.main() == 0
+    assert (tmp_path / "governance/authorizations/proposed.json").read_bytes() == b"{}\n"
+    assert seen["anchor_path"] == anchor
+    assert seen["anchor_sha256"] == "a" * 64
+    assert seen["release_root"] == release
+    assert seen["currentness_attestation_path"] == attestation
+
+
 def test_attestation_digest_must_match_a(tmp_path: Path) -> None:
     changed = tmp_path / "attestation.json"
     changed.write_bytes(ATTESTATION.read_bytes() + b"\n")
