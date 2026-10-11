@@ -171,7 +171,8 @@ def test_legacy_successor_replay_keeps_sealed_candidate_immutable(
 ):
     _replay_before_sealed_expiry(monkeypatch)
     source = load_sources(ROOT)
-    release_dir = next((ROOT / _builder.RELEASE_ROOT).glob("release-*"))
+    # Rejouer le paquet historique précis, indépendamment des nouveaux successeurs.
+    release_dir = ROOT / _builder.RELEASE_ROOT / "release-fcc84331e7700042"
     inclusion = json.loads((release_dir / "profile_gate/inclusion_attestation.json").read_bytes())
     documents = build_documents(source, inclusion=inclusion, legacy_profile_binding=True)
     assert len(documents) == 34
