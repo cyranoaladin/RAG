@@ -1,0 +1,23 @@
+{
+  "content_anchor_sha256": "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0",
+  "content_manifest_sha256": "efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85",
+  "kind": "NEXUS_PUBLIC_SUCCESSOR_PREISSUANCE_CHECKPOINT_V1",
+  "manifest_relative_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60/profile_gate/production-profile-gate.release.json",
+  "preparation_index_sha256": "9996d56501ef5fdb2b55a01ad357eef9cdbb6cd981d2b7ef452b8340aa9abedd",
+  "private_cas_index_sha256": "1ad82df91bfbc28a62a01f1c2dd5af45891d4035994206409e3d2ecee19c25d4",
+  "source_currentness_valid_until_utc": "2026-10-12T13:58:41.752000Z",
+  "status": "CHECKPOINT_ONLY_NOT_SCOPE_AUTHORITY",
+  "subject_sha256_by_collection": {
+    "rag_nexus_dgemc_terminale_option": "7ff33ed32b289b54e515f4f32bb51c7c667ae0c4c18b307bfc457e8f0084452d",
+    "rag_nexus_hggsp_premiere_specialite": "6fdd49d67ba29fdcd3dbcfda382062f2f0aea31e313263d795185d99afa27d38",
+    "rag_nexus_hggsp_terminale_specialite": "977c727605afe0dd0d7e9150ca4914354912dda43c6f19426421cb2236e0defe",
+    "rag_nexus_hlp_premiere_specialite": "ad3db6c5b3ff368821588a00c354c2a059d93d412d7715fc1bee23e5598c17a3",
+    "rag_nexus_hlp_terminale_specialite": "6b21053f94d78626a9232f5420089ecd80ca1c8295a9b162006939cbade073dc",
+    "rag_nexus_nsi_premiere_specialite": "8c3cd3b3605b1b04955385d4e37ef19043f73c0b3614aa0d9a015771ff86d113",
+    "rag_nexus_nsi_terminale_specialite": "0fcb326d429e3dde1050315308722c7d7ae4bf134e3b9be3a189a18858bf8a7d",
+    "rag_nexus_ses_premiere_specialite": "81095ec4b1f6b6f93b99ce4f9c172110a2a8c6658a61dbd993f290c12ef35287",
+    "rag_nexus_ses_terminale_specialite": "837a2af663d76d4ad47f89dedd295d66f1c8df38053a73d56684e02b4dda6d18",
+    "rag_nexus_svt_premiere_specialite": "d4a3edce57ed287c5d9b4e9687b046cca80f810dcf7bd54e9686d78b1028879d",
+    "rag_nexus_svt_terminale_specialite": "ee7fda04542f7ec7a3a450ed4b0dd0c131b25b813ee18f5b0704dc869e04a201"
+  }
+}

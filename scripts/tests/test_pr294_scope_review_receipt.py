@@ -1,5 +1,7 @@
 """Le reçu #294 relie la review exacte à B sans autoriser la publication."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import hashlib
@@ -28,8 +30,15 @@ from pr294_scope_review_receipt import (
 from trusted_human_review import TrustedReviewDecision, build_challenge
 
 ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
-POLICY = ROOT / "governance/student_public_rights/student_public_successor_scope_policy_registry_v1.yml"
-NAMES = ROOT / "packages/contracts/authorities/student-public-successor-scope-names-v1.yml"
+# Les octets approuvés par #294 sont historiques ; #330 peut remplacer les
+# chemins de production par une politique liée à la nouvelle release A.
+POLICY = ROOT / "scripts/tests/fixtures/pr294_scope_review/policy.yml"
+NAMES = ROOT / "scripts/tests/fixtures/pr294_scope_review/names.yml"
+PR294_APPROVED_SHA256 = {
+    "anchor": "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0",
+    "policy": "8b47c2c4a0314393b9cb1d42f8940e12ad047d795e8bfb7ed526d1b6aac1bd18",
+    "names": "570a9392553a6d2bbadc909209a6ad5af9dc5d0b2f5acc30d14815d9b74c5782",
+}
 
 
 def _sha(raw: bytes) -> str:
@@ -40,12 +49,20 @@ def _canonical(document: dict) -> bytes:
     return (json.dumps(document, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
 
 
-def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[str, bytes], Path]:
-    anchor = json.loads(ANCHOR.read_bytes())
-    policy = yaml.safe_load(POLICY.read_bytes())
+def _fixture(
+    tmp_path: Path, *,
+    source_files: tuple[Path, Path, Path] = (ANCHOR, POLICY, NAMES),
+    expected_sha256: dict[str, str] | None = None,
+) -> tuple[dict, bytes, dict, dict, dict, dict, dict[str, bytes], Path]:
+    anchor_path, policy_path, names_path = source_files
+    assert {_label: _sha(path.read_bytes()) for _label, path in (
+        ("anchor", anchor_path), ("policy", policy_path), ("names", names_path),
+    )} == (expected_sha256 or PR294_APPROVED_SHA256)
+    anchor = json.loads(anchor_path.read_bytes())
+    policy = yaml.safe_load(policy_path.read_bytes())
     policies = {row["collection"]: row for row in policy["collections"]}
     names = {row["collection"]: row["scope_id"]
-             for row in yaml.safe_load(NAMES.read_bytes())["bindings"]}
+             for row in yaml.safe_load(names_path.read_bytes())["bindings"]}
     scope_dir = tmp_path / "scopes"
     scope_dir.mkdir()
     rows = []
@@ -84,10 +101,10 @@ def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[
         "kind": "NEXUS_STUDENT_PUBLIC_SCOPE_REGISTRY_V1",
         "status": "SCOPES_ISSUED_NOT_PUBLICATION_AUTHORITY",
         "activation_allowed": False,
-        "content_anchor_sha256": _sha(ANCHOR.read_bytes()),
+        "content_anchor_sha256": _sha(anchor_path.read_bytes()),
         "content_manifest_sha256": anchor["content_manifest_sha256"],
-        "policy_registry_sha256": _sha(POLICY.read_bytes()),
-        "successor_authority_sha256": _sha(NAMES.read_bytes()),
+        "policy_registry_sha256": _sha(policy_path.read_bytes()),
+        "successor_authority_sha256": _sha(names_path.read_bytes()),
         "scopes": rows,
     }
     registry_raw = _canonical(registry)
@@ -144,8 +161,8 @@ def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[
     }
     receipt["workflow_run_attempt"] = 2
     return receipt, registry_raw, pr, decision, trusted, run, {
-        "anchor": ANCHOR.read_bytes(), "policy": POLICY.read_bytes(),
-        "names": NAMES.read_bytes(),
+        "anchor": anchor_path.read_bytes(), "policy": policy_path.read_bytes(),
+        "names": names_path.read_bytes(),
     }, tmp_path
 
 

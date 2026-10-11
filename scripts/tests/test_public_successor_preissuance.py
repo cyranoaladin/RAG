@@ -26,6 +26,7 @@ MANIFEST = ROOT / (
     "profile_gate_student_public_successor_v1/release-fcc84331e7700042/"
     "profile_gate/production-profile-gate.release.json"
 )
+HISTORICAL_NOW = datetime(2026, 10, 10, 21, tzinfo=UTC)
 
 
 def _sha(path: Path) -> str:
@@ -59,7 +60,7 @@ def test_preissuance_replays_live_and_returns_exact_subjects(
     monkeypatch.setattr(module, "_require_cas_index_matches", lambda *_a: None)
     verdict = verify_preissuance_authority(
         ANCHOR, _sha(ANCHOR), _sha(MANIFEST), path, _sha(path), ROOT, cas,
-        datetime.now(UTC),
+        HISTORICAL_NOW,
     )
     assert verdict.content_anchor_sha256 == _sha(ANCHOR)
     assert verdict.content_manifest_sha256 == _sha(MANIFEST)
@@ -87,7 +88,7 @@ def test_preissuance_rejects_expiry_even_if_replay_claims_green(
     with pytest.raises(PreissuanceError, match="expired"):
         verify_preissuance_authority(
             ANCHOR, _sha(ANCHOR), _sha(MANIFEST), path, _sha(path), ROOT, cas,
-            datetime.now(UTC) + timedelta(days=3),
+            HISTORICAL_NOW + timedelta(days=3),
         )
 
 
@@ -102,14 +103,14 @@ def test_preissuance_rejects_tampered_receipt_and_cas_index(tmp_path: Path) -> N
     with pytest.raises(PreissuanceError):
         verify_preissuance_authority(
             ANCHOR, _sha(ANCHOR), _sha(MANIFEST), path, original, ROOT, cas,
-            datetime.now(UTC),
+            HISTORICAL_NOW,
         )
     path, cas = _fixture(tmp_path / "fresh")
     (cas / "index.json").write_bytes(b"{\"changed\":true}\n")
     with pytest.raises(PreissuanceError, match="CAS"):
         verify_preissuance_authority(
             ANCHOR, _sha(ANCHOR), _sha(MANIFEST), path, _sha(path), ROOT, cas,
-            datetime.now(UTC),
+            HISTORICAL_NOW,
         )
 
 
@@ -129,5 +130,5 @@ def test_preissuance_rejects_missing_live_replay(
     with pytest.raises(PreissuanceError, match="replay"):
         verify_preissuance_authority(
             ANCHOR, _sha(ANCHOR), _sha(MANIFEST), path, _sha(path), ROOT, cas,
-            datetime.now(UTC),
+            HISTORICAL_NOW,
         )

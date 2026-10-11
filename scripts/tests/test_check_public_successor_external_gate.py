@@ -9,6 +9,7 @@ import shutil
 import socket
 import subprocess
 import sys
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/go_live"))
 
-from check_public_successor_external_gate import (
+from check_public_successor_external_gate import (  # noqa: E402
     AUTHORITY_FIELDS,
     ExternalGateError,
     _verify_preparation_semantics,
@@ -28,6 +29,20 @@ PREPARATION = next((ROOT / "services/rag-pedago/data/releases").glob(
     "*/profile_gate_student_public_successor_v1/"
     "release-b1dda0c8503aa474/profile_gate"
 ))
+
+
+@pytest.fixture
+def historical_preparation_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Les assertions structurelles rejouent A dans sa fenêtre de validité."""
+    import build_student_public_successor_release as builder
+
+    class HistoricalDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            instant = datetime(2026, 10, 10, 21, tzinfo=timezone.utc)
+            return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(builder, "datetime", HistoricalDatetime)
 
 
 def _canonical(value: object) -> bytes:
@@ -471,7 +486,9 @@ def test_private_replay_bindings_refuse_candidate_or_replay_substitution(
         )
 
 
-def test_preparation_registries_and_profiles_match_replayed_population() -> None:
+def test_preparation_registries_and_profiles_match_replayed_population(
+    historical_preparation_clock: None,
+) -> None:
     from build_student_public_successor_release import load_sources
 
     source = load_sources(ROOT)
@@ -482,7 +499,7 @@ def test_preparation_registries_and_profiles_match_replayed_population() -> None
 
 @pytest.mark.parametrize("field", ["version", "fingerprint"])
 def test_v2_preparation_rejects_resealed_subject_profile_substitution(
-    field: str, tmp_path: Path,
+    field: str, tmp_path: Path, historical_preparation_clock: None,
 ) -> None:
     from build_student_public_successor_release import build_documents, load_sources
 
@@ -517,7 +534,7 @@ def test_v2_preparation_rejects_resealed_subject_profile_substitution(
     "duplicate_rights", "profile_fingerprint", "profile_index_digest", "profile_scope",
 ])
 def test_preparation_semantics_reject_resealed_but_false_claims(
-    mutation: str, tmp_path: Path,
+    mutation: str, tmp_path: Path, historical_preparation_clock: None,
 ) -> None:
     from build_student_public_successor_release import load_sources
 

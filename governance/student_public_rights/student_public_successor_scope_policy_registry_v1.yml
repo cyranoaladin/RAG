@@ -2,9 +2,9 @@
 registry_kind: NEXUS_RETRIEVAL_SCOPE_POLICY_REGISTRY_V1
 registry_version: '1'
 school_year: 2026-2027
-release_id: student-public-successor-20261010-fcc84331e7700042
-release_manifest_path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/profile_gate/production-profile-gate.release.json
-release_manifest_sha256: b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78
+release_id: student-public-successor-20261010-40b956c6f5ec0c60
+release_manifest_path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60/profile_gate/production-profile-gate.release.json
+release_manifest_sha256: efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85
 programme_version_authority:
   authority_kind: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
   path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json
@@ -19,7 +19,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 11694699f9c6128624fa54c0ea12ddf623479ee0524abf56f34259641f51177b
+  subject_manifest_sha256: 7ff33ed32b289b54e515f4f32bb51c7c667ae0c4c18b307bfc457e8f0084452d
   tenant: libre_terminale
   niveau: terminale
   voie: generale
@@ -41,7 +41,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 993d6a4c4a294a5b5fcdef60c9d738a57bc1e520b36cb9918c596779e5f0d06e
+  subject_manifest_sha256: 6fdd49d67ba29fdcd3dbcfda382062f2f0aea31e313263d795185d99afa27d38
   tenant: libre_premiere
   niveau: premiere
   voie: generale
@@ -63,7 +63,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 7df591d677da24eb7165d17a56280120085207edd85061ddbd43d933ae017b31
+  subject_manifest_sha256: 977c727605afe0dd0d7e9150ca4914354912dda43c6f19426421cb2236e0defe
   tenant: libre_terminale
   niveau: terminale
   voie: generale
@@ -85,7 +85,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: bc35a10a00aa41f9a297f6a0e8a8367c67468d8ba25c4e3b2a2d1c5e40f752c5
+  subject_manifest_sha256: ad3db6c5b3ff368821588a00c354c2a059d93d412d7715fc1bee23e5598c17a3
   tenant: libre_premiere
   niveau: premiere
   voie: generale
@@ -107,7 +107,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 8c5c0c1c5bfcf50ccb3f99cd65336ff180935e523f04655d0d3ccf8f7abdf2e2
+  subject_manifest_sha256: 6b21053f94d78626a9232f5420089ecd80ca1c8295a9b162006939cbade073dc
   tenant: libre_terminale
   niveau: terminale
   voie: generale
@@ -129,7 +129,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 7061eb991a46ea457058b3c8f5a70eeae10f96330db19db56379f053d5a5494b
+  subject_manifest_sha256: 8c3cd3b3605b1b04955385d4e37ef19043f73c0b3614aa0d9a015771ff86d113
   tenant: libre_premiere
   niveau: premiere
   voie: generale
@@ -151,7 +151,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: cd8dbebfedcab3179fc70a3ec8051e9fb794826d45f786302f61106184f57513
+  subject_manifest_sha256: 0fcb326d429e3dde1050315308722c7d7ae4bf134e3b9be3a189a18858bf8a7d
   tenant: libre_terminale
   niveau: terminale
   voie: generale
@@ -173,7 +173,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 0b92c5894bc028f2a0c14a0d6c8f56256a78764f59420599ad451bfad4a66a17
+  subject_manifest_sha256: 81095ec4b1f6b6f93b99ce4f9c172110a2a8c6658a61dbd993f290c12ef35287
   tenant: libre_premiere
   niveau: premiere
   voie: generale
@@ -195,7 +195,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 128dd506a6f2ff4c2c55302976a33c6406c542791ec64c91a415a89a73fc165e
+  subject_manifest_sha256: 837a2af663d76d4ad47f89dedd295d66f1c8df38053a73d56684e02b4dda6d18
   tenant: libre_terminale
   niveau: terminale
   voie: generale
@@ -217,7 +217,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: e631069e547a93603cd3e85a6e26cb8f790d7ee2ea4f709af7752ed8cbb29dd4
+  subject_manifest_sha256: d4a3edce57ed287c5d9b4e9687b046cca80f810dcf7bd54e9686d78b1028879d
   tenant: libre_premiere
   niveau: premiere
   voie: generale
@@ -239,7 +239,7 @@ collections:
   decision_status: GOVERNED_BY_HUMAN_DECISION
   authority_source: NEXUS_HUMAN_DECISION_ADR_0064
   policy_source_scope_id: null
-  subject_manifest_sha256: 63f92ba389fdc7f5f2cfd59a03d41da62115dc5eda1884f453e982f3dfdde034
+  subject_manifest_sha256: ee7fda04542f7ec7a3a450ed4b0dd0c131b25b813ee18f5b0704dc869e04a201
   tenant: libre_terminale
   niveau: terminale
   voie: generale

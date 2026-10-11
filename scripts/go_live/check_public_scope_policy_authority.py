@@ -30,11 +30,11 @@ BINDING_KEYS = {"collection", "candidate_subject_sha256", "candidate_profile_fin
                 "material_kind", "target_policy", "final_subject_sha256", "scope_id"}
 SUCCESSOR_DIR = Path(
     "services/rag-pedago/data/releases/prerentree_2026_2027/"
-    "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+    "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60"
 )
-SUCCESSOR_INDEX_SHA256 = "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4"
-SUCCESSOR_MANIFEST_SHA256 = "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78"
-SUCCESSOR_RELEASE_ID = "student-public-successor-20261010-fcc84331e7700042"
+SUCCESSOR_INDEX_SHA256 = "9996d56501ef5fdb2b55a01ad357eef9cdbb6cd981d2b7ef452b8340aa9abedd"
+SUCCESSOR_MANIFEST_SHA256 = "efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85"
+SUCCESSOR_RELEASE_ID = "student-public-successor-20261010-40b956c6f5ec0c60"
 SUCCESSOR_PROPOSAL_KIND = "NEXUS_STUDENT_PUBLIC_SUCCESSOR_SCOPE_PROPOSAL_V1"
 SUCCESSOR_RIGHTS_AUTHORITY = Path(
     "governance/student_public_rights/authorities/"

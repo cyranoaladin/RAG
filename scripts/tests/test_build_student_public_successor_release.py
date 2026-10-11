@@ -7,6 +7,7 @@ import hashlib
 import importlib
 import json
 import sys
+from datetime import datetime, timezone, tzinfo
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,17 @@ build_documents = _builder.build_documents
 load_sources = _builder.load_sources
 validate_inclusions = _builder.validate_inclusions
 write_immutable = _builder.write_immutable
+
+
+def _replay_before_sealed_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Relire les octets historiques à une date de leur fenêtre scellée."""
+    class HistoricalDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            instant = datetime(2026, 10, 10, 21, tzinfo=timezone.utc)
+            return instant.astimezone(tz) if tz is not None else instant.replace(tzinfo=None)
+
+    monkeypatch.setattr(_builder, "datetime", HistoricalDatetime)
 
 
 def _doc(documents: dict[Path, bytes], name: str) -> dict:
@@ -154,9 +166,13 @@ def test_successor_subject_profiles_match_complete_public_profiles():
         ).hexdigest()
 
 
-def test_legacy_successor_replay_keeps_sealed_candidate_immutable():
+def test_legacy_successor_replay_keeps_sealed_candidate_immutable(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _replay_before_sealed_expiry(monkeypatch)
     source = load_sources(ROOT)
-    release_dir = next((ROOT / _builder.RELEASE_ROOT).glob("release-*"))
+    # Rejouer le paquet historique précis, indépendamment des nouveaux successeurs.
+    release_dir = ROOT / _builder.RELEASE_ROOT / "release-fcc84331e7700042"
     inclusion = json.loads((release_dir / "profile_gate/inclusion_attestation.json").read_bytes())
     documents = build_documents(source, inclusion=inclusion, legacy_profile_binding=True)
     assert len(documents) == 34

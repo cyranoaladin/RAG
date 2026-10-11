@@ -34,7 +34,7 @@ POLICY = ROOT / (
 NAMES = ROOT / (
     "packages/contracts/authorities/student-public-successor-scope-names-v1.yml"
 )
-ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
+ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
 
 
 def _sha(path: Path) -> str:
@@ -81,7 +81,7 @@ def _synthetic_emission(tmp_path: Path):
     anchor = json.loads(ANCHOR.read_bytes())
     manifest = ROOT / (
         "services/rag-pedago/data/releases/prerentree_2026_2027/"
-        "profile_gate_student_public_successor_v1/release-fcc84331e7700042/"
+        "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60/"
         "profile_gate/production-profile-gate.release.json"
     )
     evidence = StudentScopeEmissionEvidence(
