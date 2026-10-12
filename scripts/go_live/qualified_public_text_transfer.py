@@ -19,8 +19,15 @@ from pathlib import Path
 
 if __package__:
     from .public_text_transfer import (
-        ALLOWLIST_KIND, INVENTORY_KIND, TEXT_MIME, TransferRefused,
-        _document, _manifest, _sha, digest, verify_observed_destination,
+        ALLOWLIST_KIND,
+        INVENTORY_KIND,
+        TEXT_MIME,
+        TransferRefused,
+        _document,
+        _manifest,
+        _sha,
+        digest,
+        verify_observed_destination,
     )
 else:  # lancement direct du script depuis scripts/go_live
     from public_text_transfer import (
