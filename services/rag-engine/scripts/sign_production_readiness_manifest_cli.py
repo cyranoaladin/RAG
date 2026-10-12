@@ -1648,6 +1648,39 @@ def _reject_v2_output_aliasing_an_input(args: argparse.Namespace) -> None:
                 raise SigningToolError(f"--output is a hard link to governed member {relative!r}")
 
 
+_PUBLIC_SUCCESSOR_V2_REQUIRED_FIELDS = (
+    "public_successor_bundle_root",
+    "public_successor_content_anchor_path",
+    "public_successor_preissuance_receipt_path",
+    "public_successor_temporal_authority_path",
+    "public_successor_private_cas_root",
+    "public_successor_target_root",
+    "public_successor_target_pin_path",
+    "public_successor_target_pin_receipt_path",
+    "public_successor_target_pin_pull_request",
+    "public_successor_observed_v1_receipt_path",
+    "public_successor_database_dsn_file",
+    "public_successor_source_private_root",
+    "public_successor_source_checkpoint_root",
+    "public_successor_source_fresh_root",
+    "public_successor_lot41a_material_root",
+    "public_successor_lot42_review_pr",
+    "public_successor_lot42_reviewed_head",
+)
+
+
+def _require_public_successor_v2_inputs(args: argparse.Namespace) -> None:
+    """Le reçu LOT42 historique n'est requis qu'après fusion de sa PR."""
+    required = tuple(getattr(args, name) for name in _PUBLIC_SUCCESSOR_V2_REQUIRED_FIELDS)
+    historical = args.public_successor_lot42_historical_receipt_path
+    if args.public_successor_bundle_root is None:
+        if any(value is not None for value in (*required, historical)):
+            raise SigningToolError("public successor requires an explicit C bundle")
+        return
+    if not args.public_candidate or any(value is None for value in required):
+        raise SigningToolError("public successor V2 inputs or four-image inventory absent")
+
+
 def _main_v2(argv: list[str]) -> int:
     args = _build_v2_arg_parser().parse_args(argv)
     try:
@@ -1700,32 +1733,8 @@ def _main_v2(argv: list[str]) -> int:
         )
         public_publication = None
         publication_inputs = None
-        public_inputs = (
-            args.public_successor_bundle_root,
-            args.public_successor_content_anchor_path,
-            args.public_successor_preissuance_receipt_path,
-            args.public_successor_temporal_authority_path,
-            args.public_successor_private_cas_root,
-            args.public_successor_target_root,
-            args.public_successor_target_pin_path,
-            args.public_successor_target_pin_receipt_path,
-            args.public_successor_target_pin_pull_request,
-            args.public_successor_observed_v1_receipt_path,
-            args.public_successor_database_dsn_file,
-            args.public_successor_source_private_root,
-            args.public_successor_source_checkpoint_root,
-            args.public_successor_source_fresh_root,
-            args.public_successor_lot41a_material_root,
-            args.public_successor_lot42_review_pr,
-            args.public_successor_lot42_reviewed_head,
-            args.public_successor_lot42_historical_receipt_path,
-        )
-        if args.public_successor_bundle_root is None:
-            if any(value is not None for value in public_inputs):
-                raise SigningToolError("public successor requires an explicit C bundle")
-        else:
-            if not args.public_candidate or any(value is None for value in public_inputs):
-                raise SigningToolError("public successor V2 inputs or four-image inventory absent")
+        _require_public_successor_v2_inputs(args)
+        if args.public_successor_bundle_root is not None:
             _require_live_main_head(merge_sha)
             local_head = subprocess.run(
                 ["git", "-C", str(args.repo_root), "rev-parse", "HEAD"],

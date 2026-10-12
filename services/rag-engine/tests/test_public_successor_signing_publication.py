@@ -196,12 +196,36 @@ def test_lot42_evaluator_is_derived_only_from_reviewed_receipt() -> None:
     reviewed = SimpleNamespace(
         provenance_note="release. Public successor evidence: "
         "A2_SHA256=" + "a" * 64 + "; TRANSFER_SHA256=" + "b" * 64 +
+        "; TARGET_PIN_SHA256=" + "d" * 64 + "; TRANSFER_V2_SHA256=" + "e" * 64 +
         "; PROJECTION_SHA256=" + "c" * 64 + "; EVALUATOR=automated:Codex/LOT42."
     )
     assert replay._lot42_review_evaluator(reviewed) == "automated:Codex/LOT42"
-    reviewed.provenance_note = "release. EVALUATOR=unbound."
+    reviewed.provenance_note = (
+        "release. Public successor evidence: A2_SHA256=" + "a" * 64 +
+        "; TRANSFER_SHA256=" + "b" * 64 +
+        "; PROJECTION_SHA256=" + "c" * 64 + "; EVALUATOR=unbound."
+    )
     with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
         replay._lot42_review_evaluator(reviewed)
+
+
+def test_live_c_passes_pin_and_v2_transfer_into_reviewed_batch_gate() -> None:
+    seen: dict[str, str] = {}
+
+    def check(_review: object, *, target_pin_sha256: str,
+              transfer_v2_sha256: str, **_kwargs: object) -> None:
+        seen["pin"] = target_pin_sha256
+        seen["transfer_v2"] = transfer_v2_sha256
+
+    replay._require_c_reviewed_batch(
+        check, object(), facts=object(),
+        source=SimpleNamespace(a2_sha256="a" * 64,
+                               a2_valid_until=datetime.now(UTC) + timedelta(days=1)),
+        target=SimpleNamespace(plan_sha256="b" * 64, attestation_sha256="c" * 64),
+        approved_pin_sha256="d" * 64, projection_digest="e" * 64,
+        evaluator="automated:Codex/LOT42", now_utc=datetime.now(UTC),
+    )
+    assert seen == {"pin": "d" * 64, "transfer_v2": "c" * 64}
 
 
 def test_lot42_review_mode_follows_live_pr_state_not_operator_choice(
@@ -368,6 +392,34 @@ def test_production_public_pin_expired_before_key_is_refused() -> None:
         production._require_public_publication_fresh_at_key(
             replay_verdict, datetime(2026, 10, 10, 12, tzinfo=UTC),
         )
+
+
+def test_production_public_inputs_allow_open_pr_without_historical_receipt() -> None:
+    names = (
+        "bundle_root", "content_anchor_path", "preissuance_receipt_path",
+        "temporal_authority_path", "private_cas_root", "target_root",
+        "target_pin_path", "target_pin_receipt_path", "target_pin_pull_request",
+        "observed_v1_receipt_path", "database_dsn_file", "source_private_root",
+        "source_checkpoint_root", "source_fresh_root", "lot41a_material_root",
+        "lot42_review_pr", "lot42_reviewed_head",
+    )
+    values = {f"public_successor_{name}": Path("present") for name in names}
+    args = SimpleNamespace(
+        public_candidate=True,
+        public_successor_lot42_historical_receipt_path=None,
+        **values,
+    )
+    production._require_public_successor_v2_inputs(args)
+    args.public_successor_lot42_historical_receipt_path = Path("historical")
+    production._require_public_successor_v2_inputs(args)
+    args.public_successor_bundle_root = None
+    with pytest.raises(production.SigningToolError, match="bundle"):
+        production._require_public_successor_v2_inputs(args)
+    args.public_successor_bundle_root = Path("present")
+    args.public_successor_lot42_historical_receipt_path = None
+    args.public_successor_lot42_review_pr = None
+    with pytest.raises(production.SigningToolError, match="inputs"):
+        production._require_public_successor_v2_inputs(args)
 
 
 def test_production_v2_parser_requires_explicit_successor_bundle() -> None:

@@ -13,10 +13,12 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import psycopg
 from nexus_release_chain.public_successor_activation import (
@@ -395,13 +397,31 @@ def _lot42_review_evaluator(review: object) -> str:
         raise PublicationSigningReplayRefused("LOT42 reviewed evaluator absent")
     match = re.search(
         r"Public successor evidence: A2_SHA256=[0-9a-f]{64}; "
-        r"TRANSFER_SHA256=[0-9a-f]{64}; PROJECTION_SHA256=[0-9a-f]{64}; "
+        r"TRANSFER_SHA256=[0-9a-f]{64}; TARGET_PIN_SHA256=[0-9a-f]{64}; "
+        r"TRANSFER_V2_SHA256=[0-9a-f]{64}; PROJECTION_SHA256=[0-9a-f]{64}; "
         r"EVALUATOR=([^\s;]{1,128})\.$",
         note,
     )
     if match is None:
         raise PublicationSigningReplayRefused("LOT42 reviewed evaluator absent")
     return match.group(1)
+
+
+def _require_c_reviewed_batch(
+    check: Callable[..., None], review: object, *, facts: object,
+    source: Any, target: Any, approved_pin_sha256: str,
+    projection_digest: str, evaluator: str, now_utc: datetime,
+) -> None:
+    """Recouper le reçu LOT42 avec le pin et le transfert V2 observés."""
+    check(
+        review, facts=facts,
+        a2_sha256=source.a2_sha256, a2_valid_until=source.a2_valid_until,
+        transfer_sha256=target.plan_sha256,
+        target_pin_sha256=approved_pin_sha256,
+        transfer_v2_sha256=target.attestation_sha256,
+        projection_digest=projection_digest,
+        evaluator=evaluator, now_utc=now_utc,
+    )
 
 
 def _verify_live_publication(
@@ -589,10 +609,10 @@ def _verify_live_publication(
         _projections, projection_digest = build_public_successor_batch_projections(
             source, facts, evaluator=evaluator, now_utc=datetime.now(UTC),
         )
-        require_reviewed_public_successor_batch(
-            request.publication_batch_review, facts=facts,
-            a2_sha256=source.a2_sha256, a2_valid_until=source.a2_valid_until,
-            transfer_sha256=target.plan_sha256,
+        _require_c_reviewed_batch(
+            require_reviewed_public_successor_batch,
+            request.publication_batch_review, facts=facts, source=source,
+            target=target, approved_pin_sha256=approved_pin_sha256,
             projection_digest=projection_digest,
             evaluator=evaluator, now_utc=datetime.now(UTC),
         )
