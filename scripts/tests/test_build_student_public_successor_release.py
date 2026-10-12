@@ -236,6 +236,19 @@ def test_builder_refuses_expired_currentness_receipt():
         build_documents(source, inclusion=inclusion)
 
 
+def test_historical_replay_uses_explicit_in_window_time_only():
+    source = load_sources(ROOT)
+    inclusion = _inclusion(source, set())
+    inclusion["source_currentness_valid_until_utc"] = "2026-10-12T13:58:41Z"
+    historical = datetime(2026, 10, 11, 14, tzinfo=timezone.utc)
+    assert build_documents(source, inclusion=inclusion, as_of=historical)
+    with pytest.raises(ValueError, match="freshness expired"):
+        build_documents(
+            source, inclusion=inclusion,
+            as_of=datetime(2026, 10, 12, 15, tzinfo=timezone.utc),
+        )
+
+
 def test_immutable_writer_refuses_divergent_existing_output(tmp_path):
     documents = {Path("release-registry.json"): b"one\n"}
     write_immutable(tmp_path, documents)

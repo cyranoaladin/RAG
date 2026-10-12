@@ -99,6 +99,7 @@ class PublicSuccessorActivationVerdict:
     # Vérifiés par C depuis AuthorizationSetV2, bindings signés et preuves
     # scellées ; jamais reconstruits à partir des lignes de la DB servie.
     authorization_review_evidence_by_id: tuple[tuple[str, str, str, str], ...] = ()
+    authorization_review_binding: tuple[str, int, str, str, str, str, str, int, str, str] | None = None
     transfer_manifest_sha256: str | None = None
     publication_batch_review_id: str | None = None
     publication_batch_review_digest: str | None = None
@@ -142,6 +143,7 @@ class VerifiedPublicSuccessorLiveEvidence:
     scope_sha256_by_id: Mapping[str, str]
     verified_authorization_set: VerifiedAuthorizationSetV1
     authorization_review_evidence_by_id: tuple[tuple[str, str, str, str], ...]
+    authorization_review_binding: tuple[str, int, str, str, str, str, str, int, str, str]
     publication_batch_review_id: str
     publication_batch_review_digest: str
     publication_batch_review_binding: tuple[str, str, str, int, str, str]
@@ -1298,6 +1300,62 @@ def _verify_a2_offline_c(
     return expiry
 
 
+def verify_public_lot41a_review_receipt(
+    bundle_root: Path, expected_sha256: str, authorization_set: AuthorizationSetV2,
+) -> tuple[str, int, str, str, str, str, str, int, str, str]:
+    """Relier le reçu C déjà scellé aux membres LOT41A exacts."""
+    receipt = _read(
+        bundle_root, "authorities/exact_head_authorization_review_receipt_sha256.bin",
+        expected_sha256,
+    )
+    expected_entries = sorted(({
+        "authorization_id": member.authorization_id,
+        "authorization_sha256": member.authorization_digest,
+        "signed_review_binding_sha256": member.review_binding_digest,
+    } for member in authorization_set.members), key=lambda row: row["authorization_id"])
+    if (
+        set(receipt) != {
+            "kind", "status", "publication_authorized", "repository", "pull_request",
+            "base_ref", "base_sha", "head_sha", "author", "reviewer", "review_id",
+            "challenge", "review_submitted_at", "authorization_set_sha256",
+            "authorization_count", "authorizations",
+        }
+        or receipt["kind"] != "NEXUS_PUBLIC_SUCCESSOR_PR327_AUTHORIZATION_REVIEW_RECEIPT_V1"
+        or receipt["status"] != "SIGNED_BINDINGS_VERIFIED_NOT_PUBLICATION_AUTHORITY"
+        or receipt["publication_authorized"] is not False
+        or receipt["repository"] != "cyranoaladin/RAG"
+        or receipt["pull_request"] != 327
+        or receipt["base_ref"] != "main"
+        or receipt["reviewer"] != "abenrhouma"
+        or type(receipt["review_id"]) is not int or receipt["review_id"] <= 0
+        or any(not isinstance(receipt[field], str) or not receipt[field]
+               for field in ("author", "base_sha", "head_sha", "challenge",
+                             "review_submitted_at"))
+        or any(re.fullmatch(r"[0-9a-f]{40}", receipt[field]) is None
+               for field in ("base_sha", "head_sha"))
+        or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", receipt["challenge"]) is None
+        or not receipt["review_submitted_at"].endswith("Z")
+        or receipt["authorization_set_sha256"] != hashlib.sha256(
+            authorization_set.canonical_bytes()
+        ).hexdigest()
+        or receipt["authorization_count"] != len(expected_entries)
+        or receipt["authorizations"] != expected_entries
+    ):
+        raise PublicSuccessorActivationError("LOT41A exact review receipt differs from C")
+    try:
+        submitted = datetime.fromisoformat(receipt["review_submitted_at"])
+    except ValueError as error:
+        raise PublicSuccessorActivationError("LOT41A review date invalid") from error
+    if submitted.tzinfo != UTC:
+        raise PublicSuccessorActivationError("LOT41A review date not UTC")
+    return (
+        receipt["repository"], receipt["pull_request"], receipt["base_ref"],
+        receipt["base_sha"], receipt["head_sha"], receipt["author"],
+        receipt["reviewer"], receipt["review_id"], receipt["challenge"],
+        receipt["review_submitted_at"],
+    )
+
+
 def _finalize_a2_live_evidence(
     *, live: VerifiedPublicSuccessorLiveEvidence,
     content: PublicSuccessorContentVerdict,
@@ -1307,6 +1365,7 @@ def _finalize_a2_live_evidence(
     authorization_set: AuthorizationSetV2,
     batch_review: ReleaseBatchPublicationReviewArtifact,
     expected_target_pin_sha256: str,
+    authorization_review_binding: tuple[str, int, str, str, str, str, str, int, str, str],
     a2_expires_at_utc: datetime,
     pin_expires_at_utc: datetime,
     now_utc: datetime,
@@ -1344,6 +1403,7 @@ def _finalize_a2_live_evidence(
         verified.authorizations_effective_valid_until
             != authorization_set.authorizations_effective_valid_until,
         live.authorization_review_evidence_by_id != expected_reviews,
+        live.authorization_review_binding != authorization_review_binding,
         live.publication_batch_review_id != batch_review.review_id,
         live.publication_batch_review_digest
             != authorities["publication_batch_review_receipt_sha256"],
@@ -1397,6 +1457,7 @@ def _finalize_a2_live_evidence(
         counts=content.expected_counts,
         expires_at_utc=expiry,
         authorization_review_evidence_by_id=expected_reviews,
+        authorization_review_binding=authorization_review_binding,
         transfer_manifest_sha256=authorities["artifact_transfer_manifest_sha256"],
         publication_batch_review_id=batch_review.review_id,
         publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
@@ -1413,6 +1474,7 @@ def _finalize_a2_signed_readiness(
     authorization_set: AuthorizationSetV2,
     batch_review: ReleaseBatchPublicationReviewArtifact,
     expected_target_pin_sha256: str,
+    authorization_review_binding: tuple[str, int, str, str, str, str, str, int, str, str],
     a2_expires_at_utc: datetime,
     pin_expires_at_utc: datetime,
     now_utc: datetime,
@@ -1486,6 +1548,7 @@ def _finalize_a2_signed_readiness(
         counts=content.expected_counts,
         expires_at_utc=effective_expiry,
         authorization_review_evidence_by_id=expected_reviews,
+        authorization_review_binding=authorization_review_binding,
         transfer_manifest_sha256=authorities["artifact_transfer_manifest_sha256"],
         publication_batch_review_id=batch_review.review_id,
         publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
@@ -1712,6 +1775,10 @@ def verify_public_successor_activation(
         raise PublicSuccessorActivationError(
             "public successor authority semantics incomplete: activation refused"
         )
+    authorization_review_binding = verify_public_lot41a_review_receipt(
+        root, authorities["exact_head_authorization_review_receipt_sha256"],
+        authorization_set,
+    )
     pin_expiry = _transfer_utc(
         _compact_document(target_pin_raw, "target pin").get("expires_at_utc"),
         "pin expiry",
@@ -1723,6 +1790,7 @@ def verify_public_successor_activation(
             authorities=authorities, scope_sha256_by_id=scope_sha256_by_id,
             authorization_set=authorization_set, batch_review=batch_review,
             expected_target_pin_sha256=expected_target_pin_sha256,
+            authorization_review_binding=authorization_review_binding,
             a2_expires_at_utc=a2_expiry, pin_expires_at_utc=pin_expiry,
             now_utc=runtime_now,
         )
@@ -1747,6 +1815,7 @@ def verify_public_successor_activation(
         authorities=authorities, scope_sha256_by_id=scope_sha256_by_id,
         authorization_set=authorization_set, batch_review=batch_review,
         expected_target_pin_sha256=expected_target_pin_sha256,
+        authorization_review_binding=authorization_review_binding,
         a2_expires_at_utc=a2_expiry, pin_expires_at_utc=pin_expiry,
         now_utc=_post_replay_utc_now(now),
     )

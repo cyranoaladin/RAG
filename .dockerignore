@@ -100,8 +100,11 @@
 !governance/trust-anchors/
 !governance/trust-anchors/production-readiness-v1.json
 
-# Required for the UI image dependency smoke.
+# Sources gouvernées du garde de l'API publique et smoke de l'image UI.
 !scripts/
+!scripts/github/
+!scripts/github/trusted_human_review.py
+!scripts/github/trusted-reviewers.json
 !scripts/e2e/
 !scripts/e2e/smoke-ui-runtime-imports.sh
 

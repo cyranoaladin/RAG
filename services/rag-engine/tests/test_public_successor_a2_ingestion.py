@@ -50,6 +50,10 @@ def test_preissuance_replays_identity_and_cas_but_uses_a2_expiry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(preissuance, "_require_cas_index_matches", lambda *_: None)
+    monkeypatch.setattr(
+        preissuance, "_historical_cas_as_of",
+        lambda *_: datetime(2026, 10, 11, 14, 5, 36, tzinfo=UTC),
+    )
     monkeypatch.setattr(preissuance, "inspect_content_preparation", lambda *_a, **_k: {
         "inclusion_population_verified": True,
         "private_cas_replay_verified": True,
@@ -78,6 +82,10 @@ def test_signer_binds_phase_to_a2_digest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(preissuance, "_require_cas_index_matches", lambda *_: None)
+    monkeypatch.setattr(
+        preissuance, "_historical_cas_as_of",
+        lambda *_: datetime(2026, 10, 11, 14, 5, 36, tzinfo=UTC),
+    )
     monkeypatch.setattr(preissuance, "inspect_content_preparation", lambda *_a, **_k: {
         "inclusion_population_verified": True,
         "private_cas_replay_verified": True,
@@ -141,6 +149,10 @@ def test_publication_replay_uses_a2_and_refuses_missing_or_changed_authority(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(preissuance, "_require_cas_index_matches", lambda *_: None)
+    monkeypatch.setattr(
+        preissuance, "_historical_cas_as_of",
+        lambda *_: datetime(2026, 10, 11, 14, 5, 36, tzinfo=UTC),
+    )
     monkeypatch.setattr(preissuance, "inspect_content_preparation", lambda *_a, **_k: {
         "inclusion_population_verified": True,
         "private_cas_replay_verified": True,

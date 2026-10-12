@@ -26,6 +26,7 @@ from nexus_release_chain.public_successor_activation import (
     PublicSuccessorLiveVerificationRequest,
     VerifiedPublicSuccessorLiveEvidence,
     verify_content_anchor,
+    verify_public_lot41a_review_receipt,
     verify_public_successor_activation,
 )
 
@@ -535,6 +536,10 @@ def _verify_live_publication(
         root, authorities["exact_head_authorization_review_receipt_sha256"],
         authorization_set, files,
     )
+    authorization_review_binding = verify_public_lot41a_review_receipt(
+        root, authorities["exact_head_authorization_review_receipt_sha256"],
+        authorization_set,
+    )
 
     qualified = _checkout_module("qualified_public_text_transfer")
     plan_raw = _bytes(root / "authorities/artifact_transfer_manifest_sha256.bin")
@@ -609,6 +614,7 @@ def _verify_live_publication(
             target.expires_at_utc, preissuance_expiry,
         ),
         authorization_review_evidence_by_id=expected_reviews,
+        authorization_review_binding=authorization_review_binding,
         transfer_manifest_sha256=target.plan_sha256,
         publication_batch_review_id=request.publication_batch_review.review_id,
         publication_batch_review_digest=(
@@ -665,6 +671,7 @@ def _verify_live_publication(
         scope_sha256_by_id=dict(request.scope_sha256_by_id),
         verified_authorization_set=verified_set,
         authorization_review_evidence_by_id=expected_reviews,
+        authorization_review_binding=authorization_review_binding,
         publication_batch_review_id=request.publication_batch_review.review_id,
         publication_batch_review_digest=(
             authorities["publication_batch_review_receipt_sha256"]

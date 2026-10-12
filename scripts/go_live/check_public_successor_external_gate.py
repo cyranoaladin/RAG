@@ -411,6 +411,7 @@ def _verify_private_replay_bindings(
 def _verify_preparation_semantics(
     source: Mapping[str, Any], replay: Mapping[str, Any],
     index: Mapping[str, Any], prepared_gate_root: Path,
+    *, as_of: datetime | None = None,
 ) -> None:
     """Confronter les registres aux décisions rejouées et profils complets.
 
@@ -456,7 +457,7 @@ def _verify_preparation_semantics(
     binding_modes = []
     for legacy in (True, False):
         documents = build_documents(dict(source), inclusion=dict(replay),
-                                    legacy_profile_binding=legacy)
+                                    legacy_profile_binding=legacy, as_of=as_of)
         generated_index = next(json.loads(raw) for path, raw in documents.items()
                                if path.name == "preparation-index.json")
         if generated_index["release_id"] == release_id:
@@ -651,6 +652,7 @@ def _verify_preparation_semantics(
 def _verify_private_cas_replay(
     private_cas_root: Path, repository_root: Path, attestation: Mapping[str, Any],
     manifest: Mapping[str, Any], index: Mapping[str, Any],
+    *, as_of: datetime | None = None,
 ) -> None:
     """Réutiliser les vérificateurs existants ; toute panne laisse le gate rouge."""
     if not private_cas_root.is_dir() or not repository_root.is_dir():
@@ -666,7 +668,7 @@ def _verify_private_cas_replay(
         pr300 = check_pr300_authority(repository_root)
         pr312 = check_pr312_authority(repository_root)
         source = load_sources(repository_root)
-        replay = verify_private_cas_evidence(source, private_cas_root)
+        replay = verify_private_cas_evidence(source, private_cas_root, as_of=as_of)
     except Exception as exc:
         raise ExternalGateError("private CAS replay or authority verification failed") from exc
     _verify_private_replay_bindings(source, replay, attestation, pr300, pr312,
@@ -679,7 +681,9 @@ def _verify_private_cas_replay(
         raise ExternalGateError("preparation registry release identity differs")
     suffix = release_id.rsplit("-", 1)[-1]
     prepared_gate_root = repository_root / RELEASE_ROOT / f"release-{suffix}" / "profile_gate"
-    _verify_preparation_semantics(source, replay, index, prepared_gate_root)
+    _verify_preparation_semantics(
+        source, replay, index, prepared_gate_root, as_of=as_of,
+    )
 
 
 def inspect_release(

@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from nexus_contracts.authority_artifacts import canonical_publication_review_path, git_blob_sha1
+from nexus_contracts.trusted_review_evidence import (
+    SealedTrustedReviewEvidenceV1,
+    parse_sealed_trusted_review_evidence,
+)
 from nexus_release_chain.public_successor_activation import verify_content_anchor
 
 from ingestor import public_successor_db_guard as guard
@@ -21,6 +28,35 @@ from ingestor.public_successor_db_guard import (
     require_public_successor_pinned_db,
     require_public_successor_startup_lot42,
 )
+
+
+def test_public_guard_imports_without_writer_package_in_flat_api_image(tmp_path: Path) -> None:
+    """L'image API installe le garde à plat et n'emporte pas `ingestor`."""
+    module = Path(guard.__file__).resolve()
+    code = """
+import importlib.abc
+import importlib.util
+import sys
+
+class ForbidWriterPackage(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "ingestor" or fullname.startswith("ingestor."):
+            raise ModuleNotFoundError(f"writer package forbidden: {fullname}")
+        return None
+
+sys.meta_path.insert(0, ForbidWriterPackage())
+spec = importlib.util.spec_from_file_location("public_successor_db_guard", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print("PUBLIC_GUARD_FLAT_IMPORT_OK")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(module)],
+        capture_output=True, text=True, check=False, timeout=30, cwd=tmp_path,
+        env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "PUBLIC_GUARD_FLAT_IMPORT_OK"
 
 
 class _PinnedIdentityConn:
@@ -72,6 +108,10 @@ AUTH_ID = "student-public-maths"
 COLLECTION = "rag_nexus_maths_premiere_gen_specialite"
 AUTH_SHA = "a" * 64
 REVIEW_SHA = "b" * 64
+BASE_SHA = "a" * 40
+HEAD_SHA = "b" * 40
+REVIEWER = "abenrhouma"
+DB_REVIEW_PR = 327
 MANIFEST_SHA = "c" * 64
 ARTIFACT_SHA = "d" * 64
 INVENTORY_SHA = "e" * 64
@@ -131,12 +171,26 @@ class _Cursor:
 
     def fetchall(self) -> list[tuple[object, ...]]:
         if "scope_authorizations" in self.query:
-            return [] if self.database.missing else [(
-                AUTH_ID, AUTH_SHA, REVIEW_SHA, self.database.authorization_revoked_at,
+            if self.database.missing:
+                return []
+            current = (
+                AUTH_ID, AUTH_SHA, self.database.sealed_digest,
+                self.database.authorization_revoked_at,
                 self.database.valid_from, self.database.valid_until,
-            )]
+                self.database.sealed_evidence,
+                "cyranoaladin/RAG", DB_REVIEW_PR, BASE_SHA, HEAD_SHA, REVIEWER, 123,
+                self.database.challenge,
+                f"governance/authorizations/{AUTH_ID}.json", "d" * 40,
+            )
+            rows = [current]
+            if self.database.historical_row_present:
+                rows.append(("lot41a-old-v1", *current[1:]))
+            if "WHERE authorization_id = ANY(%s)" not in self.query:
+                return rows
+            ids = self.database.params[-1][0]
+            return [row for row in rows if row[0] in ids]
         if "revoked_review_evidence" in self.query:
-            return [(REVIEW_SHA,)] if self.database.review_revoked else []
+            return [(self.database.sealed_digest,)] if self.database.review_revoked else []
         if "JOIN ingestion_control.artifacts" in self.query:
             return self.database.sealed_rows
         if "FROM ingestion_control.publication_attestations" in self.query:
@@ -159,9 +213,15 @@ class _Database:
         self.missing = False
         self.review_revoked = False
         self.lot42_invalidated = False
+        self.historical_row_present = False
         self.authorization_revoked_at: datetime | None = None
         self.valid_from = datetime.now(UTC) - timedelta(minutes=1)
         self.valid_until = datetime.now(UTC) + timedelta(minutes=5)
+        self.sealed_evidence = _sealed_evidence()
+        self.sealed_digest = parse_sealed_trusted_review_evidence(
+            self.sealed_evidence,
+        ).digest()
+        self.challenge = self.sealed_evidence["challenge"]
         self.sealed_rows = [(
             "resource", "artifact", COLLECTION, CONTENT_SHA, {
                 "release_manifest_sha256": MANIFEST_SHA,
@@ -204,12 +264,132 @@ def _verdict() -> SimpleNamespace:
         artifact_registry_sha256=ARTIFACT_SHA,
         counts={"subjects": 1, "unique_artifacts": 1, "placements": 1, "unique_chunks": 1},
         authorization_review_evidence_by_id=((COLLECTION, AUTH_ID, AUTH_SHA, REVIEW_SHA),),
+        authorization_review_binding=(
+            "cyranoaladin/RAG", 327, "main", BASE_SHA, HEAD_SHA,
+            "cyranoaladin", REVIEWER, 123, _sealed_evidence()["challenge"],
+            "2026-10-11T00:00:00Z",
+        ),
         transfer_manifest_sha256=TRANSFER_SHA,
         publication_batch_review_id=REVIEW_ID,
         publication_batch_review_digest=REVIEW_DIGEST,
         publication_batch_review_binding=REVIEW_BINDING,
         expires_at_utc=datetime.now(UTC) + timedelta(minutes=5),
     )
+
+
+def _sealed_evidence() -> dict[str, object]:
+    evidence = SealedTrustedReviewEvidenceV1(
+        protocol_version="NEXUS-SEALED-TRUSTED-REVIEW-EVIDENCE-V1",
+        repository="cyranoaladin/RAG", pull_request=DB_REVIEW_PR,
+        pull_request_base_ref="main", pull_request_base_sha=BASE_SHA,
+        pull_request_head_sha=HEAD_SHA, pull_request_author="cyranoaladin",
+        authorization_id=AUTH_ID,
+        artifact_path=f"governance/authorizations/{AUTH_ID}.json",
+        artifact_sha256=AUTH_SHA, artifact_blob_sha="d" * 40,
+        reviewer=REVIEWER, review_id=123, review_node_id="PRR_fixture",
+        review_submitted_at=datetime(2026, 10, 11, tzinfo=UTC),
+        challenge_protocol="NEXUS-TRUSTED-REVIEW-V1",
+        challenge="NEXUS-TRUSTED-REVIEW-V1:" + "0" * 64,
+        head_pinned_status="success", head_pinned_context="trusted-human-review/head-pinned",
+        recorded_at=datetime(2026, 10, 11, 1, tzinfo=UTC), recorder_version="test/ADR-0058",
+    )
+    return evidence.model_copy(update={"challenge": evidence.expected_challenge()}).canonical_document()
+
+
+def test_live_controls_accept_distinct_binding_and_sealed_review_digests() -> None:
+    database, verdict = _Database(), _verdict()
+    assert database.sealed_digest != REVIEW_SHA
+    assert database.sealed_evidence["pull_request"] == DB_REVIEW_PR
+    require_public_successor_live_controls(database, verdict)
+    assert database.params[1] == ([database.sealed_digest],)
+
+
+def test_live_controls_ignore_historical_authorization_outside_c_ids() -> None:
+    database = _Database()
+    database.historical_row_present = True
+    require_public_successor_live_controls(database, _verdict())
+    assert database.params[0] == ([AUTH_ID],)
+
+
+def test_live_controls_refuse_changed_sealed_digest() -> None:
+    database = _Database()
+    database.sealed_digest = "0" * 64
+    with pytest.raises(PublicSuccessorDBRefused, match="sealed review"):
+        require_public_successor_live_controls(database, _verdict())
+
+
+def test_live_controls_refuse_review_identity_different_from_typed_db_row() -> None:
+    database = _Database()
+    database.sealed_evidence["review_id"] = 124
+    database.sealed_digest = parse_sealed_trusted_review_evidence(
+        database.sealed_evidence,
+    ).digest()
+    with pytest.raises(PublicSuccessorDBRefused, match="sealed review"):
+        require_public_successor_live_controls(database, _verdict())
+
+
+def test_live_controls_refuse_review_identity_different_from_c() -> None:
+    database, verdict = _Database(), _verdict()
+    binding = list(verdict.authorization_review_binding)
+    binding[7] = 124
+    verdict.authorization_review_binding = tuple(binding)
+    with pytest.raises(PublicSuccessorDBRefused, match="sealed review"):
+        require_public_successor_live_controls(database, verdict)
+
+
+def test_live_controls_use_governed_reviewer_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[tuple[str, ...]] = []
+    verify = guard.require_trusted_reviewer
+
+    def record_reviewer(proof: object, *, allowed_reviewers: tuple[str, ...]) -> None:
+        observed.append(allowed_reviewers)
+        verify(proof, allowed_reviewers=allowed_reviewers)
+
+    monkeypatch.setattr(guard, "require_trusted_reviewer", record_reviewer)
+    require_public_successor_live_controls(_Database(), _verdict())
+    assert observed == [(REVIEWER,)]
+
+
+def test_live_controls_refuse_reviewer_removed_from_governed_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "trusted-reviewers.json"
+    config.write_text(json.dumps({
+        "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+        "repository": "cyranoaladin/RAG",
+        "base_ref": "main",
+        "reviewers": ["another-reviewer"],
+    }))
+    monkeypatch.setenv("NEXUS_TRUSTED_REVIEWERS_CONFIG", str(config))
+    with pytest.raises(PublicSuccessorDBRefused, match="sealed review"):
+        require_public_successor_live_controls(_Database(), _verdict())
+
+
+def test_live_controls_refuse_missing_governed_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "NEXUS_TRUSTED_REVIEWERS_CONFIG", str(tmp_path / "missing.json"),
+    )
+    with pytest.raises(PublicSuccessorDBRefused, match="governed reviewer"):
+        require_public_successor_live_controls(_Database(), _verdict())
+
+
+def test_live_controls_refuse_failed_branch_protection() -> None:
+    database = _Database()
+    database.sealed_evidence["head_pinned_status"] = "failure"
+    with pytest.raises(PublicSuccessorDBRefused, match="sealed review"):
+        require_public_successor_live_controls(database, _verdict())
+
+
+def test_live_controls_refuse_revoked_actual_sealed_digest() -> None:
+    database = _Database()
+    database.review_revoked = True
+    with pytest.raises(PublicSuccessorDBRefused, match="revoked"):
+        require_public_successor_live_controls(database, _verdict())
+    assert database.params[1] == ([database.sealed_digest],)
 
 
 def test_live_controls_query_only_bound_authority_and_invalidations() -> None:
@@ -319,7 +499,7 @@ def test_startup_refuses_lot42_foreign_authorization_before_service(
 
 
 @pytest.mark.parametrize("column", [
-    "rights", "quality_digest", "events", "review_head", "review_blob",
+    "rights", "quality_digest", "events", "review_head", "review_blob", "fingerprint",
     "attestation_digest",
 ])
 def test_startup_refuses_lot42_attestation_without_substantive_proof(
@@ -335,13 +515,14 @@ def test_startup_refuses_lot42_attestation_without_substantive_proof(
         )}, INVENTORY_SHA,
     ))
     database = _Database()
-    positions = {"rights": 15, "quality_digest": 18, "events": 22,
+    positions = {"rights": 15, "quality_digest": 18, "events": 22, "fingerprint": 14,
                  "review_head": 25, "review_blob": 13,
                  "attestation_digest": 31}
     changed = list(database.attestations[0])
     changed[positions[column]] = {
         "rights": "usage_interne", "quality_digest": "", "events": [],
         "review_head": "f" * 40, "review_blob": "e" * 40,
+        "fingerprint": "0" * 64,
         "attestation_digest": "0" * 64,
     }[column]
     database.attestations = [tuple(changed)]
@@ -373,6 +554,15 @@ def test_real_a_derives_exact_public_lot42_population(tmp_path: Path) -> None:
     assert len({key[1] for key in placements}) == 253
     assert len({key[0] for key in placements}) == 11
     assert inventory_sha == content.candidate_inventory_sha256
-    assert {facts[2] for facts in placements.values()} == {
-        content.artifact_registry_sha256,
+    expected_fingerprints = {
+        path.stem.removesuffix(".release"): json.loads(path.read_bytes())["profile"]["fingerprint"]
+        for path in (release / "profile_gate/subjects").glob("*.release.json")
     }
+    assert len(expected_fingerprints) == 11
+    assert {facts[2] for (collection, _, _), facts in placements.items()} == set(
+        expected_fingerprints.values()
+    )
+    assert all(
+        facts[2] == expected_fingerprints[collection]
+        for (collection, _, _), facts in placements.items()
+    )

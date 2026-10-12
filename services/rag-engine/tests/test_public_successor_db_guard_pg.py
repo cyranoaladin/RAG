@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import psycopg
 import pytest
+from nexus_contracts.trusted_review_evidence import SealedTrustedReviewEvidenceV1
 from psycopg.types.json import Jsonb
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
@@ -64,7 +65,7 @@ REVIEW_BINDING = (
 )
 
 
-def _verdict() -> SimpleNamespace:
+def _verdict(authorization_review_binding: tuple[object, ...]) -> SimpleNamespace:
     return SimpleNamespace(
         release_id=RELEASE_ID,
         content_manifest_sha256=MANIFEST,
@@ -73,6 +74,7 @@ def _verdict() -> SimpleNamespace:
         authorization_review_evidence_by_id=((
             COLLECTION, AUTORISATION_DE_TEST, SHA, REVIEW_DIGEST,
         ),),
+        authorization_review_binding=authorization_review_binding,
         transfer_manifest_sha256=TRANSFER,
         publication_batch_review_id=REVIEW_ID,
         publication_batch_review_digest=REVIEW_DIGEST,
@@ -116,6 +118,28 @@ def test_public_lot42_real_schema_and_post_startup_invalidation(
         "media_type": "text/plain; charset=utf-8",
     }
     now = datetime.now(UTC)
+    sealed = SealedTrustedReviewEvidenceV1(
+        protocol_version="NEXUS-SEALED-TRUSTED-REVIEW-EVIDENCE-V1",
+        repository="cyranoaladin/RAG", pull_request=327,
+        pull_request_base_ref="main", pull_request_base_sha="a" * 40,
+        pull_request_head_sha="b" * 40, pull_request_author="cyranoaladin",
+        authorization_id=AUTORISATION_DE_TEST,
+        artifact_path=f"governance/authorizations/{AUTORISATION_DE_TEST}.json",
+        artifact_sha256=SHA, artifact_blob_sha="d" * 40,
+        reviewer="abenrhouma", review_id=123, review_node_id="PRR_fixture",
+        review_submitted_at=now - timedelta(hours=1),
+        challenge_protocol="NEXUS-TRUSTED-REVIEW-V1",
+        challenge="NEXUS-TRUSTED-REVIEW-V1:" + "0" * 64,
+        head_pinned_status="success", head_pinned_context="trusted-human-review/head-pinned",
+        recorded_at=now, recorder_version="test/ADR-0058",
+    )
+    sealed = sealed.model_copy(update={"challenge": sealed.expected_challenge()})
+    authorization_review_binding = (
+        sealed.repository, sealed.pull_request, sealed.pull_request_base_ref,
+        sealed.pull_request_base_sha, sealed.pull_request_head_sha,
+        sealed.pull_request_author, sealed.reviewer, sealed.review_id,
+        sealed.challenge, sealed.canonical_document()["review_submitted_at"],
+    )
     with psycopg.connect(superuser_dsn(pg)) as conn:
         conn.execute(
             "UPDATE ingestion_control.artifacts SET payload = %s "
@@ -124,10 +148,17 @@ def test_public_lot42_real_schema_and_post_startup_invalidation(
         conn.execute(
             "UPDATE ingestion_control.scope_authorizations SET "
             "authorization_digest = %s, review_evidence = %s, "
-            "review_evidence_digest = %s, valid_from = %s, valid_until = %s "
+            "review_evidence_digest = %s, valid_from = %s, valid_until = %s, "
+            "evidence_repository = %s, evidence_pull_request = %s, "
+            "evidence_base_sha = %s, evidence_head_sha = %s, "
+            "evidence_reviewer = %s, evidence_review_id = %s, "
+            "evidence_challenge = %s, artifact_path = %s, artifact_blob_sha = %s "
             "WHERE authorization_id = %s",
-            (SHA, Jsonb({"protocol_version": "NEXUS-SEALED-TRUSTED-REVIEW-EVIDENCE-V1"}),
-             REVIEW_DIGEST, now - timedelta(minutes=1), now + timedelta(minutes=5),
+            (SHA, Jsonb(sealed.canonical_document()), sealed.digest(),
+             now - timedelta(minutes=1), now + timedelta(minutes=5),
+             sealed.repository, sealed.pull_request, sealed.pull_request_base_sha,
+             sealed.pull_request_head_sha, sealed.reviewer, sealed.review_id,
+             sealed.challenge, sealed.artifact_path, sealed.artifact_blob_sha,
              AUTORISATION_DE_TEST),
         )
         facts = measure_release_batch_facts(conn, release_id=RELEASE_ID)
@@ -179,7 +210,7 @@ def test_public_lot42_real_schema_and_post_startup_invalidation(
             "artifact_transfer_manifest_sha256": facts.artifact_transfer_manifest_sha256,
             "release_batch_review_digest": REVIEW_DIGEST,
         })
-        verdict = _verdict()
+        verdict = _verdict(authorization_review_binding)
         require_public_successor_startup_lot42(conn, verdict, tmp_path)
         require_public_successor_live_controls(conn, verdict)
         conn.execute(

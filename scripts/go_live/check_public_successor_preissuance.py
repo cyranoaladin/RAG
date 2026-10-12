@@ -8,6 +8,7 @@ publication et ne remplace pas la revue exacte de politique ADR-0064.
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -100,6 +101,40 @@ def _require_cas_index_matches(private_cas_root: Path, expected_sha256: str) -> 
         raise PreissuanceError("private CAS index differs")
 
 
+def _historical_cas_as_of(
+    private_cas_root: Path, expected_index_sha256: str,
+    now_utc: datetime, original_expiry: datetime,
+) -> datetime:
+    """Relire l'instant A1 scellé ; A2 ne renouvelle pas l'ancien reçu CAS."""
+    _require_cas_index_matches(private_cas_root, expected_index_sha256)
+    try:
+        index = _read(private_cas_root / "index.json", expected_index_sha256)
+        refs = index.get("files")
+        matching = [
+            row for row in refs if isinstance(row, dict)
+            and row.get("path") == "reports/source_currentness.json"
+        ] if isinstance(refs, list) else []
+        if len(matching) != 1:
+            raise PreissuanceError("historical CAS currentness report reference missing")
+        ref = matching[0]
+        path = private_cas_root / "reports/source_currentness.json"
+        raw = path.read_bytes()
+        if (path.is_symlink() or len(raw) != ref.get("byte_count")
+                or hashlib.sha256(raw).hexdigest() != ref.get("sha256")):
+            raise PreissuanceError("historical CAS currentness report digest differs")
+        report = json.loads(raw)
+        stamp = report.get("attested_at_utc") if isinstance(report, dict) else None
+        if not isinstance(stamp, str) or not stamp.endswith("Z"):
+            raise PreissuanceError("historical CAS timestamp invalid")
+        as_of = datetime.fromisoformat(stamp)
+    except (ContentAnchorError, OSError, UnicodeError, ValueError, TypeError) as error:
+        raise PreissuanceError("historical CAS report invalid") from error
+    if (as_of.tzinfo is None or as_of.utcoffset() != UTC.utcoffset(as_of)
+            or as_of > now_utc or as_of >= original_expiry):
+        raise PreissuanceError("historical CAS timestamp outside original window")
+    return as_of
+
+
 def verify_preissuance_authority(
     anchor_path: Path, anchor_sha256: str, manifest_sha256: str,
     receipt_path: Path, receipt_sha256: str, repository_root: Path,
@@ -155,6 +190,7 @@ def verify_preissuance_authority(
         raise PreissuanceError("currentness expiry invalid") from error
     if expires.tzinfo is None or expires.utcoffset() != UTC.utcoffset(expires):
         raise PreissuanceError("currentness expiry must be UTC aware")
+    original_expiry = expires
     if temporal_authority_raw is None:
         if anchor_sha256 == APPROVED_A1_ANCHOR_SHA256:
             raise PreissuanceError("A2 temporal authority required for this public release")
@@ -168,11 +204,18 @@ def verify_preissuance_authority(
             )
         except (PublicSuccessorTemporalError, ValueError, OSError) as error:
             raise PreissuanceError("A2 temporal authority invalid") from error
-    _require_cas_index_matches(private_cas_root, receipt["private_cas_index_sha256"])
+    cas_as_of = None
+    if temporal_authority_raw is None:
+        _require_cas_index_matches(private_cas_root, receipt["private_cas_index_sha256"])
+    else:
+        cas_as_of = _historical_cas_as_of(
+            private_cas_root, receipt["private_cas_index_sha256"], now_utc,
+            original_expiry,
+        )
     try:
         replay = inspect_content_preparation(
             path, manifest_sha256, private_cas_root=private_cas_root,
-            repository_root=root,
+            repository_root=root, cas_as_of=cas_as_of,
         )
     except (ContentAnchorError, OSError) as error:
         raise PreissuanceError("private CAS or GitHub review replay refused") from error

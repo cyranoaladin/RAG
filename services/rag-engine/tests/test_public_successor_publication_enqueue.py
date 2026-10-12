@@ -99,19 +99,34 @@ def test_live_target_pin_refusal_prevents_enqueue(monkeypatch: pytest.MonkeyPatc
     assert pin_checks == [1]
 
 
+class _JobLookup:
+    def __init__(self, *, existing: UUID | None = None) -> None:
+        self.existing = existing
+        self.queries: list[tuple[str, tuple[object, ...]]] = []
+
+    def execute(self, query: str, params: tuple[object, ...]) -> _JobLookup:
+        self.queries.append((query, params))
+        return self
+
+    def fetchone(self) -> tuple[UUID] | None:
+        return (self.existing,) if self.existing is not None else None
+
+
 def test_exact_lot42_row_creates_one_publication_job() -> None:
     row = _row()
     created: list[dict[str, object]] = []
+    conn = _JobLookup()
 
     def create(_conn: object, **kwargs: object) -> tuple[UUID, bool]:
         created.append(kwargs)
         return UUID(int=999), True
 
     result = enqueue.enqueue_public_successor_jobs(
-        object(), [row], facts=_facts(), collections={COLLECTION},
+        conn, [row], facts=_facts(), collections={COLLECTION},
         expected_placements=1, find_or_create_job=create,
     )
     assert result == 1
+    assert len(conn.queries) == 1
     assert created == [{
         "run_id": row[5], "collection": COLLECTION,
         "job_type": "publication_resume",
@@ -156,7 +171,32 @@ def test_population_drift_refuses_before_any_job(mutation: str) -> None:
 def test_existing_job_refuses_transaction() -> None:
     with pytest.raises(ValueError, match="already exists"):
         enqueue.enqueue_public_successor_jobs(
-            object(), [_row()], facts=_facts(), collections={COLLECTION},
+            _JobLookup(), [_row()], facts=_facts(), collections={COLLECTION},
             expected_placements=1,
             find_or_create_job=lambda *_args, **_kwargs: (UUID(int=999), False),
         )
+
+
+def test_terminal_job_for_later_attestation_refuses_before_first_insert() -> None:
+    rows = [_row(1), _row(2)]
+    facts = SimpleNamespace(par_ressource={
+        row[1]: (row[2], row[3], row[4], "authorization") for row in rows
+    })
+    conn = _JobLookup(existing=UUID(int=999))
+    created: list[object] = []
+
+    def create(*_args: object, **_kwargs: object) -> tuple[UUID, bool]:
+        created.append(1)
+        return UUID(int=888), True
+
+    with pytest.raises(ValueError, match="already exists"):
+        enqueue.enqueue_public_successor_jobs(
+            conn, rows, facts=facts, collections={COLLECTION},
+            expected_placements=2, find_or_create_job=create,
+        )
+
+    assert created == []
+    assert len(conn.queries) == 1
+    query, params = conn.queries[0]
+    assert "status" not in query.lower()
+    assert str(rows[1][0]) in str(params)
