@@ -25,7 +25,7 @@ COMPANIONS = frozenset({
 })
 
 
-def _inputs(tmp_path: Path) -> tuple[dict[str, Path], dict[str, Path]]:
+def _inputs(tmp_path: Path) -> tuple[dict[str, Path], dict[str, Path], dict[str, Path]]:
     source = tmp_path / "source"
     source.mkdir()
     authorities = {}
@@ -43,15 +43,27 @@ def _inputs(tmp_path: Path) -> tuple[dict[str, Path], dict[str, Path]]:
         path = source / name
         path.write_text(json.dumps({"name": name}) + "\n", encoding="utf-8")
         companions[name] = path
-    return authorities, companions
+    scopes = {}
+    rows = []
+    for number in range(11):
+        scope_id = f"student_public_test_{number}_v1"
+        relative = f"scopes/{scope_id}.json"
+        path = source / f"{scope_id}.json"
+        path.write_text(json.dumps({"scope_id": scope_id}) + "\n", encoding="utf-8")
+        scopes[relative] = path
+        rows.append({"resource": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    registry = source / "scope-registry.json"
+    registry.write_text(json.dumps({"scopes": rows}, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+    authorities["public_scope_authority_sha256"] = registry
+    return authorities, companions, scopes
 
 
 def test_assembly_copies_exact_proof_bytes_and_never_claims_activation(tmp_path: Path) -> None:
-    authorities, companions = _inputs(tmp_path)
+    authorities, companions, scopes = _inputs(tmp_path)
     output = tmp_path / "bundle"
     result = assemble_a2_bundle(
         anchor_path=ANCHOR, release_root=RELEASE, evidence_paths=authorities,
-        companion_paths=companions, output_root=output,
+        companion_paths=companions, scope_paths=scopes, output_root=output,
     )
     envelope_raw = (output / "authority-envelope.json").read_bytes()
     envelope = json.loads(envelope_raw)
@@ -68,6 +80,8 @@ def test_assembly_copies_exact_proof_bytes_and_never_claims_activation(tmp_path:
         assert envelope["authorities"][field] == hashlib.sha256(copied).hexdigest()
     for name, source in companions.items():
         assert (output / "authorities" / name).read_bytes() == source.read_bytes()
+    for name, source in scopes.items():
+        assert (output / name).read_bytes() == source.read_bytes()
     assert (output / "content-anchor.json").read_bytes() == ANCHOR.read_bytes()
     assert (output / "release/preparation-index.json").read_bytes() == (
         RELEASE / "preparation-index.json"
@@ -75,19 +89,19 @@ def test_assembly_copies_exact_proof_bytes_and_never_claims_activation(tmp_path:
 
 
 def test_assembly_refuses_missing_proof_without_partial_bundle(tmp_path: Path) -> None:
-    authorities, companions = _inputs(tmp_path)
+    authorities, companions, scopes = _inputs(tmp_path)
     authorities.pop("temporal_c_attestation_sha256")
     output = tmp_path / "bundle"
     with pytest.raises(AssemblyRefused, match="26"):
         assemble_a2_bundle(
             anchor_path=ANCHOR, release_root=RELEASE, evidence_paths=authorities,
-            companion_paths=companions, output_root=output,
+            companion_paths=companions, scope_paths=scopes, output_root=output,
         )
     assert not output.exists()
 
 
 def test_assembly_refuses_symlink_or_replacement(tmp_path: Path) -> None:
-    authorities, companions = _inputs(tmp_path)
+    authorities, companions, scopes = _inputs(tmp_path)
     field = "temporal_c_attestation_sha256"
     original = authorities[field]
     link = tmp_path / "proof-link"
@@ -97,7 +111,7 @@ def test_assembly_refuses_symlink_or_replacement(tmp_path: Path) -> None:
     with pytest.raises(AssemblyRefused, match="symlink"):
         assemble_a2_bundle(
             anchor_path=ANCHOR, release_root=RELEASE, evidence_paths=authorities,
-            companion_paths=companions, output_root=output,
+            companion_paths=companions, scope_paths=scopes, output_root=output,
         )
     assert not output.exists()
     authorities[field] = original
@@ -106,13 +120,13 @@ def test_assembly_refuses_symlink_or_replacement(tmp_path: Path) -> None:
     with pytest.raises(AssemblyRefused, match="exists"):
         assemble_a2_bundle(
             anchor_path=ANCHOR, release_root=RELEASE, evidence_paths=authorities,
-            companion_paths=companions, output_root=output,
+            companion_paths=companions, scope_paths=scopes, output_root=output,
         )
     assert (output / "valuable.json").read_text() == "keep me"
 
 
 def test_assembly_refuses_foreign_release_file(tmp_path: Path) -> None:
-    authorities, companions = _inputs(tmp_path)
+    authorities, companions, scopes = _inputs(tmp_path)
     release = tmp_path / "release"
     shutil.copytree(RELEASE, release)
     (release / "document.pdf").write_bytes(b"%PDF foreign")
@@ -124,12 +138,12 @@ def test_assembly_refuses_foreign_release_file(tmp_path: Path) -> None:
     with pytest.raises(AssemblyRefused, match="foreign"):
         assemble_a2_bundle(
             anchor_path=ANCHOR, release_root=release, evidence_paths=authorities,
-            companion_paths=companions, output_root=tmp_path / "bundle",
+            companion_paths=companions, scope_paths=scopes, output_root=tmp_path / "bundle",
         )
 
 
 def test_assembly_refuses_output_nested_in_immutable_release(tmp_path: Path) -> None:
-    authorities, companions = _inputs(tmp_path)
+    authorities, companions, scopes = _inputs(tmp_path)
     release = tmp_path / "release"
     shutil.copytree(RELEASE, release)
     authorities["source_preparation_release_manifest_sha256"] = (
@@ -140,16 +154,17 @@ def test_assembly_refuses_output_nested_in_immutable_release(tmp_path: Path) -> 
     with pytest.raises(AssemblyRefused, match="overlaps"):
         assemble_a2_bundle(
             anchor_path=ANCHOR, release_root=release, evidence_paths=authorities,
-            companion_paths=companions, output_root=release / "C-bundle",
+            companion_paths=companions, scope_paths=scopes, output_root=release / "C-bundle",
         )
     assert not (release / "C-bundle").exists()
 
 
 def test_cli_rejects_duplicate_evidence_map_keys(tmp_path: Path) -> None:
-    authorities, companions = _inputs(tmp_path)
+    authorities, companions, scopes = _inputs(tmp_path)
     mapping = {
         "authorities": {key: str(value) for key, value in authorities.items()},
         "companions": {key: str(value) for key, value in companions.items()},
+        "scopes": {key: str(value) for key, value in scopes.items()},
     }
     raw = json.dumps(mapping).replace('"authorities":', '"authorities": {}, "authorities":', 1)
     path = tmp_path / "evidence-map.json"
@@ -159,4 +174,25 @@ def test_cli_rejects_duplicate_evidence_map_keys(tmp_path: Path) -> None:
         "--anchor", str(ANCHOR), "--release-root", str(RELEASE),
         "--evidence-map", str(path), "--output-root", str(output),
     ]) == 1
+    assert not output.exists()
+
+
+def test_assembly_refuses_missing_or_changed_scope(tmp_path: Path) -> None:
+    authorities, companions, scopes = _inputs(tmp_path)
+    output = tmp_path / "bundle"
+    missing = dict(scopes)
+    missing.pop(next(iter(missing)))
+    with pytest.raises(AssemblyRefused, match="scope"):
+        assemble_a2_bundle(
+            anchor_path=ANCHOR, release_root=RELEASE, evidence_paths=authorities,
+            companion_paths=companions, scope_paths=missing, output_root=output,
+        )
+    assert not output.exists()
+    first = next(iter(scopes.values()))
+    first.write_text("substituted\n")
+    with pytest.raises(AssemblyRefused, match="scope"):
+        assemble_a2_bundle(
+            anchor_path=ANCHOR, release_root=RELEASE, evidence_paths=authorities,
+            companion_paths=companions, scope_paths=scopes, output_root=output,
+        )
     assert not output.exists()

@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import tempfile
@@ -25,6 +26,7 @@ from nexus_release_chain.release_readiness import _PUBLIC_SUCCESSOR_A2_AUTHORITY
 COMPANION_FILES = frozenset({
     "observed-transfer-v1.json", "target-pin.json", "scope-policy.yml", "scope-names.yml",
 })
+SCOPE_RESOURCE = re.compile(r"scopes/student_public_[a-z0-9_]+_v1\.json\Z")
 
 
 class AssemblyRefused(ValueError):
@@ -107,6 +109,7 @@ def _require_release_tree(release_root: Path, anchor: dict[str, object]) -> None
 def assemble_a2_bundle(
     *, anchor_path: Path, release_root: Path,
     evidence_paths: dict[str, Path], companion_paths: dict[str, Path],
+    scope_paths: dict[str, Path],
     output_root: Path,
 ) -> dict[str, object]:
     if set(evidence_paths) != _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS:
@@ -135,6 +138,31 @@ def assemble_a2_bundle(
         raise AssemblyRefused("immutable A replay refused") from error
     proof_bytes = {field: _require_regular(path) for field, path in evidence_paths.items()}
     companion_bytes = {name: _require_regular(path) for name, path in companion_paths.items()}
+    try:
+        registry_raw = proof_bytes["public_scope_authority_sha256"]
+        registry = json.loads(registry_raw, object_pairs_hook=_unique_object)
+        if canonical_bytes(registry) != registry_raw:
+            raise AssemblyRefused("scope registry is not canonical")
+        rows = registry["scopes"]
+        if not isinstance(rows, list) or len(rows) != 11:
+            raise AssemblyRefused("scope registry population differs")
+        expected_scopes: dict[str, str] = {}
+        for row in rows:
+            resource = row["resource"]
+            digest = row["sha256"]
+            if (not isinstance(resource, str) or SCOPE_RESOURCE.fullmatch(resource) is None
+                    or not isinstance(digest, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+                    or resource in expected_scopes):
+                raise AssemblyRefused("scope registry resource invalid")
+            expected_scopes[resource] = digest
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise AssemblyRefused("scope registry invalid") from error
+    if set(scope_paths) != set(expected_scopes):
+        raise AssemblyRefused("scope file population differs from B registry")
+    scope_bytes = {resource: _require_regular(path) for resource, path in scope_paths.items()}
+    if any(_sha(raw) != expected_scopes[resource] for resource, raw in scope_bytes.items()):
+        raise AssemblyRefused("scope bytes differ from B registry")
     anchored = {
         "source_preparation_release_manifest_sha256":
             "profile_gate/production-profile-gate.release.json",
@@ -168,6 +196,9 @@ def assemble_a2_bundle(
         )
         for name, raw in sorted(companion_bytes.items()):
             (authorities_root / name).write_bytes(raw)
+        (staged / "scopes").mkdir()
+        for resource, raw in sorted(scope_bytes.items()):
+            (staged / resource).write_bytes(raw)
         envelope = build_authority_envelope(
             staged / "content-anchor.json", _sha(anchor_raw), staged_evidence,
             authority_version="A2",
@@ -202,18 +233,20 @@ def main(argv: list[str] | None = None) -> int:
     try:
         mapping_raw = _require_regular(args.evidence_map)
         mapping = json.loads(mapping_raw, object_pairs_hook=_unique_object)
-        if not isinstance(mapping, dict) or set(mapping) != {"authorities", "companions"}:
-            raise AssemblyRefused("evidence map must name authorities and companions")
+        if not isinstance(mapping, dict) or set(mapping) != {"authorities", "companions", "scopes"}:
+            raise AssemblyRefused("evidence map must name authorities, companions and scopes")
         authorities = mapping["authorities"]
         companions = mapping["companions"]
-        if not isinstance(authorities, dict) or not isinstance(companions, dict):
+        scopes = mapping["scopes"]
+        if not isinstance(authorities, dict) or not isinstance(companions, dict) or not isinstance(scopes, dict):
             raise AssemblyRefused("evidence map sections invalid")
-        if not all(isinstance(value, str) for value in (*authorities.values(), *companions.values())):
+        if not all(isinstance(value, str) for value in (*authorities.values(), *companions.values(), *scopes.values())):
             raise AssemblyRefused("evidence map paths invalid")
         result = assemble_a2_bundle(
             anchor_path=args.anchor, release_root=args.release_root,
             evidence_paths={key: Path(value) for key, value in authorities.items()},
             companion_paths={key: Path(value) for key, value in companions.items()},
+            scope_paths={key: Path(value) for key, value in scopes.items()},
             output_root=args.output_root,
         )
     except (AssemblyRefused, ValueError, OSError) as error:
