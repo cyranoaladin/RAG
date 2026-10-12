@@ -109,6 +109,7 @@ def test_publication_signer_names_private_source_pulse_roots() -> None:
     assert "--public-successor-source-fresh-root" in options
     assert "--public-successor-lot42-review-pr" in options
     assert "--public-successor-lot42-reviewed-head" in options
+    assert "--public-successor-lot42-historical-receipt-path" in options
     assert "--public-successor-lot41a-material-root" in options
 
 
@@ -177,6 +178,51 @@ def test_live_lot42_requires_approved_open_head_and_exact_reviewed_blob(
     ))
     with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
         replay._verified_live_lot42_review_binding(inputs, artifact, digest)
+
+
+def test_lot42_evaluator_is_derived_only_from_reviewed_receipt() -> None:
+    reviewed = SimpleNamespace(
+        provenance_note="release. Public successor evidence: "
+        "A2_SHA256=" + "a" * 64 + "; TRANSFER_SHA256=" + "b" * 64 +
+        "; PROJECTION_SHA256=" + "c" * 64 + "; EVALUATOR=automated:Codex/LOT42."
+    )
+    assert replay._lot42_review_evaluator(reviewed) == "automated:Codex/LOT42"
+    reviewed.provenance_note = "release. EVALUATOR=unbound."
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
+        replay._lot42_review_evaluator(reviewed)
+
+
+def test_lot42_review_mode_follows_live_pr_state_not_operator_choice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reviewed = SimpleNamespace(
+        review_id="lot42", canonical_bytes=lambda: b"review",
+        digest=lambda: hashlib.sha256(b"review").hexdigest(),
+    )
+    inputs = SimpleNamespace(
+        repository_root=ROOT, lot42_review_pr=444,
+        lot42_reviewed_head="b" * 40,
+        lot42_historical_receipt_path=tmp_path / "historical.json",
+    )
+    expected = ("a" * 40, "b" * 40, "c" * 40, 5,
+                "NEXUS-TRUSTED-REVIEW-V1:" + "d" * 64, "abenrhouma")
+    pr300 = SimpleNamespace(_read_gh=lambda *_: {"state": "open", "merged": False})
+    historical = SimpleNamespace(check_historical_lot42_receipt=lambda *_: expected)
+    monkeypatch.setattr(replay, "_checkout_module", lambda name: {
+        "pr300_authority_receipt": pr300,
+        "historical_lot42_review_receipt": historical,
+    }[name])
+    monkeypatch.setattr(replay, "_verified_live_lot42_review_binding", lambda *_: expected)
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="OPEN"):
+        replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest())
+    pr300._read_gh = lambda *_: {"state": "closed", "merged": True}
+    assert replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest()) == expected
+    inputs.lot42_historical_receipt_path = None
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="historical"):
+        replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest())
+    pr300._read_gh = lambda *_: {"state": "closed", "merged": False}
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="not merged"):
+        replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest())
 
 
 def test_staging_publication_replay_refusal_precedes_key_read(
@@ -275,6 +321,7 @@ def test_production_v2_parser_requires_explicit_successor_bundle() -> None:
     assert "--public-successor-lot41a-material-root" in options
     assert "--public-successor-lot42-review-pr" in options
     assert "--public-successor-lot42-reviewed-head" in options
+    assert "--public-successor-lot42-historical-receipt-path" in options
 
 
 def test_verified_target_pin_uses_historical_authority_and_exact_bytes(

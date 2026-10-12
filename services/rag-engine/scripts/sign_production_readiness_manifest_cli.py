@@ -906,6 +906,7 @@ def _build_v2_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--public-successor-lot41a-material-root", type=Path)
     p.add_argument("--public-successor-lot42-review-pr", type=int)
     p.add_argument("--public-successor-lot42-reviewed-head")
+    p.add_argument("--public-successor-lot42-historical-receipt-path", type=Path)
     p.add_argument("--workflow-path", default=None)
     p.add_argument("--workflow-ref", required=True)
     p.add_argument("--run-id", type=int, required=True)
@@ -1704,6 +1705,7 @@ def _main_v2(argv: list[str]) -> int:
             args.public_successor_lot41a_material_root,
             args.public_successor_lot42_review_pr,
             args.public_successor_lot42_reviewed_head,
+            args.public_successor_lot42_historical_receipt_path,
         )
         if args.public_successor_bundle_root is None:
             if any(value is not None for value in public_inputs):
@@ -1762,6 +1764,7 @@ def _main_v2(argv: list[str]) -> int:
                         lot41a_material_root=args.public_successor_lot41a_material_root,
                         lot42_review_pr=args.public_successor_lot42_review_pr,
                         lot42_reviewed_head=args.public_successor_lot42_reviewed_head,
+                        lot42_historical_receipt_path=args.public_successor_lot42_historical_receipt_path,
                     )
                 public_publication = replay_public_successor_publication(
                     publication_inputs,

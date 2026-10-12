@@ -56,6 +56,7 @@ class PublicationSigningInputs:
     lot41a_material_root: Path | None = None
     lot42_review_pr: int | None = None
     lot42_reviewed_head: str | None = None
+    lot42_historical_receipt_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -344,6 +345,62 @@ def _verified_live_lot42_review_binding(
     return (live.base_sha, head, tree, live.review_id, live.challenge, live.reviewer)
 
 
+def _verified_lot42_review_binding(
+    inputs: PublicationSigningInputs, review: object, expected_digest: str,
+) -> tuple[str, str, str, int, str, str]:
+    """Choisir OPEN ou merged depuis GitHub, jamais depuis un flag opérateur."""
+    number = inputs.lot42_review_pr
+    head = inputs.lot42_reviewed_head
+    raw = review.canonical_bytes()  # type: ignore[attr-defined]
+    if (type(number) is not int or number <= 0
+            or not isinstance(head, str) or re.fullmatch(r"[0-9a-f]{40}", head) is None
+            or not isinstance(raw, bytes) or _sha(raw) != expected_digest
+            or review.digest() != expected_digest):  # type: ignore[attr-defined]
+        raise PublicationSigningReplayRefused("LOT42 exact PR/head/blob absent")
+    pr = _checkout_module("pr300_authority_receipt")._read_gh(
+        f"repos/cyranoaladin/RAG/pulls/{number}"
+    )
+    if not isinstance(pr, dict):
+        raise PublicationSigningReplayRefused("LOT42 GitHub PR state unavailable")
+    historical_path = inputs.lot42_historical_receipt_path
+    if pr.get("state") == "open" and pr.get("merged") is False:
+        if historical_path is not None:
+            raise PublicationSigningReplayRefused("LOT42 OPEN PR cannot use historical receipt")
+        return _verified_live_lot42_review_binding(inputs, review, expected_digest)
+    if pr.get("state") != "closed" or pr.get("merged") is not True:
+        raise PublicationSigningReplayRefused("LOT42 PR not merged or OPEN")
+    if historical_path is None:
+        raise PublicationSigningReplayRefused("LOT42 historical receipt absent")
+    from nexus_contracts.authority_artifacts import canonical_publication_review_path  # noqa: PLC0415
+
+    path = canonical_publication_review_path(
+        review_id=review.review_id, digest=expected_digest,  # type: ignore[attr-defined]
+    )
+    binding = _checkout_module("historical_lot42_review_receipt").check_historical_lot42_receipt(
+        inputs.repository_root, historical_path, number, path, raw,
+    )
+    if (not isinstance(binding, tuple) or len(binding) != 6
+            or binding[1] != head or binding[5] != "abenrhouma"):
+        raise PublicationSigningReplayRefused("LOT42 historical binding differs from C")
+    return binding
+
+
+def _lot42_review_evaluator(review: object) -> str:
+    """Extraire l'exécutant scellé ; la reconstitution valide toute la note."""
+    note = review.provenance_note  # type: ignore[attr-defined]
+    if not isinstance(note, str):
+        raise PublicationSigningReplayRefused("LOT42 reviewed evaluator absent")
+    match = re.search(
+        r"Public successor evidence: A2_SHA256=[0-9a-f]{64}; "
+        r"TRANSFER_SHA256=[0-9a-f]{64}; PROJECTION_SHA256=[0-9a-f]{64}; "
+        r"EVALUATOR=([^\s;]{1,128})\.$",
+        note,
+    )
+    if match is None:
+        raise PublicationSigningReplayRefused("LOT42 reviewed evaluator absent")
+    return match.group(1)
+
+
 def _verify_live_publication(
     inputs: PublicationSigningInputs,
     request: PublicSuccessorLiveVerificationRequest,
@@ -358,6 +415,15 @@ def _verify_live_publication(
 
     from ingestor.ingestion_control.github_authority import (  # noqa: PLC0415
         load_trusted_reviewers,
+    )
+    from ingestor.ingestion_control.public_successor_batch_proposal import (  # noqa: PLC0415
+        build_public_successor_batch_projections,
+        load_public_successor_batch_source,
+        require_reviewed_public_successor_batch,
+    )
+    from ingestor.ingestion_control.release_batch_attestation import (  # noqa: PLC0415
+        measure_release_batch_facts,
+        require_public_successor_batch_matches_release,
     )
     from ingestor.ingestion_control.scope_authority import (  # noqa: PLC0415
         verify_scope_authorization,
@@ -452,10 +518,20 @@ def _verify_live_publication(
             or target.content_anchor_sha256 != content.content_anchor_sha256
             or target.release_id != content.release_id):
         raise PublicationSigningReplayRefused("qualified target differs from C")
-    binding = _verified_live_lot42_review_binding(
+    binding = _verified_lot42_review_binding(
         inputs, request.publication_batch_review,
         authorities["publication_batch_review_receipt_sha256"],
     )
+    evaluator = _lot42_review_evaluator(request.publication_batch_review)
+    source = load_public_successor_batch_source(
+        release_root=root / "release", anchor_path=root / "content-anchor.json",
+        anchor_sha256=content.content_anchor_sha256,
+        a2_path=root / "authorities/temporal_a2_authority_sha256.bin",
+        transfer_manifest_sha256=target.plan_sha256,
+        now_utc=datetime.now(UTC),
+    )
+    if source.a2_sha256 != authorities["temporal_a2_authority_sha256"]:
+        raise PublicationSigningReplayRefused("LOT42 A2 source differs from C")
     expected_reviews = tuple(sorted((
         str(member.scope.collection), member.authorization_id,
         member.authorization_digest, member.review_binding_digest,
@@ -487,6 +563,10 @@ def _verify_live_publication(
         publication_batch_review_binding=binding,
     )
     observed_auth_ids: list[str] = []
+    auth_by_collection = {
+        str(member.scope.collection): member.authorization_id
+        for member in request.authorization_set.members
+    }
     with psycopg.connect(
         inputs.database_dsn, options="-c default_transaction_read_only=on",
     ) as conn:
@@ -499,6 +579,20 @@ def _verify_live_publication(
                     or observed.authorization_id != member.authorization_id):
                 raise PublicationSigningReplayRefused("live LOT41A DB row differs from C")
             observed_auth_ids.append(observed.authorization_id)
+        facts = measure_release_batch_facts(conn, release_id=content.release_id)
+        require_public_successor_batch_matches_release(
+            facts, source.release, auth_by_collection,
+        )
+        _projections, projection_digest = build_public_successor_batch_projections(
+            source, facts, evaluator=evaluator, now_utc=datetime.now(UTC),
+        )
+        require_reviewed_public_successor_batch(
+            request.publication_batch_review, facts=facts,
+            a2_sha256=source.a2_sha256, a2_valid_until=source.a2_valid_until,
+            transfer_sha256=target.plan_sha256,
+            projection_digest=projection_digest,
+            evaluator=evaluator, now_utc=datetime.now(UTC),
+        )
         require_public_successor_live_controls(conn, expected)
         revocations_at = datetime.now(UTC)
         lot42_count = require_public_successor_startup_lot42(conn, expected, root)

@@ -218,6 +218,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--public-successor-lot41a-material-root", type=Path)
     parser.add_argument("--public-successor-lot42-review-pr", type=int)
     parser.add_argument("--public-successor-lot42-reviewed-head")
+    parser.add_argument("--public-successor-lot42-historical-receipt-path", type=Path)
     parser.add_argument(
         "--show-public-key",
         type=Path,
@@ -339,6 +340,7 @@ def _verify_public_successor_publication_replay(
                 lot41a_material_root=args.public_successor_lot41a_material_root,
                 lot42_review_pr=args.public_successor_lot42_review_pr,
                 lot42_reviewed_head=args.public_successor_lot42_reviewed_head,
+                lot42_historical_receipt_path=args.public_successor_lot42_historical_receipt_path,
             ),
             expected_release_id=args.allowed_release_id,
             expected_manifest_sha256=release_digest,
@@ -424,6 +426,7 @@ def main(argv: list[str] | None = None) -> int:
             args.public_successor_lot41a_material_root,
             args.public_successor_lot42_review_pr,
             args.public_successor_lot42_reviewed_head,
+            args.public_successor_lot42_historical_receipt_path,
         )
         if phase is None:
             _require(all(value is None for value in public_options),
@@ -503,6 +506,7 @@ def main(argv: list[str] | None = None) -> int:
                         lot41a_material_root=args.public_successor_lot41a_material_root,
                         lot42_review_pr=args.public_successor_lot42_review_pr,
                         lot42_reviewed_head=args.public_successor_lot42_reviewed_head,
+                        lot42_historical_receipt_path=args.public_successor_lot42_historical_receipt_path,
                     ),
                     expected_content_anchor_sha256=anchor_sha,
                     expected_pin_sha256=target_pin_sha,
