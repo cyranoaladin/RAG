@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
@@ -225,6 +225,7 @@ def test_public_live_target_delegates_full_v2_replay_and_refuses_bad_digest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from ingestor.ingestion_worker import attest_publication_cli as cli
+    from scripts.go_live import independent_staging_target_pin as pin_module
     from scripts.go_live import qualified_public_text_transfer as canonical
 
     gate = tmp_path / "release/profile_gate"
@@ -236,6 +237,25 @@ def test_public_live_target_delegates_full_v2_replay_and_refuses_bad_digest(
         path = tmp_path / name
         path.write_bytes(name.encode())
         files[name] = path
+    pinned = datetime.now(UTC) - timedelta(minutes=1)
+    destination_stat = tmp_path.stat()
+    pin = {
+        "kind": pin_module.PIN_KIND,
+        "content_anchor_sha256": "b" * 64,
+        "release_id": "student-public-release-test",
+        "target_identity": f"docker:{'9' * 64}",
+        "hostname": "isolated-qualification-host",
+        "host_machine_id_sha256": "e" * 64,
+        "postgres_system_identifier": "123456789",
+        "database_name": "rag_public_isolated",
+        "destination_realpath": str(tmp_path.resolve()),
+        "destination_device": destination_stat.st_dev,
+        "destination_inode": destination_stat.st_ino,
+        "pinned_at_utc": pinned.isoformat().replace("+00:00", "Z"),
+        "expires_at_utc": (pinned + timedelta(hours=1)).isoformat().replace("+00:00", "Z"),
+    }
+    pin_raw = pin_module.canonical(pin)
+    files["pin"].write_bytes(pin_raw)
     args = SimpleNamespace(
         destination_root=tmp_path, release_root=tmp_path / "release",
         transfer_plan_path=files["plan"],
@@ -243,17 +263,28 @@ def test_public_live_target_delegates_full_v2_replay_and_refuses_bad_digest(
         target_pin_path=files["pin"],
         transfer_v2_attestation_path=files["v2"],
         transfer_v2_sha256=sha256(b"v2").hexdigest(),
-        target_pin_sha256="a" * 64,
+        target_pin_sha256=sha256(pin_raw).hexdigest(),
         content_anchor_sha256="b" * 64,
     )
     content = SimpleNamespace(
-        candidate_inventory_sha256="c" * 64, release_id="release-test",
+        candidate_inventory_sha256="c" * 64,
+        release_id="student-public-release-test",
         expected_counts={"unique_artifacts": 253},
     )
     observed: dict[str, object] = {}
+    live = pin_module.LiveTargetObservation(
+        hostname=pin["hostname"], host_machine_id_sha256=pin["host_machine_id_sha256"],
+        container_id="9" * 64, postgres_system_identifier=pin["postgres_system_identifier"],
+        database_name=pin["database_name"], destination_realpath=pin["destination_realpath"],
+        destination_device=pin["destination_device"], destination_inode=pin["destination_inode"],
+    )
+    def observe(**kwargs: object) -> pin_module.LiveTargetObservation:
+        observed["live_probe"] = kwargs
+        return live
     def verify(**kwargs: object) -> SimpleNamespace:
         observed.update(kwargs)
         return SimpleNamespace(file_count=253)
+    monkeypatch.setattr(pin_module, "observe_live_target", observe)
     monkeypatch.setattr(canonical, "verify_qualified_transfer_target", verify)
     monkeypatch.setattr(cli, "get_attestor_dsn", lambda: "isolated-attestor-dsn")
     cli._verify_public_live_target(args, content)
@@ -262,12 +293,75 @@ def test_public_live_target_delegates_full_v2_replay_and_refuses_bad_digest(
     assert observed["candidate_inventory_raw"] == b"inventory"
     assert observed["allowlist_raw"] == b"allowlist"
     assert observed["attestation_raw"] == b"v2"
+    assert observed["live_probe"] == {
+        "container_id": "9" * 64,
+        "destination_root": tmp_path,
+        "database_dsn": "isolated-attestor-dsn",
+    }
+    monkeypatch.setattr(pin_module, "observe_live_target", lambda **_kwargs: replace(
+        live, container_id="8" * 64,
+    ))
+    with pytest.raises(pin_module.PinRefused, match="cible observée différente"):
+        cli._verify_public_live_target(args, content)
+    monkeypatch.setattr(pin_module, "observe_live_target", observe)
+    expired_pin = {**pin, "expires_at_utc": pinned.isoformat().replace("+00:00", "Z")}
+    expired_raw = pin_module.canonical(expired_pin)
+    files["pin"].write_bytes(expired_raw)
+    args.target_pin_sha256 = sha256(expired_raw).hexdigest()
+    with pytest.raises(pin_module.PinRefused, match="hors fenêtre"):
+        cli._verify_public_live_target(args, content)
+    files["pin"].write_bytes(pin_raw)
+    args.target_pin_sha256 = sha256(pin_raw).hexdigest()
     args.transfer_v2_sha256 = "0" * 64
     with pytest.raises(ReleaseBatchAttestationError, match="V2 digest"):
         cli._verify_public_live_target(args, content)
     args.destination_root = Path("relative")
     with pytest.raises(ReleaseBatchAttestationError, match="absolute"):
         cli._verify_public_live_target(args, content)
+
+
+def test_public_commit_recheck_refuses_changed_a2_and_expired_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from nexus_release_chain import public_successor_activation, public_successor_temporal
+
+    from ingestor.ingestion_worker import attest_publication_cli as cli
+
+    a2_path = tmp_path / "a2.json"
+    a2_path.write_bytes(b"A2")
+    now = datetime.now(UTC)
+    expiry = now + timedelta(hours=1)
+    source = SimpleNamespace(
+        a2_sha256=sha256(b"A2").hexdigest(), a2_valid_until=expiry,
+    )
+    args = SimpleNamespace(
+        content_anchor_path=tmp_path / "anchor.json",
+        content_anchor_sha256="a" * 64, release_root=tmp_path,
+        a2_authority_path=a2_path, target_pin_sha256="2" * 64,
+        transfer_v2_sha256="3" * 64, evaluator="automated:Codex/LOT42",
+    )
+    content = SimpleNamespace()
+    monkeypatch.setattr(public_successor_activation, "verify_content_anchor", lambda *_args: content)
+    monkeypatch.setattr(public_successor_temporal, "verify_temporal_authority_preissuance",
+                        lambda *_args, **_kwargs: expiry)
+    calls: list[object] = []
+    monkeypatch.setattr(cli, "_verify_public_live_target", lambda *_args: calls.append(content))
+    facts = _facts()
+    review = build_public_successor_batch_review_artifact(
+        review_id="lot42-public-expired", facts=facts,
+        valid_from=now - timedelta(days=1), valid_until=now - timedelta(minutes=1),
+        a2_sha256=source.a2_sha256, transfer_sha256="4" * 64,
+        target_pin_sha256="2" * 64, transfer_v2_sha256="3" * 64,
+        projection_digest="f" * 64, evaluator=args.evaluator,
+    )
+    a2_path.write_bytes(b"substituted")
+    with pytest.raises(ReleaseBatchAttestationError, match="A2 changed"):
+        cli._recheck_public_commit_window(args, source, facts, review, "4" * 64, "f" * 64)
+    assert calls == []
+    a2_path.write_bytes(b"A2")
+    with pytest.raises(ReleaseBatchAttestationError, match="not currently valid"):
+        cli._recheck_public_commit_window(args, source, facts, review, "4" * 64, "f" * 64)
+    assert calls == [content]
 
 
 def test_in_memory_projection_uses_exact_public_evidence() -> None:
@@ -526,9 +620,12 @@ def test_public_record_rolls_back_projection_on_attestation_conflict(
     assert connection.commits == 0
 
 
-@pytest.mark.parametrize("review_changes", [False, True])
+@pytest.mark.parametrize(
+    ("review_changes", "window_expires"),
+    [(False, False), (True, False), (False, True)],
+)
 def test_public_record_binds_a2_profile_and_rechecks_review_before_commit(
-    monkeypatch: pytest.MonkeyPatch, review_changes: bool,
+    monkeypatch: pytest.MonkeyPatch, review_changes: bool, window_expires: bool,
 ) -> None:
     from ingestor.ingestion_control import sealed_release_projection as projection_module
     from ingestor.ingestion_worker import attest_publication_cli as cli
@@ -584,6 +681,10 @@ def test_public_record_binds_a2_profile_and_rechecks_review_before_commit(
         "gate_passed": True, "gate_name": "public-release",
     })
     monkeypatch.setattr(projection_module, "require_projection_authorises", lambda *_args, **_kwargs: None)
+    def recheck(*_args: object) -> None:
+        if window_expires:
+            raise ReleaseBatchAttestationError("A2 expired before commit")
+    monkeypatch.setattr(cli, "_recheck_public_commit_window", recheck)
     args = SimpleNamespace(
         command="record-public-successor-release-batch-attestation",
         release_id=facts.release_id, review_id=review.review_id,
@@ -602,7 +703,7 @@ def test_public_record_binds_a2_profile_and_rechecks_review_before_commit(
     assert inserts[0]["profile_version"] == "student-public-derivative-v1"
     assert inserts[0]["profile_fingerprint"] == "b" * 64
     assert inserts[0]["manifest_digest"] == "c" * 64
-    if review_changes:
+    if review_changes or window_expires:
         assert result == 1 and connection.rollbacks == 1 and connection.commits == 0
     else:
         assert result == 0 and connection.rollbacks == 0 and connection.commits == 1

@@ -13,7 +13,10 @@ contenu, A2, les sidecars droits/PII/actualité, les 253 descriptions de
 chunks, le plan et les reçus de transfert V1/V2. Il exige le digest V2 et
 rejoue le vérificateur canonique de cible qualifiée depuis l'hôte opérateur :
 machine, PostgreSQL, pin, chemin, inode, 253 textes et leurs reçus sont
-recontrôlés. Il ouvre ensuite **une transaction PostgreSQL read-only**,
+recontrôlés. La sonde indépendante du pin observe aussi le conteneur Docker
+vivant à travers `/var/run/docker.sock` et lie le socket PostgreSQL connecté
+au port publié par **ce même conteneur**, puis compare l'observation complète
+au pin. Il ouvre ensuite **une transaction PostgreSQL read-only**,
 recoupe le nom de DB et son `system_identifier` avec le pin, mesure les 377
 lignes de contrôle, leurs identités de placement et les dix dimensions de
 scope persistées, dont `visibility` et `audience`. Chacune des 11
@@ -37,7 +40,9 @@ ensemble. Tout conflit d'attestation après projection déclenche un rollback.
 Les attestations écrivent les `profile_id`, `profile_version`,
 `profile_fingerprint` et `manifest_digest` exacts des autorisations A2,
 jamais ceux de l'ancienne release V4/V5. La review exacte et le statut requis
-sont relus juste avant le commit ; toute divergence annule la transaction.
+sont relus juste avant le commit ; A2, le pin vivant, les 253 fichiers/reçus
+et les fenêtres temporelles A2/review sont rejoués une seconde fois à cet
+instant. Toute divergence annule la transaction.
 Les lignes existantes de même digest restent idempotentes ; celles d'un autre
 digest sont refusées.
 
@@ -55,7 +60,10 @@ digest sont refusées.
    attestation V2 exacts, `--destination-root` absolu, leurs SHA attendus
    (dont `--target-pin-sha256` et `--transfer-v2-sha256`), `review-id` et
    `evaluator`. `PG_INGESTION_CONTROL_ATTESTOR_DSN` doit viser la DB isolée
-   du pin. Le runtime
+   du pin via un port TCP loopback explicite publié par le conteneur Docker.
+   L'hôte opérateur doit avoir accès en lecture à son socket Docker local et
+   au répertoire de destination ; si ces accès manquent, la sonde refuse.
+   Le runtime
    ne monte pas le dépôt ; ces CLI se lancent depuis le checkout opérateur
    propre, sans bind mount du dépôt en production.
 4. Commiter le reçu JSON canonique au chemin que la proposition imprime dans
@@ -69,11 +77,12 @@ digest sont refusées.
 
 ## Vérification locale
 
-- Suite ciblée : 21 tests verts sur le worktree ; 78 tests adjacents verts
+- Suite ciblée : 23 tests verts sur le worktree ; 80 tests adjacents verts
   au total, dont divergences de population, scope DB `internal`, catégorie
   de droits non publique, chunk count, A2 expirée, projection altérée,
-  statut GitHub requis rouge, review changée avant commit, rollback après
-  conflit et lecture réelle des 253 sidecars.
+  statut GitHub requis rouge, review changée avant commit, A2 ou fenêtre de
+  revue expirée avant commit, conteneur vivant différent du pin, rollback
+  après conflit et lecture réelle des 253 sidecars.
 - Ruff et `git diff --check` verts.
 - Un PostgreSQL Docker jetable, provisionné par les vrais scripts, a permis
   à l'attestor de lire `pg_control_system()` tout en confirmant l'absence de

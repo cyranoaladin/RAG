@@ -1020,6 +1020,8 @@ def _verify_public_live_target(args: argparse.Namespace, content: Any) -> Any:
     qualification host. The runtime image has no repository or Docker socket
     and deliberately cannot satisfy this precondition.
     """
+    from datetime import UTC, datetime
+
     from ingestor.ingestion_control.release_batch_attestation import ReleaseBatchAttestationError
 
     if not args.destination_root.is_absolute():
@@ -1028,6 +1030,7 @@ def _verify_public_live_target(args: argparse.Namespace, content: Any) -> Any:
     expected_script = checkout_root / "scripts/go_live/qualified_public_text_transfer.py"
     try:
         sys.path.insert(0, str(checkout_root))
+        from scripts.go_live import independent_staging_target_pin as pin_module
         from scripts.go_live import qualified_public_text_transfer as target_module
     except ImportError as exc:
         raise ReleaseBatchAttestationError(
@@ -1037,7 +1040,32 @@ def _verify_public_live_target(args: argparse.Namespace, content: Any) -> Any:
         sys.path.remove(str(checkout_root))
     if Path(target_module.__file__).resolve() != expected_script:
         raise ReleaseBatchAttestationError("canonical target verifier comes from another checkout")
+    if Path(pin_module.__file__).resolve() != (
+        checkout_root / "scripts/go_live/independent_staging_target_pin.py"
+    ):
+        raise ReleaseBatchAttestationError("canonical pin verifier comes from another checkout")
     gate = args.release_root / "profile_gate"
+    target_pin_raw = args.target_pin_path.read_bytes()
+    try:
+        pin = json.loads(target_pin_raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReleaseBatchAttestationError("public target pin JSON invalid") from exc
+    if not isinstance(pin, dict):
+        raise ReleaseBatchAttestationError("public target pin is not an object")
+    container = pin_module.CONTAINER_IDENTITY.fullmatch(str(pin.get("target_identity")))
+    if container is None:
+        raise ReleaseBatchAttestationError("public target pin container identity invalid")
+    dsn = get_attestor_dsn()
+    observed = pin_module.observe_live_target(
+        container_id=container.group(1), destination_root=args.destination_root,
+        database_dsn=dsn,
+    )
+    pin_module.verify_target_pin(
+        target_pin_raw, expected_sha256=args.target_pin_sha256,
+        expected_content_anchor_sha256=args.content_anchor_sha256,
+        destination_root=args.destination_root, observation=observed,
+        now=datetime.now(UTC),
+    )
     attestation_raw = args.transfer_v2_attestation_path.read_bytes()
     if hashlib.sha256(attestation_raw).hexdigest() != args.transfer_v2_sha256:
         raise ReleaseBatchAttestationError("public transfer V2 digest differs")
@@ -1047,7 +1075,7 @@ def _verify_public_live_target(args: argparse.Namespace, content: Any) -> Any:
         expected_attestation_sha256=args.transfer_v2_sha256,
         plan_raw=args.transfer_plan_path.read_bytes(),
         receipt_v1_raw=args.transfer_v1_receipt_path.read_bytes(),
-        target_pin_raw=args.target_pin_path.read_bytes(),
+        target_pin_raw=target_pin_raw,
         expected_target_pin_sha256=args.target_pin_sha256,
         expected_content_anchor_sha256=args.content_anchor_sha256,
         candidate_inventory_raw=(gate / "candidate_inventory.json").read_bytes(),
@@ -1056,11 +1084,50 @@ def _verify_public_live_target(args: argparse.Namespace, content: Any) -> Any:
         expected_allowlist_sha256=hashlib.sha256(allowlist_raw).hexdigest(),
         expected_release_id=content.release_id,
         destination_root=args.destination_root,
-        database_dsn=get_attestor_dsn(),
+        database_dsn=dsn,
     )
     if verdict.file_count != content.expected_counts["unique_artifacts"]:
         raise ReleaseBatchAttestationError("live target derivative file count differs")
     return verdict
+
+
+def _recheck_public_commit_window(
+    args: argparse.Namespace, source: Any, facts: Any, artifact: Any,
+    transfer_sha: str, projection_digest: str,
+) -> None:
+    """Replay mutable A2, pin and review windows after writes, before commit."""
+    from datetime import UTC, datetime
+
+    from nexus_release_chain.public_successor_activation import verify_content_anchor
+    from nexus_release_chain.public_successor_temporal import (
+        verify_temporal_authority_preissuance,
+    )
+
+    from ingestor.ingestion_control.public_successor_batch_proposal import (
+        require_reviewed_public_successor_batch,
+    )
+    from ingestor.ingestion_control.release_batch_attestation import ReleaseBatchAttestationError
+
+    content = verify_content_anchor(
+        args.content_anchor_path, args.content_anchor_sha256, args.release_root,
+    )
+    a2_raw = args.a2_authority_path.read_bytes()
+    if hashlib.sha256(a2_raw).hexdigest() != source.a2_sha256:
+        raise ReleaseBatchAttestationError("A2 changed before public batch commit")
+    expiry = verify_temporal_authority_preissuance(
+        content, a2_raw, now_utc=datetime.now(UTC),
+    )
+    if expiry != source.a2_valid_until:
+        raise ReleaseBatchAttestationError("A2 validity changed before public batch commit")
+    _verify_public_live_target(args, content)
+    require_reviewed_public_successor_batch(
+        artifact, facts=facts, a2_sha256=source.a2_sha256,
+        a2_valid_until=expiry, transfer_sha256=transfer_sha,
+        target_pin_sha256=args.target_pin_sha256,
+        transfer_v2_sha256=args.transfer_v2_sha256,
+        projection_digest=projection_digest, evaluator=args.evaluator,
+        now_utc=datetime.now(UTC),
+    )
 
 
 def _prepare_public_successor_batch(
@@ -1627,6 +1694,15 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
                     "PUBLIC_BATCH_RECORD_REFUSED: exact live review or required status "
                     "changed before commit", file=sys.stderr,
                 )
+                return 1
+            try:
+                _recheck_public_commit_window(
+                    args, source, facts, artifact, transfer_sha, projection_digest,
+                )
+            except Exception as exc:  # noqa: BLE001 - every temporal failure rolls back
+                conn.rollback()
+                print(f"PUBLIC_BATCH_RECORD_REFUSED: final authority expired or changed: {exc}",
+                      file=sys.stderr)
                 return 1
         conn.commit()
 
