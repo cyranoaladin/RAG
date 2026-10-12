@@ -2,16 +2,122 @@
 
 from __future__ import annotations
 
+import hashlib
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from nexus_contracts.staging_readiness import STAGING_READINESS_PROTOCOL
+from nexus_release_chain.public_successor_activation import PublicSuccessorActivationVerdict
 
 from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
 
 SHA = "a" * 64
 WORKER_IMAGE = "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + SHA
+
+
+@pytest.mark.parametrize("environment,proof_key", [
+    ("rehearsal", "signed_staging_readiness"),
+    ("production", "signed_runtime_readiness"),
+])
+def test_public_worker_passes_verified_signed_c_proof_to_portable_gate(
+    monkeypatch: pytest.MonkeyPatch, environment: str, proof_key: str,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    signed = public_cli._SignedPublication(
+        environment=environment, release_id="public-test", manifest_sha256=SHA,
+        anchor_sha256=SHA, envelope_sha256=SHA, registry_sha256=SHA,
+        target_pin_sha256=SHA,
+    )
+    verdict = PublicSuccessorActivationVerdict(
+        release_id="public-test", content_anchor_sha256=SHA,
+        content_manifest_sha256=SHA, authority_envelope_sha256=SHA,
+        artifact_registry_sha256=SHA, release_registry_sha256=SHA,
+        scope_authority_sha256=SHA, subject_sha256_by_collection={},
+        scope_sha256_by_id={}, counts={},
+        expires_at_utc=datetime.now(UTC) + timedelta(hours=1),
+    )
+    proof = (b"signed-readiness", b"trusted-anchor")
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(public_cli, "_signed_publication", lambda _root: signed)
+    monkeypatch.setattr(public_cli, "_read_signed_proof", lambda _signed: proof)
+    monkeypatch.setattr(public_cli, "_required_sha_env", lambda _name: SHA)
+    monkeypatch.setattr(public_cli, "verify_public_successor_activation",
+                        lambda _root, **kwargs: calls.append(kwargs) or verdict)
+    monkeypatch.setattr(public_cli, "_transfer_authority", lambda *_args: (Path("/transfer"), SHA))
+    monkeypatch.setattr(public_cli, "load_public_text_runtime_authorities",
+                        lambda **_kwargs: object())
+
+    observed_signed, observed_verdict, _ = public_cli._verified_runtime(Path("/bundle"))
+    assert observed_signed == signed and observed_verdict == verdict
+    assert len(calls) == 1
+    assert calls[0][proof_key] == proof
+    other_key = (
+        "signed_runtime_readiness" if proof_key == "signed_staging_readiness"
+        else "signed_staging_readiness"
+    )
+    assert calls[0][other_key] is None
+
+
+def test_public_worker_refuses_staging_readiness_changed_after_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    raw = b"signed-staging-readiness"
+    manifest = tmp_path / "readiness.json"
+    manifest.write_bytes(raw)
+    manifest.chmod(0o600)
+    anchor = tmp_path / "staging-anchor.json"
+    anchor.write_bytes(b"trusted-staging-anchor")
+    monkeypatch.setenv("NEXUS_READINESS_MANIFEST_PATH", str(manifest))
+    monkeypatch.setenv("NEXUS_READINESS_MANIFEST_SHA256", hashlib.sha256(b"before").hexdigest())
+    monkeypatch.setenv("NEXUS_STAGING_READINESS_TRUST_ANCHOR", str(anchor))
+    signed = public_cli._SignedPublication(
+        "rehearsal", "public-test", SHA, SHA, SHA, SHA, SHA,
+    )
+    with pytest.raises(ValueError, match="digest changed after gate"):
+        public_cli._read_signed_proof(signed)
+
+
+def test_public_worker_refuses_missing_production_signed_c_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    monkeypatch.delenv("NEXUS_READINESS_MANIFEST_PATH", raising=False)
+    signed = public_cli._SignedPublication(
+        "production", "public-test", SHA, SHA, SHA, SHA, SHA,
+    )
+    with pytest.raises(ValueError, match="path absent"):
+        public_cli._read_signed_proof(signed)
+
+
+def test_public_worker_uses_governed_production_anchor_and_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    manifest = tmp_path / "readiness.json"
+    manifest.write_bytes(b"signed-production-readiness")
+    manifest.chmod(0o600)
+    monkeypatch.setenv("NEXUS_READINESS_MANIFEST_PATH", str(manifest))
+    calls: list[str] = []
+
+    def governed_anchor(environment: str) -> bytes:
+        calls.append(environment)
+        return b"governed-production-anchor"
+
+    monkeypatch.setattr(public_cli, "_resolve_anchor_bytes", governed_anchor)
+    signed = public_cli._SignedPublication(
+        "production", "public-test", SHA, SHA, SHA, SHA, SHA,
+    )
+    assert public_cli._read_signed_proof(signed) == (
+        b"signed-production-readiness", b"governed-production-anchor",
+    )
+    assert calls == ["production"]
 
 
 def _public_args() -> list[str]:

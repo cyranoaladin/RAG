@@ -18,6 +18,10 @@ from pydantic import ValidationError
 SEED = "12" * 32  # graine déterministe de test, jamais une clé opérateur
 KEY_ID = "rehearsal-readiness-public-test"
 NOW = datetime(2026, 10, 10, 20, 0, tzinfo=UTC)
+LOT42_BINDING = (
+    "1" * 40, "2" * 40, "3" * 40, 5489094640,
+    "NEXUS-TRUSTED-REVIEW-V1:" + "4" * 64, "abenrhouma",
+)
 
 
 def _fields() -> dict[str, object]:
@@ -88,6 +92,9 @@ def test_publication_phase_requires_independent_target_pin_digest() -> None:
     with pytest.raises(ValidationError, match="target pin"):
         StagingReadinessManifestV1.model_validate(fields)
     fields["public_successor_target_pin_digest"] = "e" * 64
+    fields["public_successor_c_verified_at_utc"] = NOW
+    fields["public_successor_c_expires_at_utc"] = NOW + timedelta(hours=2)
+    fields["public_successor_lot42_review_binding"] = LOT42_BINDING
     model = StagingReadinessManifestV1.model_validate(fields)
     signed = sign_staging_readiness_manifest(model, private_key_hex=SEED, key_id=KEY_ID)
     verified = verify_staging_readiness_manifest(
@@ -95,6 +102,60 @@ def test_publication_phase_requires_independent_target_pin_digest() -> None:
     )
     assert verified.public_successor_target_pin_digest == "e" * 64
     assert verified.canonical_document()["public_successor_target_pin_digest"] == "e" * 64
+    assert verified.public_successor_lot42_review_binding == LOT42_BINDING
+
+
+def test_publication_refuses_unsigned_c_facts_and_ingestion_refuses_c_fields() -> None:
+    fields = _fields()
+    fields.update({
+        "public_successor_phase": "PUBLICATION",
+        "public_successor_content_anchor_digest": "c" * 64,
+        "public_successor_phase_authority_digest": "d" * 64,
+        "public_successor_target_pin_digest": "e" * 64,
+    })
+    with pytest.raises(ValidationError, match="C replay"):
+        StagingReadinessManifestV1.model_validate(fields)
+    fields.update({
+        "public_successor_c_verified_at_utc": NOW,
+        "public_successor_c_expires_at_utc": NOW + timedelta(hours=2),
+        "public_successor_lot42_review_binding": LOT42_BINDING,
+    })
+    for omitted in (
+        "public_successor_c_verified_at_utc", "public_successor_c_expires_at_utc",
+        "public_successor_lot42_review_binding",
+    ):
+        incomplete = dict(fields)
+        del incomplete[omitted]
+        with pytest.raises(ValidationError, match="C replay"):
+            StagingReadinessManifestV1.model_validate(incomplete)
+    fields["public_successor_phase"] = "INGESTION"
+    fields.pop("public_successor_target_pin_digest")
+    with pytest.raises(ValidationError, match="C replay"):
+        StagingReadinessManifestV1.model_validate(fields)
+
+
+@pytest.mark.parametrize("mutation", ["expired", "future", "outlives_c", "altered_binding"])
+def test_publication_refuses_invalid_signed_c_window_or_binding(mutation: str) -> None:
+    fields = _fields()
+    fields.update({
+        "public_successor_phase": "PUBLICATION",
+        "public_successor_content_anchor_digest": "c" * 64,
+        "public_successor_phase_authority_digest": "d" * 64,
+        "public_successor_target_pin_digest": "e" * 64,
+        "public_successor_c_verified_at_utc": NOW,
+        "public_successor_c_expires_at_utc": NOW + timedelta(hours=2),
+        "public_successor_lot42_review_binding": LOT42_BINDING,
+    })
+    if mutation == "expired":
+        fields["public_successor_c_expires_at_utc"] = NOW
+    elif mutation == "future":
+        fields["public_successor_c_verified_at_utc"] = NOW + timedelta(hours=2)
+    elif mutation == "outlives_c":
+        fields["public_successor_c_expires_at_utc"] = NOW + timedelta(minutes=30)
+    else:
+        fields["public_successor_lot42_review_binding"] = (*LOT42_BINDING[:4], "", "abenrhouma")
+    with pytest.raises(ValidationError, match="C replay|LOT42"):
+        StagingReadinessManifestV1.model_validate(fields)
 
 
 def test_ingestion_phase_refuses_publication_target_pin_digest() -> None:

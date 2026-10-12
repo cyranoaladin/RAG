@@ -611,7 +611,11 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
     )
     monkeypatch.setattr(
         staging, "_verify_public_successor_publication_replay",
-        lambda *_: ("a" * 64, "b" * 64, SHA, datetime.now(UTC) + timedelta(days=1)),
+        lambda *_: (
+            "a" * 64, "b" * 64, SHA,
+            datetime.now(UTC) + timedelta(days=1), datetime.now(UTC),
+            _activation().publication_batch_review_binding,
+        ),
     )
     monkeypatch.setattr(
         replay, "recheck_publication_pin_before_key",
@@ -673,7 +677,10 @@ def test_staging_refuses_change_during_pin_recheck_before_key(
     monkeypatch.setattr(staging, "datetime", Clock)
     monkeypatch.setattr(staging, "_require_public_checkout_matches_merge", main_guard)
     monkeypatch.setattr(staging, "_verify_public_successor_publication_replay",
-                        lambda *_: ("a" * 64, "b" * 64, SHA, deadline))
+                        lambda *_: (
+                            "a" * 64, "b" * 64, SHA, deadline, base,
+                            _activation().publication_batch_review_binding,
+                        ))
     monkeypatch.setattr(replay, "recheck_publication_pin_before_key", pin_recheck)
     monkeypatch.setattr(staging, "_read_private_key", key)
     result = staging.main([
@@ -711,10 +718,13 @@ def test_staging_publication_manifest_receives_verified_pin_digest(
     release.write_text("{}\n")
     dsn_file = tmp_path / "database.dsn"
     dsn_file.write_text("postgresql://example.invalid/unused")
+    verified_at = datetime.now(UTC) + timedelta(seconds=5)
+    expires_at = verified_at + timedelta(hours=1)
+    binding = _activation().publication_batch_review_binding
     monkeypatch.setattr(staging, "_require_public_checkout_matches_merge", lambda *_: None)
     monkeypatch.setattr(
         staging, "_verify_public_successor_publication_replay",
-        lambda *_: ("a" * 64, "b" * 64, SHA, datetime.now(UTC) + timedelta(days=1)),
+        lambda *_: ("a" * 64, "b" * 64, SHA, expires_at, verified_at, binding),
     )
     monkeypatch.setattr(staging, "_read_private_key", lambda *_: "dummy")
     monkeypatch.setattr(replay, "recheck_publication_pin_before_key", lambda *_a, **_k: None)
@@ -724,6 +734,9 @@ def test_staging_publication_manifest_receives_verified_pin_digest(
     def capture(manifest: object, **_kwargs: object) -> object:
         seen.append("manifest")
         assert manifest.public_successor_target_pin_digest == SHA
+        assert manifest.public_successor_c_verified_at_utc == verified_at
+        assert manifest.public_successor_c_expires_at_utc == expires_at
+        assert manifest.public_successor_lot42_review_binding == binding
         raise staging.SigningRefused("stopped after manifest assembly")
 
     monkeypatch.setattr(staging, "sign_staging_readiness_manifest", capture)

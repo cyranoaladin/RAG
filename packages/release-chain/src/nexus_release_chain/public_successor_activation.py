@@ -42,6 +42,11 @@ from nexus_contracts.production_readiness import (
     parse_production_readiness_trust_anchor,
     verify_production_readiness_manifest_v2,
 )
+from nexus_contracts.staging_readiness import (
+    StagingReadinessManifestV1,
+    parse_staging_readiness_trust_anchor,
+    verify_staging_readiness_manifest,
+)
 from nexus_contracts.scope import RetrievalScopeArtifactV3
 
 from nexus_release_chain.release_readiness import (
@@ -1400,7 +1405,7 @@ def _finalize_a2_live_evidence(
 
 
 def _finalize_a2_signed_readiness(
-    *, readiness: ProductionReadinessManifestV2,
+    *, readiness: ProductionReadinessManifestV2 | StagingReadinessManifestV1,
     content: PublicSuccessorContentVerdict,
     authority_envelope_sha256: str,
     authorities: Mapping[str, str],
@@ -1417,28 +1422,44 @@ def _finalize_a2_signed_readiness(
     Seul le producteur de la signature avait accès au rejeu live complet.
     La DB et ses révocations doivent encore être revérifiées par l'appelant.
     """
+    if not isinstance(readiness, ProductionReadinessManifestV2 | StagingReadinessManifestV1):
+        raise PublicSuccessorActivationError("signed runtime C readiness type invalid")
     expiry = readiness.public_successor_c_expires_at_utc
     verified_at = readiness.public_successor_c_verified_at_utc
     binding = readiness.public_successor_lot42_review_binding
+    if isinstance(readiness, ProductionReadinessManifestV2):
+        signed_content = readiness.public_successor_content_manifest_digest
+        signed_anchor = readiness.public_successor_content_anchor_digest
+        signed_envelope = readiness.public_successor_authority_envelope_digest
+        signed_pin = readiness.public_successor_target_pin_digest
+        phase_valid = readiness.sealed_manifest_digest == content.content_manifest_sha256
+        effective_expiry = expiry
+    else:
+        signed_content = readiness.allowed_release_manifest_sha256
+        signed_anchor = readiness.public_successor_content_anchor_digest
+        signed_envelope = readiness.public_successor_phase_authority_digest
+        signed_pin = readiness.public_successor_target_pin_digest
+        phase_valid = (
+            readiness.public_successor_phase == "PUBLICATION"
+            and readiness.allowed_release_id == content.release_id
+            and readiness.environment == "rehearsal"
+            and expiry is not None and readiness.expires_at <= expiry
+        )
+        effective_expiry = min(expiry, readiness.expires_at) if expiry is not None else None
     static_expiry = min(
         a2_expires_at_utc, pin_expires_at_utc,
         authorization_set.authorizations_effective_valid_until,
         batch_review.valid_until,
     )
     if (
-        not isinstance(readiness, ProductionReadinessManifestV2)
-        or set(authorities) != _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS
-        or readiness.public_successor_content_manifest_digest
-            != content.content_manifest_sha256
-        or readiness.public_successor_content_anchor_digest
-            != content.content_anchor_sha256
-        or readiness.public_successor_authority_envelope_digest
-            != authority_envelope_sha256
-        or readiness.public_successor_target_pin_digest
-            != expected_target_pin_sha256
-        or readiness.sealed_manifest_digest != content.content_manifest_sha256
-        or expiry is None or verified_at is None
-        or not readiness.issued_at <= verified_at <= now_utc < expiry
+        set(authorities) != _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS
+        or signed_content != content.content_manifest_sha256
+        or signed_anchor != content.content_anchor_sha256
+        or signed_envelope != authority_envelope_sha256
+        or signed_pin != expected_target_pin_sha256
+        or not phase_valid
+        or expiry is None or verified_at is None or effective_expiry is None
+        or not readiness.issued_at <= verified_at <= now_utc < effective_expiry
         or expiry > static_expiry
         or readiness.issued_at < a2_expires_at_utc - timedelta(days=7)
         or binding is None
@@ -1463,7 +1484,7 @@ def _finalize_a2_signed_readiness(
         subject_sha256_by_collection=content.subject_sha256_by_collection,
         scope_sha256_by_id=dict(scope_sha256_by_id),
         counts=content.expected_counts,
-        expires_at_utc=expiry,
+        expires_at_utc=effective_expiry,
         authorization_review_evidence_by_id=expected_reviews,
         transfer_manifest_sha256=authorities["artifact_transfer_manifest_sha256"],
         publication_batch_review_id=batch_review.review_id,
@@ -1484,6 +1505,7 @@ def verify_public_successor_activation(
     now_utc: datetime | None = None,
     live_verifier: PublicSuccessorLiveVerifier | None = None,
     signed_runtime_readiness: tuple[bytes, bytes] | None = None,
+    signed_staging_readiness: tuple[bytes, bytes] | None = None,
 ) -> PublicSuccessorActivationVerdict:
     """Refuser C tant que chaque autorité externe n'est pas vérifiée sémantiquement.
 
@@ -1492,9 +1514,12 @@ def verify_public_successor_activation(
     ne peut ni signer ses propres digests, ni se déclarer activable.
     """
     runtime_now = now_utc or datetime.now(UTC)
-    if live_verifier is not None and signed_runtime_readiness is not None:
+    if sum(value is not None for value in (
+        live_verifier, signed_runtime_readiness, signed_staging_readiness,
+    )) > 1:
         raise PublicSuccessorActivationError("C proof modes are mutually exclusive")
     signed_readiness: ProductionReadinessManifestV2 | None = None
+    staging_readiness: StagingReadinessManifestV1 | None = None
     if signed_runtime_readiness is not None:
         try:
             signed_raw, trust_anchor_raw = signed_runtime_readiness
@@ -1505,8 +1530,19 @@ def verify_public_successor_activation(
             )
         except Exception as error:
             raise PublicSuccessorActivationError("signed runtime C proof invalid") from error
-    if signed_readiness is not None:
-        signed_now = signed_readiness.public_successor_c_verified_at_utc
+    if signed_staging_readiness is not None:
+        try:
+            signed_raw, trust_anchor_raw = signed_staging_readiness
+            staging_readiness = verify_staging_readiness_manifest(
+                signed_raw,
+                trust_anchor=parse_staging_readiness_trust_anchor(trust_anchor_raw),
+                now=runtime_now,
+            )
+        except Exception as error:
+            raise PublicSuccessorActivationError("signed staging C proof invalid") from error
+    signed_authority = signed_readiness or staging_readiness
+    if signed_authority is not None:
+        signed_now = signed_authority.public_successor_c_verified_at_utc
         if signed_now is None:
             raise PublicSuccessorActivationError("signed C replay time absent")
         now = signed_now
@@ -1671,7 +1707,7 @@ def verify_public_successor_activation(
         tuple(member.authorization_id for member in authorization_set.members), now,
     )
     if not a2 or a2_expiry is None or (
-        live_verifier is None and signed_readiness is None
+        live_verifier is None and signed_authority is None
     ):
         raise PublicSuccessorActivationError(
             "public successor authority semantics incomplete: activation refused"
@@ -1680,9 +1716,9 @@ def verify_public_successor_activation(
         _compact_document(target_pin_raw, "target pin").get("expires_at_utc"),
         "pin expiry",
     )
-    if signed_readiness is not None:
+    if signed_authority is not None:
         return _finalize_a2_signed_readiness(
-            readiness=signed_readiness, content=content,
+            readiness=signed_authority, content=content,
             authority_envelope_sha256=expected_authority_envelope_sha256,
             authorities=authorities, scope_sha256_by_id=scope_sha256_by_id,
             authorization_set=authorization_set, batch_review=batch_review,

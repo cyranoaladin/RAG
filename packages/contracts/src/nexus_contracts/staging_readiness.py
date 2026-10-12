@@ -39,11 +39,11 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, Field, StrictStr, field_validator, model_validator
+from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator, model_validator
 
 from nexus_contracts.document import StrictBaseModel
 
@@ -140,6 +140,13 @@ class StagingReadinessManifestV1(StrictBaseModel):
     public_successor_target_pin_digest: StrictStr | None = Field(
         default=None, pattern=_HEX64
     )
+    # La publication exige un C rejoué live avant la signature, puis scellé.
+    # INGESTION ne porte jamais une assertion C.
+    public_successor_c_verified_at_utc: AwareDatetime | None = None
+    public_successor_c_expires_at_utc: AwareDatetime | None = None
+    public_successor_lot42_review_binding: (
+        tuple[StrictStr, StrictStr, StrictStr, StrictInt, StrictStr, StrictStr] | None
+    ) = None
 
     # — L'invariant de cloisonnement, déclaré et vérifié à l'exécution —
     control_dsn_differs_from_product: Literal[True]
@@ -175,8 +182,34 @@ class StagingReadinessManifestV1(StrictBaseModel):
         if self.public_successor_phase == "PUBLICATION":
             if self.public_successor_target_pin_digest is None:
                 raise ValueError("public successor PUBLICATION target pin digest required")
+            verified_at = self.public_successor_c_verified_at_utc
+            c_expiry = self.public_successor_c_expires_at_utc
+            binding = self.public_successor_lot42_review_binding
+            if verified_at is None or c_expiry is None or binding is None:
+                raise ValueError("public successor PUBLICATION C replay facts required")
+            if (
+                verified_at.utcoffset() != UTC.utcoffset(verified_at)
+                or c_expiry.utcoffset() != UTC.utcoffset(c_expiry)
+                or not self.issued_at <= verified_at < c_expiry
+                or verified_at - self.issued_at > timedelta(hours=1)
+                or self.expires_at > c_expiry
+            ):
+                raise ValueError("public successor PUBLICATION C replay window invalid")
+            if (
+                any(re.fullmatch(_GIT_SHA1, value) is None for value in binding[:3])
+                or binding[3] <= 0
+                or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", binding[4]) is None
+                or not binding[5].strip()
+            ):
+                raise ValueError("public successor PUBLICATION LOT42 review binding invalid")
         elif self.public_successor_target_pin_digest is not None:
             raise ValueError("public successor target pin digest only valid for PUBLICATION")
+        elif any(value is not None for value in (
+            self.public_successor_c_verified_at_utc,
+            self.public_successor_c_expires_at_utc,
+            self.public_successor_lot42_review_binding,
+        )):
+            raise ValueError("public successor C replay facts only valid for PUBLICATION")
         return self
 
     def canonical_document(self) -> dict[str, Any]:
@@ -205,6 +238,15 @@ class StagingReadinessManifestV1(StrictBaseModel):
                 document["public_successor_target_pin_digest"] = (
                     self.public_successor_target_pin_digest
                 )
+            if self.public_successor_phase == "PUBLICATION":
+                c_verified = self.public_successor_c_verified_at_utc
+                c_expires = self.public_successor_c_expires_at_utc
+                binding = self.public_successor_lot42_review_binding
+                if c_verified is None or c_expires is None or binding is None:
+                    raise ValueError("public successor signed C replay incomplete")
+                document["public_successor_c_verified_at_utc"] = _canonical_moment(c_verified)
+                document["public_successor_c_expires_at_utc"] = _canonical_moment(c_expires)
+                document["public_successor_lot42_review_binding"] = list(binding)
         return document
 
     def canonical_bytes(self) -> bytes:
