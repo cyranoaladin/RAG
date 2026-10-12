@@ -77,7 +77,10 @@ def _sealed_review_blob_sha(bundle_root: Path, review_digest: str) -> str:
     raw = review_path.read_bytes()
     if hashlib.sha256(raw).hexdigest() != review_digest:
         raise PublicSuccessorDBRefused("LOT42 sealed review digest differs from C")
-    return git_blob_sha1(raw)
+    blob_sha = git_blob_sha1(raw)
+    if not isinstance(blob_sha, str) or _SHA1.fullmatch(blob_sha) is None:
+        raise PublicSuccessorDBRefused("LOT42 sealed review blob identity invalid")
+    return blob_sha
 
 
 def _expected_lot42_population(

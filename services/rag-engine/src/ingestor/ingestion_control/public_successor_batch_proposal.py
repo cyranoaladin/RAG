@@ -283,8 +283,11 @@ def _normalized_scope(raw: Any) -> dict[str, Any]:
         result = ResourceScope.model_validate(document).model_dump(mode="json")
     except ValueError as exc:
         raise ReleaseBatchAttestationError("public scope invalid") from exc
-    result["audience"] = sorted(result["audience"])
-    return result
+    if not isinstance(result, dict) or set(result) != set(_SCOPE_FIELDS):
+        raise ReleaseBatchAttestationError("public normalized scope invalid")
+    normalized = {key: result[key] for key in _SCOPE_FIELDS}
+    normalized["audience"] = sorted(normalized["audience"])
+    return normalized
 
 
 def measure_public_successor_resource_scopes(conn: Any, facts: Any) -> dict[Any, dict[str, Any]]:
