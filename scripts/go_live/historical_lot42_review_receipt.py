@@ -193,7 +193,9 @@ def validate_historical_lot42_receipt(
         run_created = _utc(run["created_at"])
     except (KeyError, TypeError, ValueError) as error:
         raise HistoricalLot42Refused("LOT42 review/run chronology invalid") from error
-    if not reviewed <= run_created <= started <= status_at <= finished <= merged:
+    # A rerun keeps the original run's creation time. The successful attempt,
+    # not that earlier creation, must have evaluated the approved review.
+    if not run_created <= started or not reviewed <= started <= status_at <= finished <= merged:
         raise HistoricalLot42Refused("LOT42 review/run occurred after merge")
     return (
         str(r["base_sha"]), str(r["head_sha"]), str(r["head_tree_sha"]),

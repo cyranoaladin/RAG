@@ -116,3 +116,27 @@ def test_historical_lot42_ignores_later_failed_rerun_but_not_forged_attempt() ->
     receipt["workflow_run_attempt"] = 2
     with pytest.raises(HistoricalLot42Refused):
         validate_historical_lot42_receipt(receipt, **evidence)
+
+
+def test_historical_lot42_accepts_post_review_rerun_of_earlier_run() -> None:
+    receipt, evidence = _case()
+    receipt["workflow_run_attempt"] = 2
+    evidence["workflow_run"] = {
+        **evidence["workflow_run"],
+        "run_attempt": 2,
+        "created_at": "2026-10-12T09:30:00Z",
+    }
+    evidence["workflow_attempt"] = {
+        **evidence["workflow_attempt"],
+        "run_attempt": 2,
+    }
+    assert validate_historical_lot42_receipt(receipt, **evidence)[3] == 123
+
+    before_review = {
+        **evidence["workflow_attempt"],
+        "run_started_at": "2026-10-12T09:59:59Z",
+    }
+    with pytest.raises(HistoricalLot42Refused):
+        validate_historical_lot42_receipt(
+            receipt, **{**evidence, "workflow_attempt": before_review}
+        )
