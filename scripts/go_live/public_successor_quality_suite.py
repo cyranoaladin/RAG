@@ -10,7 +10,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
+import sys
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -18,11 +20,15 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "packages/contracts/src"))
+
+from nexus_contracts import RetrievalScopeArtifactV3  # noqa: E402
+
 SUITE_PATH = Path("services/rag-engine/tests/fixtures/public_successor_quality_40b.json")
 EXPECTED_THRESHOLDS = {
     "positive_nonempty": 33,
-    "expected_source_hits_min": 26,
-    "expected_source_hits_per_collection_min": 2,
+    "expected_source_hits_min": 33,
+    "expected_source_hits_per_collection_min": 3,
     "zero_result_pass": 11,
     "student_positive_pass": 11,
     "teacher_refusals": 11,
@@ -90,6 +96,15 @@ def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any
         scopes = {row["collection"]: row["scope_id"] for row in names["bindings"]}
         if len(scopes) != 11:
             raise QualitySuiteError("nommage incomplet")
+        policy_path = root / suite["scope_policy_path"]
+        _same_digest(policy_path, suite["scope_policy_sha256"])
+        policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+        if (policy["release_id"] != manifest["release_id"]
+            or policy["release_manifest_sha256"] != suite["release_manifest_sha256"]):
+            raise QualitySuiteError("politique de scope liée à une autre release")
+        policies = {row["collection"]: row for row in policy["collections"]}
+        if set(policies) != set(scopes):
+            raise QualitySuiteError("politique de scope incomplète")
         index: dict[str, dict[str, Any]] = {}
         placement_ids: set[str] = set()
         chunk_ids: set[str] = set()
@@ -126,7 +141,37 @@ def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any
         if set(suite["collections"]) != set(index):
             raise QualitySuiteError("couverture des onze collections incomplète")
         for name, spec in suite["collections"].items():
+            entry = policies[name]
+            subject_sha = next(ref["sha256"] for ref in manifest["subjects"] if ref["collection"] == name)
+            if (entry["subject_manifest_sha256"] != subject_sha
+                or entry["policy_visibility"] != "public"
+                or entry["evidence_visibility"] != "public"
+                or entry["rights"] != ["public_allowed"]):
+                raise QualitySuiteError(f"politique publique divergente : {name}")
+            scope = RetrievalScopeArtifactV3.model_validate({
+                "artifact_version": "3", "scope_id": scopes[name],
+                "status": "eligible_for_promotion", "source_sha256": subject_sha,
+                "target_policy": {
+                    key: entry[key] for key in (
+                        "tenant", "niveau", "voie", "matiere", "statut_enseignement"
+                    )
+                } | {
+                    "audiences": [entry["target_audience"]],
+                    "candidates": entry["target_candidates"], "roles": ["student"],
+                },
+                "evidence_subject": {
+                    key: entry[key] for key in (
+                        "collection", "tenant", "niveau", "voie", "matiere",
+                        "statut_enseignement", "candidat", "audiences", "rights",
+                        "programme_version",
+                    )
+                } | {
+                    "visibility": entry["policy_visibility"],
+                    "school_year": policy["school_year"],
+                },
+            })
             if (spec["scope_id"] != scopes[name] or spec["student_expected_http"] != 200
+                or spec["scope_digest"] != scope.sha256_digest()
                 or spec["teacher_expected_http"] != 403
                 or spec["unauthenticated_expected_http"] != 401
                 or spec["scope_mismatch_expected_http"] != 403
@@ -148,6 +193,18 @@ def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any
                 if (not expected_pages or not all(isinstance(n, int) and not isinstance(n, bool) for n in expected_pages)
                     or not set(expected_pages) <= pages):
                     raise QualitySuiteError(f"pages attendues hors manifeste : {name}")
+                expected_chunks = sorted(
+                    chunk["chunk_id"] for chunk in index[name][content]["chunks"]
+                    if chunk["page_start"] in expected_pages
+                )
+                if (len(expected_pages) != 1 or not expected_chunks
+                    or row["expected_chunk_ids"] != expected_chunks):
+                    raise QualitySuiteError(f"chunks de la page probante divergents : {name}")
+                anchor = row["expected_text_anchor"]
+                if (not isinstance(anchor, str) or len(anchor.split()) < 12
+                    or len(anchor) < 75 or len(anchor) > 350
+                    or hashlib.sha256(anchor.encode()).hexdigest() != row["expected_anchor_sha256"]):
+                    raise QualitySuiteError(f"ancre pédagogique absente ou divergente : {name}")
                 citation = index[name][content]["citation"]
                 keys = ("source_uri", "source_label", "licensor", "licence_id",
                         "source_updated_at", "derivative_notice")
@@ -165,15 +222,43 @@ def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any
         raise QualitySuiteError(f"suite incomplète ou invalide : {type(exc).__name__}") from exc
 
 
+def verify_text_anchors(suite: dict[str, Any], derivative_dir: Path) -> int:
+    """Relit les octets privés exacts et vérifie l'ancre dans le corps de sa page."""
+    checked = 0
+    for name, spec in suite["collections"].items():
+        for row in spec["positive"]:
+            content = row["expected_content_sha256"]
+            path = derivative_dir / f"{content}.txt"
+            _same_digest(path, content)
+            raw = path.read_text(encoding="utf-8")
+            page = row["expected_pages_any"][0]
+            anchor = row["expected_text_anchor"]
+            bodies: list[str] = []
+            marker = re.compile(r"\[PAGE (\d+) BLOCK \d+\]\n")
+            matches = list(marker.finditer(raw))
+            for position, match in enumerate(matches):
+                if int(match.group(1)) != page:
+                    continue
+                end = matches[position + 1].start() if position + 1 < len(matches) else len(raw)
+                lines = raw[match.end():end].splitlines()
+                if len(lines) > 1 and lines[0].startswith("{"):
+                    bodies.append(" ".join(" ".join(lines[1:]).split()))
+            if not any(anchor in body for body in bodies):
+                raise QualitySuiteError(f"{name}/{row['id']} : ancre absente du corps de la page {page}")
+            checked += 1
+    return checked
+
+
 def check_positive(
-    case: dict[str, Any], response: dict[str, Any], index: dict[str, dict[str, Any]]
+    case: dict[str, Any], response: dict[str, Any], index: dict[str, dict[str, Any]],
+    *, scope_digest: str,
 ) -> bool:
     """Contrôle tous les résultats servis ; retourne le hit source/page attendu."""
     try:
         collection = case["collection"]
         filters = response["filters_applied"]
         if (filters["collection"] != collection
-            or not SHA256.fullmatch(str(filters["scope_digest"]))):
+            or filters["scope_digest"] != scope_digest):
             raise QualitySuiteError(f"{collection} : filtres serveur divergents")
         results = response["results"]
         if not isinstance(results, list) or not results:
@@ -190,6 +275,13 @@ def check_positive(
                 or metadata["placement_id"] not in artifact["placement_ids"]
                 or metadata["review_status"] != "reviewed"):
                 raise QualitySuiteError(f"{collection} : identité ou revue divergente")
+            score = result["score"]
+            if (result["title"] != artifact["citation"]["source_label"]
+                or not isinstance(result["excerpt"], str)
+                or not result["excerpt"].strip()
+                or isinstance(score, bool) or not isinstance(score, (int, float))
+                or not math.isfinite(score) or score < 0):
+                raise QualitySuiteError(f"{collection} : passage, titre ou score invalide")
             chunks = {row["chunk_id"]: row for row in artifact["chunks"]}
             chunk = chunks.get(result["chunk_id"])
             if chunk is None or chunk["page_start"] is None or chunk["page_end"] is None:
@@ -204,6 +296,7 @@ def check_positive(
                 or any(citation[key] != expected[key] or not citation[key] for key in fields)):
                 raise QualitySuiteError(f"{collection} : citation ou attribution divergente")
             if (content == case["expected_content_sha256"]
+                and result["chunk_id"] in case["expected_chunk_ids"]
                 and citation["page"] in case["expected_pages_any"]):
                 expected_hit = True
         return expected_hit
@@ -214,14 +307,21 @@ def check_positive(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repository-root", type=Path, default=ROOT)
+    parser.add_argument("--derivative-dir", type=Path,
+                        help="Répertoire privé des dérivés exacts, requis pour prouver les ancres")
     args = parser.parse_args()
     try:
         suite = _json(args.repository_root / SUITE_PATH)
         validate_suite(args.repository_root, suite)
+        if args.derivative_dir is not None:
+            count = verify_text_anchors(suite, args.derivative_dir)
+            if count != 33:
+                raise QualitySuiteError(f"ancrage incomplet : {count}/33")
     except QualitySuiteError as exc:
         print(f"PUBLIC_SUCCESSOR_QUALITY_SUITE=FAIL reason={exc}")
         return 1
-    print("PUBLIC_SUCCESSOR_QUALITY_SUITE=PASS collections=11 positive_cases=33")
+    print("PUBLIC_SUCCESSOR_QUALITY_SUITE=PASS collections=11 positive_cases=33 "
+          f"anchors_verified={'33' if args.derivative_dir is not None else 'not_run'}")
     return 0
 
 
