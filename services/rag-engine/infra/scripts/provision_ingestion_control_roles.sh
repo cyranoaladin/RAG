@@ -390,6 +390,10 @@ SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), :'attest
 \gexec
 
 GRANT USAGE ON SCHEMA ingestion_control TO :"attestor_role" ;
+-- LOT42 public A2 : la proposition et l'enregistrement recoupent en lecture
+-- seule le system_identifier du pin de transfert sur cette même connexion.
+-- EXECUTE sur cette sonde ne confère aucun droit d'écriture.
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_control_system() TO :"attestor_role" ;
 GRANT SELECT, INSERT ON ingestion_control.publication_attestations TO :"attestor_role" ;
 -- Migration 017 : l'attestor PRODUIT la projection puis la relit. Elle est
 -- append-only par déclencheur ; le REVOKE le redit au niveau des droits,

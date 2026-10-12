@@ -257,6 +257,44 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Racine du depot, ou le foyer resout l'allowlist des reviewers.",
     )
 
+    propose_public = subparsers.add_parser(
+        "propose-public-successor-release-batch-review",
+        help=("Relit A2, transfert V1/V2 et les placements de la DB publique, "
+              "puis rend une proposition LOT42 en lecture seule."),
+    )
+    for name in (
+        "release-root", "content-anchor-path", "a2-authority-path",
+        "transfer-plan-path", "transfer-v1-receipt-path",
+        "target-pin-path", "transfer-v2-attestation-path",
+    ):
+        propose_public.add_argument(f"--{name}", required=True, type=Path)
+    propose_public.add_argument("--content-anchor-sha256", required=True)
+    propose_public.add_argument("--target-pin-sha256", required=True)
+    propose_public.add_argument("--review-id", required=True, type=_non_blank)
+    propose_public.add_argument("--evaluator", required=True, type=_non_blank)
+    propose_public.add_argument("--valid-days", type=int, default=7)
+
+    record_public = subparsers.add_parser(
+        "record-public-successor-release-batch-attestation",
+        help=("Après review exacte, recompare A2, transfert, DB, projections et "
+              "reçu LOT42 puis enregistre en une transaction."),
+    )
+    for name in (
+        "release-root", "content-anchor-path", "a2-authority-path",
+        "transfer-plan-path", "transfer-v1-receipt-path",
+        "target-pin-path", "transfer-v2-attestation-path",
+    ):
+        record_public.add_argument(f"--{name}", required=True, type=Path)
+    record_public.add_argument("--content-anchor-sha256", required=True)
+    record_public.add_argument("--target-pin-sha256", required=True)
+    record_public.add_argument("--release-id", required=True, type=_non_blank)
+    record_public.add_argument("--review-id", required=True, type=_non_blank)
+    record_public.add_argument("--evaluator", required=True, type=_non_blank)
+    record_public.add_argument("--repository", required=True, type=_non_blank)
+    record_public.add_argument("--pull-request", required=True, type=int)
+    record_public.add_argument("--expected-head", required=True, type=_non_blank)
+    record_public.add_argument("--review-artifact-path", required=True, type=_non_blank)
+
     verify = subparsers.add_parser(
         "verify-release-sources",
         help=(
@@ -971,6 +1009,145 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _prepare_public_successor_batch(
+    args: argparse.Namespace, conn: psycopg.Connection[Any], now: Any,
+) -> tuple[Any, Any, tuple[Any, ...], str, str]:
+    """Rejoue toutes les sources et les faits DB dans la transaction appelante.
+
+    Le même calcul sert à la proposition read-only et à l'enregistrement :
+    l'opérateur ne peut pas remplacer la population entre les deux.
+    """
+
+    from nexus_release_chain.public_successor_activation import (
+        verify_content_anchor,
+        verify_public_transfer_offline,
+    )
+
+    from ingestor.ingestion_control.public_successor_batch_proposal import (
+        build_public_successor_batch_projections,
+        load_public_successor_batch_source,
+    )
+    from ingestor.ingestion_control.release_batch_attestation import (
+        ReleaseBatchAttestationError,
+        measure_release_batch_facts,
+        require_public_successor_batch_matches_release,
+    )
+    from ingestor.ingestion_control.sealed_release_adoption import (
+        require_publication_authority_covers,
+    )
+
+    content = verify_content_anchor(
+        args.content_anchor_path, args.content_anchor_sha256, args.release_root,
+    )
+    transfer_sha = verify_public_transfer_offline(
+        args.transfer_plan_path.read_bytes(),
+        args.transfer_v1_receipt_path.read_bytes(),
+        args.target_pin_path.read_bytes(),
+        args.transfer_v2_attestation_path.read_bytes(),
+        args.release_root, content,
+        expected_target_pin_sha256=args.target_pin_sha256,
+        now_utc=now,
+    )
+    source = load_public_successor_batch_source(
+        release_root=args.release_root,
+        anchor_path=args.content_anchor_path,
+        anchor_sha256=args.content_anchor_sha256,
+        a2_path=args.a2_authority_path,
+        transfer_manifest_sha256=transfer_sha,
+        now_utc=now,
+    )
+    if getattr(args, "release_id", source.release.release_id) != source.release.release_id:
+        raise ReleaseBatchAttestationError("public release_id differs from A2 content")
+    pin = json.loads(args.target_pin_path.read_bytes())
+    database = conn.execute("SELECT current_database()").fetchone()
+    system = conn.execute("SELECT system_identifier FROM pg_control_system()").fetchone()
+    if (
+        database is None or database[0] != pin["database_name"]
+        or system is None
+        or str(system[0]) != str(pin["postgres_system_identifier"])
+    ):
+        raise ReleaseBatchAttestationError("live DB differs from transfer target pin")
+    facts = measure_release_batch_facts(conn, release_id=source.release.release_id)
+    authorizations = {
+        identity: verify_scope_authorization(conn, authorization_id=identity)
+        for identity in facts.scope_authorization_ids
+    }
+    by_collection = {
+        authority.scope.collection: authority
+        for authority in authorizations.values()
+    }
+    if len(by_collection) != len(authorizations):
+        raise ReleaseBatchAttestationError("public authorization collection duplicated")
+    for placement in source.release.placements:
+        authority = by_collection.get(placement.collection)
+        if authority is None:
+            raise ReleaseBatchAttestationError("public placement authorization absent")
+        require_publication_authority_covers(
+            authority, content_sha256=placement.artifact_id,
+            collection=placement.collection,
+        )
+        scope = authority.scope.model_dump(mode="json")
+        if scope.get("visibility") != "public" or any(
+            str(scope.get(name)) != value
+            for name, value in placement.scope_dimensions.items()
+        ):
+            raise ReleaseBatchAttestationError(
+                f"public placement scope differs for {placement.collection}"
+            )
+    require_public_successor_batch_matches_release(
+        facts, source.release,
+        {collection: authority.authorization_id
+         for collection, authority in by_collection.items()},
+    )
+    projections, projection_digest = build_public_successor_batch_projections(
+        source, facts, evaluator=args.evaluator, now_utc=now,
+    )
+    return source, facts, projections, projection_digest, transfer_sha
+
+
+def _cmd_propose_public_successor_release_batch_review(args: argparse.Namespace) -> int:
+    """Propose one public batch from live read-only facts, never records it."""
+    from datetime import UTC, datetime, timedelta
+
+    from ingestor.ingestion_control.public_successor_batch_proposal import (
+        build_public_successor_batch_review_artifact,
+    )
+    from ingestor.ingestion_control.release_batch_attestation import ReleaseBatchAttestationError
+
+    now = datetime.now(UTC)
+    try:
+        if args.valid_days < 1:
+            raise ReleaseBatchAttestationError("public review validity must be positive")
+        with psycopg.connect(get_attestor_dsn()) as conn:
+            conn.execute("SET TRANSACTION READ ONLY")
+            source, facts, projections, projection_digest, transfer_sha = (
+                _prepare_public_successor_batch(args, conn, now)
+            )
+            conn.rollback()
+        artifact = build_public_successor_batch_review_artifact(
+            review_id=args.review_id, facts=facts, valid_from=now,
+            valid_until=min(now + timedelta(days=args.valid_days), source.a2_valid_until),
+            a2_sha256=source.a2_sha256, transfer_sha256=transfer_sha,
+            projection_digest=projection_digest, evaluator=args.evaluator,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail-closed operator boundary
+        print(f"PUBLIC_BATCH_PROPOSAL_REFUSED: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    path = canonical_publication_review_path(
+        review_id=artifact.review_id, digest=artifact.digest(),
+    )
+    print("PUBLIC_BATCH_PROPOSAL_ONLY=true")
+    print("DATABASE_MUTATED=false")
+    print(f"PROJECTED_PLACEMENTS={len(projections)}")
+    print(f"IN_MEMORY_PROJECTION_DIGEST={projection_digest}")
+    print(f"A2_AUTHORITY_SHA256={source.a2_sha256}")
+    print(f"TRANSFER_PLAN_SHA256={transfer_sha}")
+    print(f"REVIEW_ARTIFACT_PATH {path}")
+    print(f"REVIEW_ARTIFACT_DIGEST {artifact.digest()}")
+    sys.stdout.write(artifact.canonical_bytes().decode("utf-8"))
+    return 0
+
+
 def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
     """Adopte, pour un successeur, les placements acquis sous son prédécesseur.
 
@@ -1168,10 +1345,15 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
     aux faits PERSISTES : une modification survenue entre la proposition et
     l'enregistrement est detectee ici, et refusee.
     """
+    from datetime import UTC, datetime
+
     from nexus_contracts.authority_artifacts import (
         parse_release_batch_publication_review_artifact,
     )
 
+    from ingestor.ingestion_control.public_successor_batch_proposal import (
+        require_reviewed_public_successor_batch,
+    )
     from ingestor.ingestion_control.release_batch_attestation import (
         BATCH_PROTOCOL,
         ReleaseBatchAttestationError,
@@ -1182,6 +1364,7 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
     from ingestor.ingestion_control.sealed_release_projection import (
         SealedReleaseProjectionError,
         load_applicable_projection,
+        persist_projection,
         require_projection_authorises,
     )
 
@@ -1189,10 +1372,18 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
     if live is None:
         return 1
 
+    public_mode = args.command == "record-public-successor-release-batch-attestation"
     with psycopg.connect(get_attestor_dsn()) as conn:
         try:
-            facts = measure_release_batch_facts(conn, release_id=args.release_id)
-        except ReleaseBatchAttestationError as exc:
+            if public_mode:
+                conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                now = datetime.now(UTC)
+                source, facts, projections, projection_digest, transfer_sha = (
+                    _prepare_public_successor_batch(args, conn, now)
+                )
+            else:
+                facts = measure_release_batch_facts(conn, release_id=args.release_id)
+        except Exception as exc:  # noqa: BLE001 - preflight must fail closed
             print(f"RELEASE_BATCH_FACTS_REFUSED: {exc}", file=sys.stderr)
             return 1
 
@@ -1242,6 +1433,25 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
             print(f"REVIEWED_ARTIFACT_DIVERGES_FROM_DB: {exc}", file=sys.stderr)
             return 1
 
+        if public_mode:
+            try:
+                require_reviewed_public_successor_batch(
+                    artifact, facts=facts,
+                    a2_sha256=source.a2_sha256,
+                    a2_valid_until=source.a2_valid_until,
+                    transfer_sha256=transfer_sha,
+                    projection_digest=projection_digest,
+                    evaluator=args.evaluator, now_utc=now,
+                )
+                # The reviewed canonical bytes, exact live population and all
+                # four authority dimensions have passed before the first write.
+                # Projection and attestations share this serializable transaction.
+                persist_projection(conn, facts=facts, lignes=list(projections))
+            except (ReleaseBatchAttestationError, SealedReleaseProjectionError) as exc:
+                conn.rollback()
+                print(f"PUBLIC_BATCH_RECORD_REFUSED: {exc}", file=sys.stderr)
+                return 1
+
         digest = artifact.digest()
         ecrites = deja = 0
         for resource_id, (artifact_id, sha, collection, autorisation) in (
@@ -1255,6 +1465,7 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
                 )
                 require_projection_authorises(projection, resource_id=resource_id)
             except (ReleaseBatchAttestationError, SealedReleaseProjectionError) as exc:
+                conn.rollback()
                 print(f"ATTESTATION_REFUSED: {exc}", file=sys.stderr)
                 return 1
 
@@ -1265,6 +1476,7 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
             ).fetchone()
             if existante is not None:
                 if existante[0] != digest:
+                    conn.rollback()
                     print(
                         f"ATTESTATION_CONFLICT: resource {resource_id} already "
                         f"carries attestation {existante[0][:16]}…, the new one "
@@ -1352,7 +1564,11 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_record_attestation(args)
     if args.command == "propose-release-batch-review":
         return _cmd_propose_release_batch_review(args)
+    if args.command == "propose-public-successor-release-batch-review":
+        return _cmd_propose_public_successor_release_batch_review(args)
     if args.command == "record-release-batch-attestation":
+        return _cmd_record_release_batch_attestation(args)
+    if args.command == "record-public-successor-release-batch-attestation":
         return _cmd_record_release_batch_attestation(args)
     if args.command == "adopt-predecessor-release":
         return _cmd_adopt_predecessor_release(args)

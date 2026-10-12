@@ -172,6 +172,24 @@ class TestAuthorityRoleIsConfinedToItsTable:
 
 
 class TestAttestorRoleIsConfinedToItsTable:
+    def test_public_batch_pin_probe_is_readable_without_extra_write_rights(
+        self, pg: dict[str, str],
+    ) -> None:
+        with psycopg.connect(attestor_dsn(pg)) as conn:
+            row = conn.execute(
+                "SELECT system_identifier::text FROM pg_catalog.pg_control_system()"
+            ).fetchone()
+            assert row is not None and row[0].isdigit()
+            rights = conn.execute(
+                "SELECT has_function_privilege(current_user, "
+                "'pg_catalog.pg_control_system()', 'EXECUTE'), "
+                "has_table_privilege(current_user, "
+                "'ingestion_control.resources', 'INSERT'), "
+                "has_table_privilege(current_user, "
+                "'ingestion_control.scope_authorizations', 'UPDATE')"
+            ).fetchone()
+            assert rights == (True, False, False)
+
     def test_cannot_write_scope_authorizations(self, pg: dict[str, str]) -> None:
         assert denied(
             attestor_dsn(pg),
