@@ -9,8 +9,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,12 +33,19 @@ from nexus_contracts.authorization_set import (
     AuthorizationSetV2,
     ReleaseScopePlacementEntryV1,
     ReleaseScopePlacementV2,
+    VerifiedAuthorizationSetV1,
     verify_authorization_binding_set_v2,
 )
 from nexus_contracts.ingestion import ResourceScope
+from nexus_contracts.production_readiness import (
+    ProductionReadinessManifestV2,
+    parse_production_readiness_trust_anchor,
+    verify_production_readiness_manifest_v2,
+)
 from nexus_contracts.scope import RetrievalScopeArtifactV3
 
 from nexus_release_chain.release_readiness import (
+    _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS,
     _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS,
     ReleaseReadinessError,
     load_release_expectation,
@@ -47,6 +55,7 @@ from nexus_release_chain.release_readiness import (
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _ANCHOR_KIND = "NEXUS_PUBLIC_SUCCESSOR_CONTENT_ANCHOR_V1"
 _TEXT_MIME = "text/plain; charset=utf-8"
+_A2_ENVELOPE_KIND = "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_A2_V1"
 
 
 class PublicSuccessorActivationError(ValueError):
@@ -90,6 +99,66 @@ class PublicSuccessorActivationVerdict:
     publication_batch_review_digest: str | None = None
     # Base/head/blob/review ID/challenge/reviewer vérifiés par la review LOT42.
     publication_batch_review_binding: tuple[str, str, str, int, str, str] | None = None
+
+
+@dataclass(frozen=True)
+class PublicSuccessorLiveVerificationRequest:
+    """Identités relues par C que le signer doit contrôler sur GitHub/DB/cible."""
+
+    bundle_root: Path
+    content: PublicSuccessorContentVerdict
+    authority_envelope_sha256: str
+    authorities: Mapping[str, str]
+    scope_sha256_by_id: Mapping[str, str]
+    authorization_set: AuthorizationSetV2
+    publication_batch_review: ReleaseBatchPublicationReviewArtifact
+    target_pin_sha256: str
+    a2_expires_at_utc: datetime
+    pin_expires_at_utc: datetime
+    now_utc: datetime
+
+
+@dataclass(frozen=True)
+class VerifiedPublicSuccessorLiveEvidence:
+    """Résultats d'un fournisseur *de confiance* qui a rejoué le monde live.
+
+    Les champs ne sont jamais lus depuis l'enveloppe C. Le signataire doit
+    fournir un callable qui exécute les vérificateurs canoniques GitHub, DB,
+    révocations, transfert et LOT42. Sans ce callable, C refuse toujours.
+    """
+
+    authority_sha256_by_field: Mapping[str, str]
+    content_anchor_sha256: str
+    authority_envelope_sha256: str
+    target_pin_sha256: str
+    release_id: str
+    content_manifest_sha256: str
+    counts: Mapping[str, int]
+    scope_sha256_by_id: Mapping[str, str]
+    verified_authorization_set: VerifiedAuthorizationSetV1
+    authorization_review_evidence_by_id: tuple[tuple[str, str, str, str], ...]
+    publication_batch_review_id: str
+    publication_batch_review_digest: str
+    publication_batch_review_binding: tuple[str, str, str, int, str, str]
+    verified_at_utc: datetime
+    revocations_checked_at_utc: datetime
+    source_pulse_replayed_at_utc: datetime
+    active_authorization_ids: tuple[str, ...]
+    lot42_attestation_count: int
+    revoked_authorization_ids: tuple[str, ...]
+    revoked_review_ids: tuple[int, ...]
+    target_pin_expires_at_utc: datetime
+    expires_at_utc: datetime
+
+
+PublicSuccessorLiveVerifier = Callable[
+    [PublicSuccessorLiveVerificationRequest], VerifiedPublicSuccessorLiveEvidence,
+]
+
+
+def _post_replay_utc_now(started_at_utc: datetime) -> datetime:
+    """Évaluer les constats live à la fin du rejeu, jamais avant son I/O."""
+    return max(started_at_utc, datetime.now(UTC))
 
 
 def _read(root: Path, relative: str, expected: str, *, json_required: bool = True) -> Any:
@@ -690,6 +759,7 @@ def verify_public_lot41a_authorization_set(
     release_root: Path,
     content: PublicSuccessorContentVerdict,
     now_utc: datetime,
+    *, temporal_authority_raw: bytes | None = None,
 ) -> AuthorizationSetV2:
     """Vérifier forme, fenêtre et couverture exacte ; signatures séparées.
 
@@ -716,6 +786,31 @@ def verify_public_lot41a_authorization_set(
                 < authorization_set.authorizations_effective_valid_until)
     ):
         raise PublicSuccessorActivationError("LOT41A A identity, counts or validity differ")
+    if temporal_authority_raw is not None:
+        from .public_successor_temporal import (
+            PublicSuccessorTemporalError,
+            verify_temporal_authority_preissuance,
+        )
+        try:
+            verify_temporal_authority_preissuance(
+                content, temporal_authority_raw, now_utc=now_utc,
+            )
+            temporal = json.loads(temporal_authority_raw)
+            valid_from = datetime.fromisoformat(temporal["valid_from_utc"])
+            valid_until = datetime.fromisoformat(temporal["valid_until_utc"])
+        except (PublicSuccessorTemporalError, KeyError, ValueError) as error:
+            raise PublicSuccessorActivationError("A2 LOT41A temporal authority invalid") from error
+        if any(
+            member.authorization_id != (
+                "lot41a-student-public-"
+                + str(member.scope.collection).removeprefix("rag_nexus_").replace("_", "-")
+                + "-v2"
+            )
+            or member.valid_from != valid_from
+            or member.valid_until != valid_until
+            for member in authorization_set.members
+        ):
+            raise PublicSuccessorActivationError("A2 LOT41A IDs or dates differ")
     return authorization_set
 
 
@@ -1080,7 +1175,7 @@ def verify_publication_batch_review(
             observed_collections=content.subject_sha256_by_collection,
             observed_counts=content.expected_counts,
             observed_placement_states={field: tuple(
-                row.payload.get(field) for row in release.placements
+                row.payload[field] for row in release.placements
             ) for field in ("currentness", "placement_status", "review_status")},
             observed_source_url_count=len(set(urls)),
         )
@@ -1093,6 +1188,231 @@ def verify_publication_batch_review(
     return review
 
 
+def _verify_a2_offline_c(
+    root: Path, content: PublicSuccessorContentVerdict,
+    authorities: dict[str, str], authority_raw: bytes,
+    expected_target_pin_sha256: str, now_utc: datetime,
+) -> datetime:
+    """Rejouer les liaisons A2/C hors ligne ; ne prononce aucune activation.
+
+    La capture privée effective, les reviews et la DB restent des gates du
+    signataire. Des seuls octets du bundle ne peuvent attester ces faits live.
+    """
+    from .public_successor_a2_transfer_binding import (
+        A2TransferBindingError,
+        verify_a2_transfer_binding,
+    )
+    from .public_successor_temporal import (
+        PublicSuccessorTemporalError,
+        verify_temporal_successor,
+    )
+
+    def material(field: str, label: str) -> bytes:
+        try:
+            return _read(root, f"authorities/{field}.bin", authorities[field], json_required=False)
+        except (KeyError, PublicSuccessorActivationError) as error:
+            raise PublicSuccessorActivationError(f"{label} absent or divergent") from error
+
+    issue_raw = material("temporal_a2_issue_attestation_sha256", "A2 issue attestation")
+    pulse_raw = material("temporal_c_attestation_sha256", "A2 C pulse")
+    packet_raw = material("source_inventory_packet_sha256", "A2 source inventory")
+    approval_raw = material("pr300_final_authority_receipt_sha256", "A2 PR300 approval")
+    plan_raw = material("artifact_transfer_manifest_sha256", "A2 transfer plan")
+    pin_raw = _read(root, "authorities/target-pin.json", expected_target_pin_sha256,
+                    json_required=False)
+    binding_raw = material("a2_transfer_binding_sha256", "A2 transfer binding")
+    try:
+        expiry = verify_temporal_successor(
+            content, root / "release", authority_raw, issue_raw, pulse_raw,
+            source_packet_raw=packet_raw, approval_raw=approval_raw, now_utc=now_utc,
+        )
+        verify_a2_transfer_binding(
+            binding_raw, authority_raw, pin_raw, plan_raw, now_utc=now_utc,
+        )
+    except (PublicSuccessorTemporalError, A2TransferBindingError) as error:
+        raise PublicSuccessorActivationError(f"A2 C evidence invalid: {error}") from error
+    return expiry
+
+
+def _finalize_a2_live_evidence(
+    *, live: VerifiedPublicSuccessorLiveEvidence,
+    content: PublicSuccessorContentVerdict,
+    authority_envelope_sha256: str,
+    authorities: Mapping[str, str],
+    scope_sha256_by_id: Mapping[str, str],
+    authorization_set: AuthorizationSetV2,
+    batch_review: ReleaseBatchPublicationReviewArtifact,
+    expected_target_pin_sha256: str,
+    a2_expires_at_utc: datetime,
+    pin_expires_at_utc: datetime,
+    now_utc: datetime,
+) -> PublicSuccessorActivationVerdict:
+    """Composer C après rejeu live, jamais à partir de drapeaux du bundle."""
+    if not isinstance(live, VerifiedPublicSuccessorLiveEvidence):
+        raise PublicSuccessorActivationError("trusted live C replay absent")
+    expected_reviews = tuple(sorted((
+        str(member.scope.collection), member.authorization_id,
+        member.authorization_digest, member.review_binding_digest,
+    ) for member in authorization_set.members))
+    verified = live.verified_authorization_set
+    if not isinstance(verified, VerifiedAuthorizationSetV1) or any((
+        dict(live.authority_sha256_by_field) != dict(authorities),
+        set(authorities) != _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS,
+        live.content_anchor_sha256 != content.content_anchor_sha256,
+        live.authority_envelope_sha256 != authority_envelope_sha256,
+        live.target_pin_sha256 != expected_target_pin_sha256,
+        live.release_id != content.release_id,
+        live.content_manifest_sha256 != content.content_manifest_sha256,
+        dict(live.counts) != content.expected_counts,
+        dict(live.scope_sha256_by_id) != dict(scope_sha256_by_id),
+        verified.authorization_set_digest != authorities["authorization_set_sha256"],
+        hashlib.sha256(verified.authorization_set_bytes).hexdigest()
+            != verified.authorization_set_digest,
+        verified.authorization_ids != tuple(
+            member.authorization_id for member in authorization_set.members
+        ),
+        live.active_authorization_ids != verified.authorization_ids,
+        live.lot42_attestation_count != content.expected_counts["placements"],
+        bool(live.revoked_authorization_ids),
+        bool(live.revoked_review_ids),
+        verified.authorizations_effective_valid_from
+            != authorization_set.authorizations_effective_valid_from,
+        verified.authorizations_effective_valid_until
+            != authorization_set.authorizations_effective_valid_until,
+        live.authorization_review_evidence_by_id != expected_reviews,
+        live.publication_batch_review_id != batch_review.review_id,
+        live.publication_batch_review_digest
+            != authorities["publication_batch_review_receipt_sha256"],
+        live.target_pin_expires_at_utc != pin_expires_at_utc,
+    )):
+        raise PublicSuccessorActivationError("live C evidence differs from sealed A2/LOT41A/LOT42")
+    binding = live.publication_batch_review_binding
+    if (not isinstance(binding, tuple) or len(binding) != 6
+            or any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None
+                   for value in binding[:3])
+            or type(binding[3]) is not int or binding[3] <= 0
+            or not isinstance(binding[4], str)
+            or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", binding[4]) is None
+            or binding[5] != "abenrhouma"):
+        raise PublicSuccessorActivationError("LOT42 exact human review binding absent")
+    for label, moment in (
+        ("live replay", live.verified_at_utc),
+        ("revocations", live.revocations_checked_at_utc),
+        ("source pulse", live.source_pulse_replayed_at_utc),
+        ("authorization review", verified.verified_at),
+    ):
+        if moment.tzinfo is None or moment.utcoffset() != timedelta(0):
+            raise PublicSuccessorActivationError(f"{label} UTC proof absent")
+        if not now_utc - timedelta(minutes=5) <= moment <= now_utc:
+            raise PublicSuccessorActivationError(f"{label} proof stale or in future")
+    if (live.revocations_checked_at_utc > live.verified_at_utc
+            or live.source_pulse_replayed_at_utc > live.verified_at_utc):
+        raise PublicSuccessorActivationError("source or revocations checked after live replay")
+    expiry_candidates = (
+        a2_expires_at_utc, pin_expires_at_utc,
+        verified.authorizations_effective_valid_until,
+        verified.earliest_review_binding_expires_at,
+        batch_review.valid_until, live.expires_at_utc,
+    )
+    if any(
+        value.tzinfo is None or value.utcoffset() != timedelta(0) or value <= now_utc
+        for value in expiry_candidates
+    ) or a2_expires_at_utc - now_utc < timedelta(hours=24):
+        raise PublicSuccessorActivationError("live C authority expiry invalid")
+    expiry = min(expiry_candidates)
+    return PublicSuccessorActivationVerdict(
+        release_id=content.release_id,
+        content_anchor_sha256=content.content_anchor_sha256,
+        content_manifest_sha256=content.content_manifest_sha256,
+        authority_envelope_sha256=authority_envelope_sha256,
+        artifact_registry_sha256=content.artifact_registry_sha256,
+        release_registry_sha256=content.release_registry_sha256,
+        scope_authority_sha256=authorities["public_scope_authority_sha256"],
+        subject_sha256_by_collection=content.subject_sha256_by_collection,
+        scope_sha256_by_id=dict(scope_sha256_by_id),
+        counts=content.expected_counts,
+        expires_at_utc=expiry,
+        authorization_review_evidence_by_id=expected_reviews,
+        transfer_manifest_sha256=authorities["artifact_transfer_manifest_sha256"],
+        publication_batch_review_id=batch_review.review_id,
+        publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
+        publication_batch_review_binding=binding,
+    )
+
+
+def _finalize_a2_signed_readiness(
+    *, readiness: ProductionReadinessManifestV2,
+    content: PublicSuccessorContentVerdict,
+    authority_envelope_sha256: str,
+    authorities: Mapping[str, str],
+    scope_sha256_by_id: Mapping[str, str],
+    authorization_set: AuthorizationSetV2,
+    batch_review: ReleaseBatchPublicationReviewArtifact,
+    expected_target_pin_sha256: str,
+    a2_expires_at_utc: datetime,
+    pin_expires_at_utc: datetime,
+    now_utc: datetime,
+) -> PublicSuccessorActivationVerdict:
+    """Relire C au runtime sous une assertion C effectivement signée.
+
+    Seul le producteur de la signature avait accès au rejeu live complet.
+    La DB et ses révocations doivent encore être revérifiées par l'appelant.
+    """
+    expiry = readiness.public_successor_c_expires_at_utc
+    verified_at = readiness.public_successor_c_verified_at_utc
+    binding = readiness.public_successor_lot42_review_binding
+    static_expiry = min(
+        a2_expires_at_utc, pin_expires_at_utc,
+        authorization_set.authorizations_effective_valid_until,
+        batch_review.valid_until,
+    )
+    if (
+        not isinstance(readiness, ProductionReadinessManifestV2)
+        or set(authorities) != _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS
+        or readiness.public_successor_content_manifest_digest
+            != content.content_manifest_sha256
+        or readiness.public_successor_content_anchor_digest
+            != content.content_anchor_sha256
+        or readiness.public_successor_authority_envelope_digest
+            != authority_envelope_sha256
+        or readiness.public_successor_target_pin_digest
+            != expected_target_pin_sha256
+        or readiness.sealed_manifest_digest != content.content_manifest_sha256
+        or expiry is None or verified_at is None
+        or not readiness.issued_at <= verified_at <= now_utc < expiry
+        or expiry > static_expiry
+        or readiness.issued_at < a2_expires_at_utc - timedelta(days=7)
+        or binding is None
+        or batch_review.digest()
+            != authorities["publication_batch_review_receipt_sha256"]
+    ):
+        raise PublicSuccessorActivationError("signed runtime C authority differs or expired")
+    expected_reviews = tuple(sorted((
+        str(member.scope.collection), member.authorization_id,
+        member.authorization_digest, member.review_binding_digest,
+    ) for member in authorization_set.members))
+    if len(expected_reviews) != content.expected_counts["subjects"]:
+        raise PublicSuccessorActivationError("signed C authorization population differs")
+    return PublicSuccessorActivationVerdict(
+        release_id=content.release_id,
+        content_anchor_sha256=content.content_anchor_sha256,
+        content_manifest_sha256=content.content_manifest_sha256,
+        authority_envelope_sha256=authority_envelope_sha256,
+        artifact_registry_sha256=content.artifact_registry_sha256,
+        release_registry_sha256=content.release_registry_sha256,
+        scope_authority_sha256=authorities["public_scope_authority_sha256"],
+        subject_sha256_by_collection=content.subject_sha256_by_collection,
+        scope_sha256_by_id=dict(scope_sha256_by_id),
+        counts=content.expected_counts,
+        expires_at_utc=expiry,
+        authorization_review_evidence_by_id=expected_reviews,
+        transfer_manifest_sha256=authorities["artifact_transfer_manifest_sha256"],
+        publication_batch_review_id=batch_review.review_id,
+        publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
+        publication_batch_review_binding=binding,
+    )
+
+
 def verify_public_successor_activation(
     bundle_root: Path,
     *,
@@ -1103,6 +1423,8 @@ def verify_public_successor_activation(
     expected_scope_authority_sha256: str,
     expected_target_pin_sha256: str,
     now_utc: datetime | None = None,
+    live_verifier: PublicSuccessorLiveVerifier | None = None,
+    signed_runtime_readiness: tuple[bytes, bytes] | None = None,
 ) -> PublicSuccessorActivationVerdict:
     """Refuser C tant que chaque autorité externe n'est pas vérifiée sémantiquement.
 
@@ -1110,7 +1432,27 @@ def verify_public_successor_activation(
     signée doit être refusée par l'appelant avant cet appel. Le bundle seul
     ne peut ni signer ses propres digests, ni se déclarer activable.
     """
-    now = now_utc or datetime.now(UTC)
+    runtime_now = now_utc or datetime.now(UTC)
+    if live_verifier is not None and signed_runtime_readiness is not None:
+        raise PublicSuccessorActivationError("C proof modes are mutually exclusive")
+    signed_readiness: ProductionReadinessManifestV2 | None = None
+    if signed_runtime_readiness is not None:
+        try:
+            signed_raw, trust_anchor_raw = signed_runtime_readiness
+            signed_readiness = verify_production_readiness_manifest_v2(
+                signed_raw,
+                trust_anchor=parse_production_readiness_trust_anchor(trust_anchor_raw),
+                environment="production",
+            )
+        except Exception as error:
+            raise PublicSuccessorActivationError("signed runtime C proof invalid") from error
+    if signed_readiness is not None:
+        signed_now = signed_readiness.public_successor_c_verified_at_utc
+        if signed_now is None:
+            raise PublicSuccessorActivationError("signed C replay time absent")
+        now = signed_now
+    else:
+        now = runtime_now
     if now.tzinfo is None or now.utcoffset() != UTC.utcoffset(now):
         raise PublicSuccessorActivationError("activation clock must be UTC")
     root = bundle_root.resolve()
@@ -1128,7 +1470,6 @@ def verify_public_successor_activation(
         or _SHA256.fullmatch(expected_target_pin_sha256) is None
     ):
         raise PublicSuccessorActivationError("signed release, registry or target pin differs")
-    verify_content_currentness(root / "release", content, now)
     try:
         envelope = _read(root, "authority-envelope.json", expected_authority_envelope_sha256)
     except PublicSuccessorActivationError as error:
@@ -1138,7 +1479,9 @@ def verify_public_successor_activation(
         "content_anchor_sha256", "content_release_id", "content_manifest_sha256",
         "expected_counts", "authorities",
     } or (
-        envelope.get("kind") != "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1"
+        envelope.get("kind") not in {
+            "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1", _A2_ENVELOPE_KIND,
+        }
         or envelope.get("status") != "EVIDENCE_BYTES_ONLY_NOT_ACTIVABLE"
         or envelope.get("activation_allowed") is not False
         or envelope.get("semantic_verification_complete") is not False
@@ -1149,10 +1492,33 @@ def verify_public_successor_activation(
     ):
         raise PublicSuccessorActivationError("authority envelope does not bind A")
     authorities = envelope["authorities"]
-    if not isinstance(authorities, dict) or set(authorities) != (
-        _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS
-    ):
-        raise PublicSuccessorActivationError("all 21 authority fields are required")
+    a2 = envelope["kind"] == _A2_ENVELOPE_KIND
+    expected_fields = (
+        _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS
+        if a2 else _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS
+    )
+    if not isinstance(authorities, dict) or set(authorities) != expected_fields:
+        raise PublicSuccessorActivationError("versioned authority field population differs")
+    a2_expiry: datetime | None = None
+    if a2:
+        try:
+            authority_raw = _read(
+                root, "authorities/temporal_a2_authority_sha256.bin",
+                authorities["temporal_a2_authority_sha256"], json_required=False,
+            )
+        except PublicSuccessorActivationError as error:
+            raise PublicSuccessorActivationError("A2 authority absent or divergent") from error
+        from .public_successor_temporal import (
+            APPROVED_A2_AUTHORITY_SHA256,
+        )
+        if hashlib.sha256(authority_raw).hexdigest() != APPROVED_A2_AUTHORITY_SHA256:
+            raise PublicSuccessorActivationError("A2 authority differs from approved digest")
+        a2_expiry = _verify_a2_offline_c(
+            root, content, authorities, authority_raw,
+            expected_target_pin_sha256, now,
+        )
+    else:
+        verify_content_currentness(root / "release", content, now)
     for field, digest in authorities.items():
         _read(root, f"authorities/{field}.bin", digest, json_required=False)
     if (
@@ -1211,7 +1577,7 @@ def verify_public_successor_activation(
         raise PublicSuccessorActivationError("scope review authority invalid") from error
     policy_raw = _read(root, "authorities/scope-policy.yml", policy_sha, json_required=False)
     names_raw = _read(root, "authorities/scope-names.yml", names_sha, json_required=False)
-    verify_reviewed_public_scope_policy(
+    scope_sha256_by_id = verify_reviewed_public_scope_policy(
         scope_registry_path, authorities["public_scope_authority_sha256"],
         content, scopes, policy_raw=policy_raw, names_raw=names_raw,
         receipt_raw=scope_review_raw,
@@ -1223,6 +1589,7 @@ def verify_public_successor_activation(
     )
     authorization_set = verify_public_lot41a_authorization_set(
         authorization_raw, root / "release", content, now,
+        temporal_authority_raw=authority_raw if a2 else None,
     )
     revocation_raw = _read(
         root, "authorities/revocation_evidence_sha256.bin",
@@ -1236,14 +1603,52 @@ def verify_public_successor_activation(
         root, "authorities/publication_batch_review_receipt_sha256.bin",
         authorities["publication_batch_review_receipt_sha256"], json_required=False,
     )
-    verify_publication_batch_review(
+    batch_review = verify_publication_batch_review(
         batch_review_raw, content, root / "release",
         authorities["artifact_transfer_manifest_sha256"],
         tuple(member.authorization_id for member in authorization_set.members), now,
     )
-    # Chaque pièce doit être comprise et confrontée à A, à la cible et à
-    # l'heure, notamment LOT42 et les révocations. Ces vérificateurs sont
-    # ajoutés avant toute levée du refus historique public_successor.
-    raise PublicSuccessorActivationError(
-        "public successor authority semantics incomplete: activation refused"
+    if not a2 or a2_expiry is None or (
+        live_verifier is None and signed_readiness is None
+    ):
+        raise PublicSuccessorActivationError(
+            "public successor authority semantics incomplete: activation refused"
+        )
+    pin_expiry = _transfer_utc(
+        _compact_document(target_pin_raw, "target pin").get("expires_at_utc"),
+        "pin expiry",
+    )
+    if signed_readiness is not None:
+        return _finalize_a2_signed_readiness(
+            readiness=signed_readiness, content=content,
+            authority_envelope_sha256=expected_authority_envelope_sha256,
+            authorities=authorities, scope_sha256_by_id=scope_sha256_by_id,
+            authorization_set=authorization_set, batch_review=batch_review,
+            expected_target_pin_sha256=expected_target_pin_sha256,
+            a2_expires_at_utc=a2_expiry, pin_expires_at_utc=pin_expiry,
+            now_utc=runtime_now,
+        )
+    if live_verifier is None:
+        raise PublicSuccessorActivationError("trusted live C verifier absent")
+    request = PublicSuccessorLiveVerificationRequest(
+        bundle_root=root, content=content,
+        authority_envelope_sha256=expected_authority_envelope_sha256,
+        authorities=dict(authorities), scope_sha256_by_id=scope_sha256_by_id,
+        authorization_set=authorization_set, publication_batch_review=batch_review,
+        target_pin_sha256=expected_target_pin_sha256,
+        a2_expires_at_utc=a2_expiry, pin_expires_at_utc=pin_expiry,
+        now_utc=now,
+    )
+    try:
+        live = live_verifier(request)
+    except Exception as error:
+        raise PublicSuccessorActivationError("trusted live C replay failed") from error
+    return _finalize_a2_live_evidence(
+        live=live, content=content,
+        authority_envelope_sha256=expected_authority_envelope_sha256,
+        authorities=authorities, scope_sha256_by_id=scope_sha256_by_id,
+        authorization_set=authorization_set, batch_review=batch_review,
+        expected_target_pin_sha256=expected_target_pin_sha256,
+        a2_expires_at_utc=a2_expiry, pin_expires_at_utc=pin_expiry,
+        now_utc=_post_replay_utc_now(now),
     )

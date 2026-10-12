@@ -88,6 +88,50 @@ def test_public_successor_requires_complete_authorities_and_external_verificatio
         load_release_expectation(path, _sha(path))
 
 
+def test_public_successor_a2_requires_exact_versioned_authority_population(
+    tmp_path: Path,
+) -> None:
+    path = _reseal_as_public_successor(tmp_path)
+    aggregate = json.loads(path.read_bytes())
+    assert len(_PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS) == 21
+    a2_fields = _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS | {
+        "temporal_a2_authority_sha256",
+        "temporal_a2_issue_attestation_sha256",
+        "temporal_c_attestation_sha256",
+        "source_inventory_packet_sha256",
+        "a2_transfer_binding_sha256",
+    }
+    assert len(a2_fields) == 26
+
+    def set_authorities(authorities: dict[str, str]) -> None:
+        aggregate["authorities"] = authorities
+        for ref in aggregate["subjects"]:
+            subject_path = path.parent / ref["path"]
+            subject = json.loads(subject_path.read_bytes())
+            subject["authorities"] = authorities
+            subject_path.write_bytes(_canonical(subject))
+            ref["sha256"] = _sha(subject_path)
+        path.write_bytes(_canonical(aggregate))
+
+    a2 = {name: "a" * 64 for name in a2_fields}
+    set_authorities(a2)
+    with pytest.raises(ReleaseReadinessError, match="external evidence verification unavailable"):
+        load_release_expectation(path, _sha(path))
+
+    for mutation in ("missing_a2", "unknown", "partial_a2"):
+        changed = dict(a2)
+        if mutation == "missing_a2":
+            changed.pop("temporal_c_attestation_sha256")
+        elif mutation == "unknown":
+            changed["unrecognized_authority_sha256"] = "a" * 64
+        else:
+            changed = {name: "a" * 64 for name in _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS}
+            changed["temporal_a2_authority_sha256"] = "a" * 64
+        set_authorities(changed)
+        with pytest.raises(ReleaseReadinessError, match="public successor authorities differ"):
+            load_release_expectation(path, _sha(path))
+
+
 def test_public_successor_rejects_malformed_digest_and_candidate_identity(
     tmp_path: Path,
 ) -> None:

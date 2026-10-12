@@ -25,6 +25,11 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_anchor,
     verify_content_currentness,
 )
+from nexus_release_chain.public_successor_temporal import (
+    APPROVED_A1_ANCHOR_SHA256,
+    PublicSuccessorTemporalError,
+    verify_temporal_authority_preissuance,
+)
 
 from ingestor.ingestion_control.attestation import (
     WorkerAttestationError,
@@ -133,6 +138,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--public-successor-content-anchor-path", type=Path)
     parser.add_argument("--public-successor-preissuance-receipt-path", type=Path)
     parser.add_argument("--public-successor-preissuance-receipt-sha256")
+    parser.add_argument("--public-successor-temporal-authority-path", type=Path)
     return parser
 
 
@@ -179,6 +185,7 @@ def _require_public_candidate_ingestion_authority(
     anchor_path: Path,
     receipt_path: Path,
     receipt_sha256: str,
+    temporal_authority_path: Path | None = None,
 ) -> PublicSuccessorContentVerdict:
     """Relire A et son checkpoint sous la readiness INGESTION déjà vérifiée.
 
@@ -193,11 +200,23 @@ def _require_public_candidate_ingestion_authority(
     signed_receipt_sha = getattr(manifest, "public_successor_phase_authority_digest", None)
     if not isinstance(anchor_sha, str) or not isinstance(signed_receipt_sha, str):
         raise SealedReleaseIngestionError("public successor signed phase incomplete")
-    if signed_receipt_sha != receipt_sha256:
-        raise SealedReleaseIngestionError("public successor phase authority digest differs")
     try:
         content = verify_content_anchor(anchor_path, anchor_sha, release_dir.parent)
-        verify_content_currentness(release_dir.parent, content, datetime.now(UTC))
+        if content.content_anchor_sha256 == APPROVED_A1_ANCHOR_SHA256 and temporal_authority_path is None:
+            raise SealedReleaseIngestionError("A2 temporal authority required for public ingestion")
+        if temporal_authority_path is None:
+            if signed_receipt_sha != receipt_sha256:
+                raise SealedReleaseIngestionError("public successor phase authority digest differs")
+            verify_content_currentness(release_dir.parent, content, datetime.now(UTC))
+        else:
+            if temporal_authority_path.is_symlink():
+                raise SealedReleaseIngestionError("A2 temporal authority path is a symlink")
+            temporal_raw = temporal_authority_path.read_bytes()
+            if hashlib.sha256(temporal_raw).hexdigest() != signed_receipt_sha:
+                raise SealedReleaseIngestionError("public successor phase authority digest differs")
+            verify_temporal_authority_preissuance(
+                content, temporal_raw, now_utc=datetime.now(UTC),
+            )
         raw = receipt_path.read_bytes()
         if hashlib.sha256(raw).hexdigest() != receipt_sha256:
             raise SealedReleaseIngestionError("preissuance checkpoint digest differs")
@@ -208,7 +227,7 @@ def _require_public_candidate_ingestion_authority(
         if hashlib.sha256(index_raw).hexdigest() != content.preparation_index_sha256:
             raise SealedReleaseIngestionError("preparation index differs from A")
         index = json.loads(index_raw)
-    except (PublicSuccessorActivationError, OSError, ValueError) as error:
+    except (PublicSuccessorActivationError, PublicSuccessorTemporalError, OSError, ValueError) as error:
         raise SealedReleaseIngestionError("public successor checkpoint or A invalid") from error
     if not isinstance(receipt, dict) or raw != canonical or set(receipt) != {
         "kind", "status", "content_anchor_sha256", "content_manifest_sha256",
@@ -266,10 +285,11 @@ def main(argv: list[str] | None = None) -> int:
             args.public_successor_content_anchor_path,
             args.public_successor_preissuance_receipt_path,
             args.public_successor_preissuance_receipt_sha256,
+            args.public_successor_temporal_authority_path,
         )
         public_phase = getattr(readiness.manifest, "public_successor_phase", None)
         if public_phase is not None or any(value is not None for value in public_args):
-            if any(value is None for value in public_args):
+            if any(value is None for value in public_args[:3]):
                 raise SealedReleaseIngestionError(
                     "public successor INGESTION requires A and preissuance checkpoint"
                 )
@@ -278,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.public_successor_content_anchor_path,
                 args.public_successor_preissuance_receipt_path,
                 args.public_successor_preissuance_receipt_sha256,
+                args.public_successor_temporal_authority_path,
             )
         else:
             public_content = None
@@ -390,6 +411,9 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 public_successor_preissuance_receipt_sha256=(
                     args.public_successor_preissuance_receipt_sha256 if public_content else None
+                ),
+                public_successor_temporal_authority_path=(
+                    args.public_successor_temporal_authority_path if public_content else None
                 ),
             )
             conn.commit()

@@ -13,7 +13,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from nexus_contracts.authority_artifacts import canonical_publication_review_path
+from nexus_contracts.authority_artifacts import (
+    canonical_publication_review_path,
+    git_blob_sha1,
+)
 from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationVerdict,
     verify_content_anchor,
@@ -64,6 +67,20 @@ def _json_under_digest(path: Path, expected_sha256: str) -> dict[str, Any]:
     if not isinstance(result, dict):
         raise PublicSuccessorDBRefused("A file object invalid")
     return result
+
+
+def _sealed_review_blob_sha(bundle_root: Path, review_digest: str) -> str:
+    """Distinguer le blob de la revue du tree Git dans le binding C."""
+    review_path = bundle_root / "authorities/publication_batch_review_receipt_sha256.bin"
+    if review_path.is_symlink() or not review_path.is_file():
+        raise PublicSuccessorDBRefused("LOT42 sealed review bytes unavailable")
+    raw = review_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != review_digest:
+        raise PublicSuccessorDBRefused("LOT42 sealed review digest differs from C")
+    blob_sha = git_blob_sha1(raw)
+    if not isinstance(blob_sha, str) or _SHA1.fullmatch(blob_sha) is None:
+        raise PublicSuccessorDBRefused("LOT42 sealed review blob identity invalid")
+    return blob_sha
 
 
 def _expected_lot42_population(
@@ -121,7 +138,7 @@ def require_public_successor_startup_lot42(
     conn: Any,
     verdict: PublicSuccessorActivationVerdict,
     bundle_root: Path,
-) -> None:
+) -> int:
     """Mesurer les 377 lignes et attestations LOT42 avant le premier trafic."""
     if datetime.now(UTC) >= verdict.expires_at_utc:
         raise PublicSuccessorDBRefused("C expired before LOT42 startup replay")
@@ -144,6 +161,7 @@ def require_public_successor_startup_lot42(
     ):
         raise PublicSuccessorDBRefused("C lacks exact LOT42 signed review expectations")
     expected, inventory_sha = _expected_lot42_population(verdict, bundle_root)
+    reviewed_blob_sha = _sealed_review_blob_sha(bundle_root, review_digest)
     if set(auth_by_collection) != {key[0] for key in expected}:
         raise PublicSuccessorDBRefused("LOT42 collections differ from C LOT41A")
     try:
@@ -234,7 +252,7 @@ def require_public_successor_startup_lot42(
             review_path != canonical_publication_review_path(
                 review_id=review_id, digest=review_digest,
             ),
-            review_blob != review_binding[2],
+            review_blob != reviewed_blob_sha,
             fingerprint != observed[key][2], rights != "public_allowed",
             not isinstance(rights_at, datetime) or rights_at > now,
             quality is not True,
@@ -255,6 +273,7 @@ def require_public_successor_startup_lot42(
         raise PublicSuccessorDBRefused("LOT42 attestation coverage incomplete")
     if datetime.now(UTC) >= verdict.expires_at_utc:
         raise PublicSuccessorDBRefused("C expired during LOT42 startup replay")
+    return len(attestations)
 
 
 def require_public_successor_live_controls(

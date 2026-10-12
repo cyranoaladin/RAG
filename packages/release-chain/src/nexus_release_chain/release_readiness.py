@@ -139,6 +139,15 @@ _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS = frozenset(
         "revocation_evidence_sha256",
     }
 )
+_PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS = _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS | frozenset(
+    {
+        "temporal_a2_authority_sha256",
+        "temporal_a2_issue_attestation_sha256",
+        "temporal_c_attestation_sha256",
+        "source_inventory_packet_sha256",
+        "a2_transfer_binding_sha256",
+    }
+)
 _MULTILEVEL_V2_ARTIFACT_FIELDS = frozenset(
     {
         "artifact_id",
@@ -556,9 +565,12 @@ def _require_authority_chain(
             _require_sha256(authorities.get(name), f"{field}.{name}")
         return
     if public_successor_promotion_allowed:
-        if declared != _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS:
+        if declared not in (
+            _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS,
+            _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS,
+        ):
             raise ReleaseReadinessError(f"{field}: public successor authorities differ")
-        for name in sorted(_PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS):
+        for name in sorted(declared):
             _require_sha256(authorities.get(name), f"{field}.{name}")
         return
     review_declared = (
@@ -1385,7 +1397,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         if release_mode == "public_successor":
             if any(item.payload.get("visibility") != "public" for item in placements):
                 raise ReleaseReadinessError("public successor placement visibility differs")
-            # Les 21 SHA ci-dessus sont des DECLARATIONS. Ce lecteur ne possède
+            # Les 21 ou 26 SHA ci-dessus sont des DECLARATIONS. Ce lecteur ne possède
             # pas les validateurs de revue GitHub, LOT41A/LOT42, currentness
             # dérivé ni le reçu des octets transférés. Les accepter comme
             # autorité de promotion serait une usurpation de ces contrôles.

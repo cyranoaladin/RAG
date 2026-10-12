@@ -21,20 +21,31 @@ sys.path.insert(0, str(ROOT / "packages/release-chain/src"))
 sys.path.insert(0, str(ROOT / "packages/contracts/src"))
 sys.path.insert(0, str(ROOT / "services/rag-engine/src"))
 
+import attest_student_derivative_source_currentness as source_pulse  # noqa: E402
 import historical_staging_target_pin_receipt as historical  # noqa: E402
 import public_successor_signing_replay as replay  # noqa: E402
 import sign_production_readiness_manifest_cli as production  # noqa: E402
 import sign_staging_readiness_manifest_cli as staging  # noqa: E402
+from nexus_contracts.authority_artifacts import git_blob_sha1  # noqa: E402
+from nexus_contracts.production_readiness import (  # noqa: E402
+    ProductionReadinessError,
+    ProductionReadinessTrustAnchor,
+    ProductionReadinessTrustAnchorKey,
+    public_readiness_key_hex,
+    verify_production_readiness_manifest_v2,
+)
 from nexus_release_chain.public_successor_activation import (  # noqa: E402
     PublicSuccessorActivationVerdict,
 )
 
+from ingestor.ingestion_control import github_authority  # noqa: E402
 from tests.test_sign_production_readiness_manifest_cli import (  # noqa: E402
     APPLICATION_IMAGE_DIGESTS,
     PR_HEAD_SHA,
     PR_NUMBER,
     REPOSITORY,
     TEST_KEY_ID,
+    TEST_SEED,
     TREE_SHA,
     UPSTREAM_IMAGE_REF,
     UPSTREAM_IMAGE_SERVICE,
@@ -63,7 +74,191 @@ def _activation() -> PublicSuccessorActivationVerdict:
         scope_sha256_by_id={},
         counts={"subjects": 11, "unique_artifacts": 253, "placements": 377, "unique_chunks": 3975},
         expires_at_utc=datetime.now(UTC) + timedelta(days=1),
+        publication_batch_review_binding=(
+            "a" * 40, "b" * 40, "c" * 40, 1,
+            "NEXUS-TRUSTED-REVIEW-V1:" + "d" * 64, "abenrhouma",
+        ),
     )
+
+
+def test_live_c_source_pulse_replays_private_253_receipts_exactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pulse = tmp_path / "pulse.json"
+    raw = source_pulse._canonical({
+        "attested_at_utc": "2026-10-12T00:00:00Z", "status_counts": {"PASS": 253},
+    })
+    pulse.write_bytes(raw)
+    private = tmp_path / "private"
+    checkpoints = tmp_path / "checkpoints"
+    fresh = tmp_path / "fresh"
+    for path in (private, checkpoints, fresh):
+        path.mkdir()
+    inputs = SimpleNamespace(
+        repository_root=ROOT, source_private_root=private,
+        source_checkpoint_root=checkpoints, source_fresh_root=fresh,
+    )
+    monkeypatch.setattr(source_pulse, "attest_repository", lambda *_a, **_k: json.loads(raw))
+    observed = replay._replay_publication_source_pulse(
+        inputs, pulse, hashlib.sha256(raw).hexdigest(),
+    )
+    assert observed.tzinfo == UTC
+    monkeypatch.setattr(source_pulse, "attest_repository", lambda *_a, **_k: {
+        **json.loads(raw), "status_counts": {"PASS": 252, "BLOCKED": 1},
+    })
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="source pulse"):
+        replay._replay_publication_source_pulse(
+            inputs, pulse, hashlib.sha256(raw).hexdigest(),
+        )
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="source pulse"):
+        replay._replay_publication_source_pulse(inputs, pulse, "a" * 64)
+
+
+def test_publication_signer_names_private_source_pulse_roots() -> None:
+    options = staging._build_arg_parser()._option_string_actions
+    assert "--public-successor-source-private-root" in options
+    assert "--public-successor-source-checkpoint-root" in options
+    assert "--public-successor-source-fresh-root" in options
+    assert "--public-successor-lot42-review-pr" in options
+    assert "--public-successor-lot42-reviewed-head" in options
+    assert "--public-successor-lot42-historical-receipt-path" in options
+    assert "--public-successor-lot41a-material-root" in options
+
+
+def test_live_c_refuses_missing_or_symlinked_lot41a_review_material(
+    tmp_path: Path,
+) -> None:
+    from nexus_contracts.authority_artifacts import canonical_authorization_path
+    from nexus_contracts.authorization_set import canonical_review_binding_path
+
+    material = tmp_path / "material"
+    material.mkdir()
+    member = SimpleNamespace(authorization_id="lot41a-student-public-test-v2")
+    paths = (
+        canonical_authorization_path(member.authorization_id),
+        canonical_review_binding_path(member.authorization_id),
+    )
+    for relative in paths:
+        path = material / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(relative.encode())
+    inputs = SimpleNamespace(lot41a_material_root=material)
+    assert replay._load_lot41a_release_files(inputs, (member,)) == {
+        relative: relative.encode() for relative in paths
+    }
+    binding = material / paths[1]
+    binding.unlink()
+    binding.symlink_to(material / paths[0])
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT41A"):
+        replay._load_lot41a_release_files(inputs, (member,))
+
+
+def test_live_lot42_requires_approved_open_head_and_exact_reviewed_blob(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = b"reviewed-lot42-bytes"
+    digest = hashlib.sha256(raw).hexdigest()
+    artifact = SimpleNamespace(
+        review_id="lot42-public-a2", digest=lambda: digest,
+        canonical_bytes=lambda: raw,
+    )
+    inputs = SimpleNamespace(
+        repository_root=ROOT, lot42_review_pr=778, lot42_reviewed_head="b" * 40,
+    )
+    live = SimpleNamespace(
+        approved=True, reason="approved", repository="cyranoaladin/RAG", pull_request=778,
+        base_sha="a" * 40, head_sha="b" * 40,
+        reviewer="abenrhouma", review_id=900,
+        challenge="NEXUS-TRUSTED-REVIEW-V1:" + "c" * 64,
+        base_ref="main", head_pinned_status="success",
+    )
+    monkeypatch.setattr(github_authority, "verify_review", lambda **_k: live)
+    monkeypatch.setattr(github_authority, "fetch_blob_at_ref", lambda **_k: SimpleNamespace(
+        content=raw, blob_sha=git_blob_sha1(raw),
+    ))
+    monkeypatch.setattr(replay, "_reviewed_head_tree", lambda *_: "d" * 40)
+    assert replay._verified_live_lot42_review_binding(
+        inputs, artifact, digest,
+    ) == ("a" * 40, "b" * 40, "d" * 40, 900,
+          "NEXUS-TRUSTED-REVIEW-V1:" + "c" * 64, "abenrhouma")
+    live.head_pinned_status = "failure"
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
+        replay._verified_live_lot42_review_binding(inputs, artifact, digest)
+    live.head_pinned_status = "success"
+    monkeypatch.setattr(github_authority, "fetch_blob_at_ref", lambda **_k: SimpleNamespace(
+        content=b"different", blob_sha=git_blob_sha1(b"different"),
+    ))
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
+        replay._verified_live_lot42_review_binding(inputs, artifact, digest)
+
+
+def test_lot42_evaluator_is_derived_only_from_reviewed_receipt() -> None:
+    reviewed = SimpleNamespace(
+        provenance_note="release. Public successor evidence: "
+        "A2_SHA256=" + "a" * 64 + "; TRANSFER_SHA256=" + "b" * 64 +
+        "; TARGET_PIN_SHA256=" + "d" * 64 + "; TRANSFER_V2_SHA256=" + "e" * 64 +
+        "; PROJECTION_SHA256=" + "c" * 64 + "; EVALUATOR=automated:Codex/LOT42."
+    )
+    assert replay._lot42_review_evaluator(reviewed) == "automated:Codex/LOT42"
+    reviewed.provenance_note = (
+        "release. Public successor evidence: A2_SHA256=" + "a" * 64 +
+        "; TRANSFER_SHA256=" + "b" * 64 +
+        "; PROJECTION_SHA256=" + "c" * 64 + "; EVALUATOR=unbound."
+    )
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
+        replay._lot42_review_evaluator(reviewed)
+
+
+def test_live_c_passes_pin_and_v2_transfer_into_reviewed_batch_gate() -> None:
+    seen: dict[str, str] = {}
+
+    def check(_review: object, *, target_pin_sha256: str,
+              transfer_v2_sha256: str, **_kwargs: object) -> None:
+        seen["pin"] = target_pin_sha256
+        seen["transfer_v2"] = transfer_v2_sha256
+
+    replay._require_c_reviewed_batch(
+        check, object(), facts=object(),
+        source=SimpleNamespace(a2_sha256="a" * 64,
+                               a2_valid_until=datetime.now(UTC) + timedelta(days=1)),
+        target=SimpleNamespace(plan_sha256="b" * 64, attestation_sha256="c" * 64),
+        approved_pin_sha256="d" * 64, projection_digest="e" * 64,
+        evaluator="automated:Codex/LOT42", now_utc=datetime.now(UTC),
+    )
+    assert seen == {"pin": "d" * 64, "transfer_v2": "c" * 64}
+
+
+def test_lot42_review_mode_follows_live_pr_state_not_operator_choice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reviewed = SimpleNamespace(
+        review_id="lot42", canonical_bytes=lambda: b"review",
+        digest=lambda: hashlib.sha256(b"review").hexdigest(),
+    )
+    inputs = SimpleNamespace(
+        repository_root=ROOT, lot42_review_pr=444,
+        lot42_reviewed_head="b" * 40,
+        lot42_historical_receipt_path=tmp_path / "historical.json",
+    )
+    expected = ("a" * 40, "b" * 40, "c" * 40, 5,
+                "NEXUS-TRUSTED-REVIEW-V1:" + "d" * 64, "abenrhouma")
+    pr300 = SimpleNamespace(_read_gh=lambda *_: {"state": "open", "merged": False})
+    historical = SimpleNamespace(check_historical_lot42_receipt=lambda *_: expected)
+    monkeypatch.setattr(replay, "_checkout_module", lambda name: {
+        "pr300_authority_receipt": pr300,
+        "historical_lot42_review_receipt": historical,
+    }[name])
+    monkeypatch.setattr(replay, "_verified_live_lot42_review_binding", lambda *_: expected)
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="OPEN"):
+        replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest())
+    pr300._read_gh = lambda *_: {"state": "closed", "merged": True}
+    assert replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest()) == expected
+    inputs.lot42_historical_receipt_path = None
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="historical"):
+        replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest())
+    pr300._read_gh = lambda *_: {"state": "closed", "merged": False}
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="not merged"):
+        replay._verified_lot42_review_binding(inputs, reviewed, reviewed.digest())
 
 
 def test_staging_publication_replay_refusal_precedes_key_read(
@@ -102,6 +297,7 @@ def test_staging_publication_replay_refusal_precedes_key_read(
 def test_production_v2_binds_only_typed_public_activation() -> None:
     material = _v2_material()
     verdict = _activation()
+    verified_at = datetime.now(UTC)
     manifest = production.assemble_and_sign_v2(
         material,
         repository=REPOSITORY,
@@ -116,12 +312,61 @@ def test_production_v2_binds_only_typed_public_activation() -> None:
         public_successor_publication=replay.PublicationSigningReplayVerdict(
             activation=verdict, target_pin_sha256=SHA,
             expires_at_utc=datetime.now(UTC) + timedelta(hours=1),
+            verified_at_utc=verified_at,
         ),
     )
     assert manifest.public_successor_content_manifest_digest == verdict.content_manifest_sha256
     assert manifest.public_successor_content_anchor_digest == verdict.content_anchor_sha256
     assert manifest.public_successor_authority_envelope_digest == verdict.authority_envelope_sha256
     assert manifest.public_successor_target_pin_digest == SHA
+    assert manifest.public_successor_c_verified_at_utc == verified_at
+    assert manifest.public_successor_lot42_review_binding == verdict.publication_batch_review_binding
+
+
+def test_public_c_readiness_signed_roundtrip_binds_final_expiry_and_lot42() -> None:
+    material = _v2_material()
+    activation = _activation()
+    verified_at = datetime.now(UTC)
+    expiry = verified_at + timedelta(minutes=35)
+    replay_verdict = replay.PublicationSigningReplayVerdict(
+        activation=activation, target_pin_sha256=SHA,
+        expires_at_utc=expiry, verified_at_utc=verified_at,
+    )
+    parameters = dict(
+        repository=REPOSITORY, pr_number=PR_NUMBER,
+        pr_head_sha=PR_HEAD_SHA, pr_head_tree_sha=TREE_SHA,
+        application_image_digests=APPLICATION_IMAGE_DIGESTS,
+        upstream_image_digests={UPSTREAM_IMAGE_SERVICE: UPSTREAM_IMAGE_REF},
+        compose_digest=SHA, key_id=TEST_KEY_ID, workflow_ref=WORKFLOW_REF,
+    )
+    manifest = production.assemble_and_sign_v2(
+        material, public_successor_publication=replay_verdict, **parameters,
+    )
+    signed = production.sign_production_readiness_manifest_v2(
+        manifest, private_key_hex=TEST_SEED, key_id=TEST_KEY_ID,
+    )
+    trust = ProductionReadinessTrustAnchor(
+        protocol_version="NEXUS-PRODUCTION-READINESS-V1",
+        keys=(ProductionReadinessTrustAnchorKey(
+            key_id=TEST_KEY_ID, algorithm="ed25519",
+            public_key=public_readiness_key_hex(TEST_SEED), environment="production",
+        ),),
+    )
+    observed = verify_production_readiness_manifest_v2(
+        signed.canonical_bytes(), trust_anchor=trust,
+    )
+    assert observed.public_successor_c_expires_at_utc == expiry
+    assert observed.public_successor_c_verified_at_utc == verified_at
+    assert observed.public_successor_lot42_review_binding == activation.publication_batch_review_binding
+    with pytest.raises((production.SigningToolError, ProductionReadinessError)):
+        production.assemble_and_sign_v2(
+            material,
+            public_successor_publication=replace(
+                replay_verdict,
+                activation=replace(activation, publication_batch_review_binding=None),
+            ),
+            **parameters,
+        )
 
 
 def test_production_v2_refuses_public_activation_without_independent_pin() -> None:
@@ -141,11 +386,40 @@ def test_production_public_pin_expired_before_key_is_refused() -> None:
     replay_verdict = replay.PublicationSigningReplayVerdict(
         activation=_activation(), target_pin_sha256=SHA,
         expires_at_utc=datetime(2026, 10, 10, 12, tzinfo=UTC),
+        verified_at_utc=datetime(2026, 10, 10, 11, tzinfo=UTC),
     )
     with pytest.raises(production.SigningToolError, match="expired before key"):
         production._require_public_publication_fresh_at_key(
             replay_verdict, datetime(2026, 10, 10, 12, tzinfo=UTC),
         )
+
+
+def test_production_public_inputs_allow_open_pr_without_historical_receipt() -> None:
+    names = (
+        "bundle_root", "content_anchor_path", "preissuance_receipt_path",
+        "temporal_authority_path", "private_cas_root", "target_root",
+        "target_pin_path", "target_pin_receipt_path", "target_pin_pull_request",
+        "observed_v1_receipt_path", "database_dsn_file", "source_private_root",
+        "source_checkpoint_root", "source_fresh_root", "lot41a_material_root",
+        "lot42_review_pr", "lot42_reviewed_head",
+    )
+    values = {f"public_successor_{name}": Path("present") for name in names}
+    args = SimpleNamespace(
+        public_candidate=True,
+        public_successor_lot42_historical_receipt_path=None,
+        **values,
+    )
+    production._require_public_successor_v2_inputs(args)
+    args.public_successor_lot42_historical_receipt_path = Path("historical")
+    production._require_public_successor_v2_inputs(args)
+    args.public_successor_bundle_root = None
+    with pytest.raises(production.SigningToolError, match="bundle"):
+        production._require_public_successor_v2_inputs(args)
+    args.public_successor_bundle_root = Path("present")
+    args.public_successor_lot42_historical_receipt_path = None
+    args.public_successor_lot42_review_pr = None
+    with pytest.raises(production.SigningToolError, match="inputs"):
+        production._require_public_successor_v2_inputs(args)
 
 
 def test_production_v2_parser_requires_explicit_successor_bundle() -> None:
@@ -155,6 +429,14 @@ def test_production_v2_parser_requires_explicit_successor_bundle() -> None:
     assert "--public-successor-target-root" in options
     assert "--public-successor-target-pin-receipt-path" in options
     assert "--public-successor-target-pin-pull-request" in options
+    assert "--public-successor-temporal-authority-path" in options
+    assert "--public-successor-source-private-root" in options
+    assert "--public-successor-source-checkpoint-root" in options
+    assert "--public-successor-source-fresh-root" in options
+    assert "--public-successor-lot41a-material-root" in options
+    assert "--public-successor-lot42-review-pr" in options
+    assert "--public-successor-lot42-reviewed-head" in options
+    assert "--public-successor-lot42-historical-receipt-path" in options
 
 
 def test_verified_target_pin_uses_historical_authority_and_exact_bytes(

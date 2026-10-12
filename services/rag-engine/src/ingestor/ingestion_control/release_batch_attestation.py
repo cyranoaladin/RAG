@@ -65,6 +65,10 @@ class MeasuredReleaseBatchFacts:
     #: Vrai quand les lignes sont couvertes par ADOPTION (ADR-0059 § 5) et non
     #: acquises sous cette release.
     adopted: bool = False
+    #: (collection, content SHA, placement ID, PUBLICATION authorization ID),
+    #: read from the control-plane rows, never copied from a release manifest.
+    placement_keys: tuple[tuple[str, str, str, str], ...] = ()
+    chunk_counts: Mapping[str, int] | None = None
 
 
 def _une_valeur(valeurs: set[str], *, champ: str) -> str:
@@ -134,6 +138,7 @@ def measure_release_batch_facts(
     chunks_par_contenu: dict[str, int] = {}
     par_ressource: dict[UUID, tuple[UUID, str, str, str]] = {}
     actualites: set[str] = set()
+    placement_keys: set[tuple[str, str, str, str]] = set()
 
     for resource_id, artifact_id, sha256, collection, payload in lignes:
         manquants = [
@@ -183,6 +188,19 @@ def measure_release_batch_facts(
         transferts.add(str(payload["artifact_transfer_manifest_sha256"]))
         contenus.add(sha256)
         provenances.add(str(payload["provenance_artifact_url"]))
+        placement_id = payload.get("placement_id")
+        if not isinstance(placement_id, str) or not placement_id:
+            raise ReleaseBatchAttestationError(
+                f"sealed row {resource_id} carries no placement_id"
+            )
+        key = (collection, sha256, placement_id, str(payload["scope_authorization_id"]))
+        if key in placement_keys:
+            raise ReleaseBatchAttestationError(f"sealed placement {key!r} appears twice")
+        placement_keys.add(key)
+        if sha256 in chunks_par_contenu and chunks_par_contenu[sha256] != int(payload["chunk_count"]):
+            raise ReleaseBatchAttestationError(
+                f"sealed content {sha256} has inconsistent chunk_count"
+            )
         chunks_par_contenu.setdefault(sha256, int(payload["chunk_count"]))
         par_ressource[resource_id] = (
             artifact_id, sha256, collection, str(payload["scope_authorization_id"])
@@ -216,7 +234,72 @@ def measure_release_batch_facts(
         # qu'une revue unique puisse couvrir.
         currentness=_une_valeur(actualites, champ="currentness"),
         adopted=adopted,
+        placement_keys=tuple(sorted(placement_keys)),
+        chunk_counts=dict(sorted(chunks_par_contenu.items())),
     )
+
+
+def require_public_successor_batch_matches_release(
+    facts: MeasuredReleaseBatchFacts,
+    release: Any,
+    authorization_ids: Mapping[str, str],
+) -> None:
+    """Require an exact public-text placement bijection before a LOT42 proposal.
+
+    ``release`` is the digest-verified canonical sealed release. Authorization
+    IDs are the individually verified LOT41A-V2 publication bindings read from
+    the target DB, not operator-supplied fallback IDs.
+    """
+    for label, measured, expected in (
+        ("release_id", facts.release_id, release.release_id),
+        ("release manifest", facts.release_manifest_sha256, release.release_manifest_sha256),
+        ("artifact registry", facts.artifacts_release_sha256, release.artifacts_release_sha256),
+        ("candidate inventory", facts.candidate_inventory_sha256, release.candidate_inventory_sha256),
+        ("transfer manifest", facts.artifact_transfer_manifest_sha256,
+         release.artifact_transfer_manifest_sha256),
+    ):
+        if measured != expected:
+            raise ReleaseBatchAttestationError(f"public batch {label} differs from release")
+    expected_counts = release.expected_counts
+    for count_label, count_measured in (
+        ("subjects", facts.subjects),
+        ("unique_artifacts", facts.unique_artifacts),
+        ("placements", facts.placements),
+        ("unique_chunks", facts.unique_chunks),
+    ):
+        if count_measured != expected_counts[count_label]:
+            raise ReleaseBatchAttestationError(
+                f"public batch {count_label}: DB={count_measured}, release={expected_counts[count_label]}"
+            )
+    if (
+        set(facts.collections) != set(release.collections)
+        or set(authorization_ids) != set(release.collections)
+        or len(set(authorization_ids.values())) != len(authorization_ids)
+        or set(facts.scope_authorization_ids) != set(authorization_ids.values())
+    ):
+        raise ReleaseBatchAttestationError("public batch collection or authorization population differs")
+    if set(release.artifact_media_types) != set(release.artifact_ids) or any(
+        media != "text/plain; charset=utf-8" for media in release.artifact_media_types.values()
+    ):
+        raise ReleaseBatchAttestationError("public batch requires exclusively text derivatives")
+    if facts.chunk_counts is None or dict(facts.chunk_counts) != dict(release.artifact_chunk_counts):
+        raise ReleaseBatchAttestationError("public batch per-artifact chunk_count differs")
+    expected_keys: set[tuple[str, str, str, str]] = set()
+    for placement in release.placements:
+        if (
+            placement.review_status != "reviewed"
+            or placement.placement_status != "active"
+            or placement.currentness != facts.currentness
+            or placement.scope_dimensions.get("visibility") != "public"
+            or placement.artifact_id not in release.artifact_ids
+        ):
+            raise ReleaseBatchAttestationError("public batch placement is not reviewed, active, current, public text")
+        expected_keys.add((
+            placement.collection, placement.artifact_id, placement.placement_id,
+            authorization_ids[placement.collection],
+        ))
+    if len(expected_keys) != len(release.placements) or tuple(sorted(expected_keys)) != facts.placement_keys:
+        raise ReleaseBatchAttestationError("public batch placement identity or scope differs")
 
 
 def require_facts_match_catalog(

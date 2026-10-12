@@ -1148,6 +1148,7 @@ def ingest_sealed_release(
     public_successor_anchor_path: Path | None = None,
     public_successor_preissuance_receipt_path: Path | None = None,
     public_successor_preissuance_receipt_sha256: str | None = None,
+    public_successor_temporal_authority_path: Path | None = None,
 ) -> IngestionReport:
     """Créer les lignes de contrôle jusqu'à ``NEEDS_REVIEW``, et rien au-delà.
 
@@ -1181,6 +1182,7 @@ def ingest_sealed_release(
                 public_successor_anchor_path,
                 public_successor_preissuance_receipt_path,
                 public_successor_preissuance_receipt_sha256,
+                public_successor_temporal_authority_path,
             )
         except StagingReadinessGateError as error:
             raise SealedReleaseIngestionError(

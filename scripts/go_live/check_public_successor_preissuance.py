@@ -19,6 +19,12 @@ from build_public_successor_content_anchor import (
     build_content_anchor,
     inspect_content_preparation,
 )
+from nexus_release_chain.public_successor_activation import verify_content_anchor
+from nexus_release_chain.public_successor_temporal import (
+    APPROVED_A1_ANCHOR_SHA256,
+    PublicSuccessorTemporalError,
+    verify_temporal_authority_preissuance,
+)
 
 KIND = "NEXUS_PUBLIC_SUCCESSOR_PREISSUANCE_CHECKPOINT_V1"
 STATUS = "CHECKPOINT_ONLY_NOT_SCOPE_AUTHORITY"
@@ -98,6 +104,7 @@ def verify_preissuance_authority(
     anchor_path: Path, anchor_sha256: str, manifest_sha256: str,
     receipt_path: Path, receipt_sha256: str, repository_root: Path,
     private_cas_root: Path, now_utc: datetime,
+    *, temporal_authority_raw: bytes | None = None,
 ) -> PreissuanceVerdict:
     """Revérifier #300/#312/#313 et les octets CAS avant émission des scopes.
 
@@ -148,8 +155,19 @@ def verify_preissuance_authority(
         raise PreissuanceError("currentness expiry invalid") from error
     if expires.tzinfo is None or expires.utcoffset() != UTC.utcoffset(expires):
         raise PreissuanceError("currentness expiry must be UTC aware")
-    if now_utc >= expires:
-        raise PreissuanceError("source currentness expired")
+    if temporal_authority_raw is None:
+        if anchor_sha256 == APPROVED_A1_ANCHOR_SHA256:
+            raise PreissuanceError("A2 temporal authority required for this public release")
+        if now_utc >= expires:
+            raise PreissuanceError("source currentness expired")
+    else:
+        try:
+            content = verify_content_anchor(anchor_path, anchor_sha256, path.parent.parent)
+            expires = verify_temporal_authority_preissuance(
+                content, temporal_authority_raw, now_utc=now_utc,
+            )
+        except (PublicSuccessorTemporalError, ValueError, OSError) as error:
+            raise PreissuanceError("A2 temporal authority invalid") from error
     _require_cas_index_matches(private_cas_root, receipt["private_cas_index_sha256"])
     try:
         replay = inspect_content_preparation(
@@ -161,7 +179,8 @@ def verify_preissuance_authority(
     if not (
         replay.get("inclusion_population_verified") is True
         and replay.get("private_cas_replay_verified") is True
-        and replay.get("source_currentness_window_open") is True
+        and (temporal_authority_raw is not None
+             or replay.get("source_currentness_window_open") is True)
         and replay.get("activation_allowed") is False
     ):
         raise PreissuanceError("private CAS or GitHub review replay incomplete")

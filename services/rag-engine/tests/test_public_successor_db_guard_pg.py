@@ -88,6 +88,8 @@ def test_public_lot42_real_schema_and_post_startup_invalidation(
     """Une vraie ligne batch passe, puis une invalidation en base ferme la requête."""
     from ingestor import public_successor_db_guard as guard
 
+    monkeypatch.setattr(guard, "_sealed_review_blob_sha", lambda *_: REVIEW_BINDING[2])
+
     resource_id, artifact_id = ressource_reelle
     monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: (
         {(COLLECTION, SHA, SOURCE_PLACEMENT): (

@@ -9,11 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from nexus_contracts.authority_artifacts import canonical_publication_review_path
+from nexus_contracts.authority_artifacts import canonical_publication_review_path, git_blob_sha1
 from nexus_release_chain.public_successor_activation import verify_content_anchor
 
 from ingestor.public_successor_db_guard import (
     PublicSuccessorDBRefused,
+    _sealed_review_blob_sha,
     require_public_successor_live_controls,
     require_public_successor_startup_lot42,
 )
@@ -36,6 +37,18 @@ REVIEW_BINDING = (
     "6" * 40, "7" * 40, "8" * 40, 123,
     "NEXUS-TRUSTED-REVIEW-V1:test", "reviewer-fixture",
 )
+
+
+def test_sealed_lot42_review_blob_is_derived_from_bytes_not_git_tree(tmp_path: Path) -> None:
+    review = tmp_path / "authorities/publication_batch_review_receipt_sha256.bin"
+    review.parent.mkdir()
+    raw = b"exact reviewed LOT42 artifact"
+    review.write_bytes(raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    assert _sealed_review_blob_sha(tmp_path, digest) == git_blob_sha1(raw)
+    assert _sealed_review_blob_sha(tmp_path, digest) != REVIEW_BINDING[2]
+    with pytest.raises(PublicSuccessorDBRefused, match="digest differs"):
+        _sealed_review_blob_sha(tmp_path, "0" * 64)
 
 
 class _Cursor:
@@ -172,6 +185,8 @@ def test_startup_replays_full_lot42_and_matches_expected_authorizations(
 ) -> None:
     from ingestor import public_successor_db_guard as guard
 
+    monkeypatch.setattr(guard, "_sealed_review_blob_sha", lambda *_: REVIEW_BINDING[2])
+
     calls: list[str] = []
     monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: calls.append("A") or (
         {(COLLECTION, CONTENT_SHA, SOURCE_PLACEMENT): (
@@ -180,15 +195,18 @@ def test_startup_replays_full_lot42_and_matches_expected_authorizations(
     ))
     verdict = _verdict()
     database = _Database()
-    require_public_successor_startup_lot42(database, verdict, tmp_path)
+    observed = require_public_successor_startup_lot42(database, verdict, tmp_path)
     assert calls == ["A"]
     assert len(database.queries) == 3
+    assert observed == 1
 
 
 def test_startup_refuses_lot42_reviewer_different_from_c(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from ingestor import public_successor_db_guard as guard
+
+    monkeypatch.setattr(guard, "_sealed_review_blob_sha", lambda *_: REVIEW_BINDING[2])
 
     monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: (
         {(COLLECTION, CONTENT_SHA, SOURCE_PLACEMENT): (
@@ -226,6 +244,8 @@ def test_startup_refuses_lot42_foreign_authorization_before_service(
 ) -> None:
     from ingestor import public_successor_db_guard as guard
 
+    monkeypatch.setattr(guard, "_sealed_review_blob_sha", lambda *_: REVIEW_BINDING[2])
+
     monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: (
         {(COLLECTION, CONTENT_SHA, SOURCE_PLACEMENT): (
             PLACEMENT, "official_snapshot", FINGERPRINT, "https://example.test/source", 1,
@@ -246,6 +266,8 @@ def test_startup_refuses_lot42_attestation_without_substantive_proof(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, column: str,
 ) -> None:
     from ingestor import public_successor_db_guard as guard
+
+    monkeypatch.setattr(guard, "_sealed_review_blob_sha", lambda *_: REVIEW_BINDING[2])
 
     monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: (
         {(COLLECTION, CONTENT_SHA, SOURCE_PLACEMENT): (

@@ -206,6 +206,8 @@ def _verified_runtime(
         activation=verdict,
         transfer_manifest_path=transfer_path,
         expected_transfer_manifest_sha256=transfer_sha,
+        authority_envelope_path=root / "authority-envelope.json",
+        temporal_authority_path=root / "authorities/temporal_a2_authority_sha256.bin",
     )
     return signed, verdict, authorities
 
