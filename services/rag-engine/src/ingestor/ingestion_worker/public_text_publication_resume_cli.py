@@ -310,7 +310,15 @@ def main_public(argv: list[str]) -> int:
             transfer, transfer_sha = _transfer_authority(
                 args.public_successor_bundle_root, signed.envelope_sha256,
             )
-            del transfer
+            if transfer_sha != verdict.transfer_manifest_sha256:
+                raise ValueError("Worker B transfer plan differs from C")
+            from nexus_release_chain.public_successor_activation import (
+                derive_worker_transfer_manifest_sha256,
+            )
+            worker_transfer_sha = derive_worker_transfer_manifest_sha256(
+                transfer.read_bytes(),
+                (args.public_successor_bundle_root / "authorities/observed-transfer-v1.json").read_bytes(),
+            )
 
             def reverify() -> None:
                 fresh_signed, fresh_verdict, fresh_authorities = _verified_runtime(
@@ -320,7 +328,7 @@ def main_public(argv: list[str]) -> int:
                     raise ValueError("public readiness or C drifted during Worker B")
                 require_public_lot42_db(
                     conn, activation=fresh_verdict,
-                    authorities=fresh_authorities, transfer_sha256=transfer_sha,
+                    authorities=fresh_authorities, transfer_sha256=worker_transfer_sha,
                 )
 
             reverify()

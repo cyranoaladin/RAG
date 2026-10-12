@@ -435,6 +435,9 @@ def _verify_live_publication(
     from nexus_release_chain.public_lot41a_adapter import (  # noqa: PLC0415
         verify_public_lot41a_set,
     )
+    from nexus_release_chain.public_successor_activation import (  # noqa: PLC0415
+        derive_worker_transfer_manifest_sha256,
+    )
 
     from ingestor.ingestion_control.github_authority import (  # noqa: PLC0415
         load_trusted_reviewers,
@@ -541,6 +544,9 @@ def _verify_live_publication(
             or target.content_anchor_sha256 != content.content_anchor_sha256
             or target.release_id != content.release_id):
         raise PublicationSigningReplayRefused("qualified target differs from C")
+    worker_transfer_sha = derive_worker_transfer_manifest_sha256(
+        plan_raw, _bytes(inputs.observed_v1_receipt_path),
+    )
     binding = _verified_lot42_review_binding(
         inputs, request.publication_batch_review,
         authorities["publication_batch_review_receipt_sha256"],
@@ -550,7 +556,7 @@ def _verify_live_publication(
         release_root=root / "release", anchor_path=root / "content-anchor.json",
         anchor_sha256=content.content_anchor_sha256,
         a2_path=root / "authorities/temporal_a2_authority_sha256.bin",
-        transfer_manifest_sha256=target.plan_sha256,
+        transfer_manifest_sha256=worker_transfer_sha,
         now_utc=datetime.now(UTC),
     )
     if source.a2_sha256 != authorities["temporal_a2_authority_sha256"]:
@@ -763,13 +769,16 @@ def replay_public_successor_publication(
             or transfer_doc["target_pin_sha256"] != approved_pin_sha):
         raise PublicationSigningReplayRefused("qualified target differs from C")
 
+    from nexus_release_chain.public_successor_activation import (  # noqa: PLC0415
+        derive_worker_transfer_manifest_sha256,
+    )
+
     from ingestor.ingestion_worker.public_text_publication_resume_cli import (  # noqa: PLC0415
         require_public_lot42_db,
     )
     from ingestor.ingestion_worker.public_text_runtime_authority import (  # noqa: PLC0415
         load_public_text_runtime_authorities,
     )
-
     runtime = load_public_text_runtime_authorities(
         release_root=root / "release",
         content_anchor_path=root / "content-anchor.json",
@@ -786,7 +795,9 @@ def replay_public_successor_publication(
     ) as conn:
         require_public_lot42_db(
             conn, activation=verdict, authorities=runtime,
-            transfer_sha256=target_verdict.plan_sha256,
+            transfer_sha256=derive_worker_transfer_manifest_sha256(
+                plan_raw, _bytes(inputs.observed_v1_receipt_path),
+            ),
         )
     if datetime.now(UTC) >= min(
         verdict.expires_at_utc, target_verdict.expires_at_utc,

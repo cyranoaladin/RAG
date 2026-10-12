@@ -441,6 +441,20 @@ def test_public_batch_review_binds_a2_transfer_and_projection() -> None:
         )
 
 
+def test_public_batch_review_preserves_distinct_plan_and_observed_worker_digests() -> None:
+    facts = _facts()
+    start = datetime(2026, 10, 12, tzinfo=UTC)
+    review = build_public_successor_batch_review_artifact(
+        review_id="lot42-public-two-digests", facts=facts,
+        valid_from=start, valid_until=start + timedelta(days=1),
+        a2_sha256="a" * 64, transfer_sha256="5" * 64,
+        target_pin_sha256="2" * 64, transfer_v2_sha256="3" * 64,
+        projection_digest="f" * 64, evaluator="automated:Codex/LOT42",
+    )
+    assert review.artifact_transfer_manifest_sha256 == "4" * 64
+    assert f"TRANSFER_SHA256={'5' * 64}" in review.provenance_note
+
+
 def test_public_batch_review_refuses_expired_a2_and_substitution() -> None:
     facts = _facts()
     start = datetime(2026, 10, 12, tzinfo=UTC)

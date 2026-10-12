@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import shutil
 from dataclasses import replace
@@ -290,6 +291,34 @@ def _transfer_offline_fixture() -> tuple[bytes, bytes, bytes, bytes, str]:
         "total_bytes": receipt["total_bytes"],
     }
     return plan_raw, receipt_raw, pin_raw, _compact(attestation), pin_sha
+
+
+def test_worker_manifest_digest_is_derived_from_verified_plan_and_v1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from nexus_release_chain.public_successor_activation import (
+        derive_worker_transfer_manifest_sha256,
+    )
+
+    plan_raw, receipt_raw, *_ = _transfer_offline_fixture()
+    receipt = json.loads(receipt_raw)
+    script = ROOT / "scripts/go_live/public_text_transfer.py"
+    spec = importlib.util.spec_from_file_location("canonical_public_text_transfer", script)
+    assert spec is not None and spec.loader is not None
+    transfer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(transfer)
+    # The producer's live re-hash is tested separately; this contract test
+    # compares the exact producer serialization with the independent replay.
+    monkeypatch.setattr(transfer, "verify_observed_destination", lambda *_: None)
+    produced = transfer.build_worker_transfer_manifest(
+        plan_raw, receipt_raw, Path("/isolated/fixture"), receipt["target_identity"],
+    )
+    assert derive_worker_transfer_manifest_sha256(plan_raw, receipt_raw) == (
+        hashlib.sha256(transfer.canonical(produced)).hexdigest()
+    )
+    receipt["files"][0]["sha256_observed"] = "0" * 64
+    with pytest.raises(PublicSuccessorActivationError, match="worker transfer"):
+        derive_worker_transfer_manifest_sha256(plan_raw, _compact(receipt))
 
 
 def test_public_transfer_offline_links_v2_to_exact_a_and_v1() -> None:
