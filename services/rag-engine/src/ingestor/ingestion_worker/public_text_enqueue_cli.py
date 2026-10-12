@@ -88,6 +88,19 @@ def enqueue_public_successor_jobs(
         observed_collections.add(collection)
     if seen_resources != set(expected) or observed_collections != collections:
         raise ValueError("public LOT42 job coverage differs from C")
+    attestation_ids = [str(row[0]) for row in rows]
+    dedup_keys = [f"publication:{attestation_id}" for attestation_id in attestation_ids]
+    existing = conn.execute(
+        """
+        SELECT job_id FROM ingestion_control.jobs
+         WHERE payload->>'dedup_key' = ANY(%s)
+            OR payload->>'publication_attestation_id' = ANY(%s)
+         LIMIT 1
+        """,
+        (dedup_keys, attestation_ids),
+    ).fetchone()
+    if existing is not None:
+        raise ValueError("public successor publication job already exists")
     for attestation, resource, artifact, _sha, collection, run, version, _state, _artifact_run in rows:
         _, created = find_or_create_job(
             conn, run_id=run, collection=collection, job_type=_JOB_TYPE,

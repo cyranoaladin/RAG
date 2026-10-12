@@ -69,6 +69,7 @@ RUN pip install --no-cache-dir /tmp/nexus-release-chain \
 COPY services/rag-engine/src/ingestor/__init__.py /app/services/rag-engine/src/ingestor/__init__.py
 COPY services/rag-engine/src/ingestor/ssrf_guard.py /app/services/rag-engine/src/ingestor/ssrf_guard.py
 COPY services/rag-engine/src/ingestor/resource_identity_freeze.py /app/services/rag-engine/src/ingestor/resource_identity_freeze.py
+COPY services/rag-engine/src/ingestor/public_successor_db_guard.py /app/services/rag-engine/src/ingestor/public_successor_db_guard.py
 COPY services/rag-engine/src/ingestor/ingestion_control/ /app/services/rag-engine/src/ingestor/ingestion_control/
 COPY services/rag-engine/src/ingestor/ingestion_agents/ /app/services/rag-engine/src/ingestor/ingestion_agents/
 COPY services/rag-engine/src/ingestor/ingestion_profiles/ /app/services/rag-engine/src/ingestor/ingestion_profiles/
