@@ -224,10 +224,9 @@ def test_attestor_can_read_pinned_postgres_system_identity() -> None:
 def test_public_live_target_delegates_full_v2_replay_and_refuses_bad_digest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from ingestor.ingestion_worker import attest_publication_cli as cli
     from scripts.go_live import independent_staging_target_pin as pin_module
     from scripts.go_live import qualified_public_text_transfer as canonical
-
-    from ingestor.ingestion_worker import attest_publication_cli as cli
 
     gate = tmp_path / "release/profile_gate"
     gate.mkdir(parents=True)
