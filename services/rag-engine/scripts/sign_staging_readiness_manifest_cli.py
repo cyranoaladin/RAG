@@ -212,6 +212,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--public-successor-target-pin-pull-request", type=int)
     parser.add_argument("--public-successor-observed-v1-receipt-path", type=Path)
     parser.add_argument("--public-successor-database-dsn-file", type=Path)
+    parser.add_argument("--public-successor-source-private-root", type=Path)
+    parser.add_argument("--public-successor-source-checkpoint-root", type=Path)
+    parser.add_argument("--public-successor-source-fresh-root", type=Path)
+    parser.add_argument("--public-successor-lot41a-material-root", type=Path)
+    parser.add_argument("--public-successor-lot42-review-pr", type=int)
+    parser.add_argument("--public-successor-lot42-reviewed-head")
     parser.add_argument(
         "--show-public-key",
         type=Path,
@@ -295,6 +301,12 @@ def _verify_public_successor_publication_replay(
         args.public_successor_target_pin_pull_request,
         args.public_successor_observed_v1_receipt_path,
         args.public_successor_database_dsn_file,
+        args.public_successor_source_private_root,
+        args.public_successor_source_checkpoint_root,
+        args.public_successor_source_fresh_root,
+        args.public_successor_lot41a_material_root,
+        args.public_successor_lot42_review_pr,
+        args.public_successor_lot42_reviewed_head,
     )
     _require(all(value is not None for value in required),
              "public successor PUBLICATION replay inputs incomplete")
@@ -321,6 +333,12 @@ def _verify_public_successor_publication_replay(
                 target_pin_pull_request=args.public_successor_target_pin_pull_request,
                 observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
                 database_dsn=dsn_file.read_text(encoding="utf-8").strip(),
+                source_private_root=args.public_successor_source_private_root,
+                source_checkpoint_root=args.public_successor_source_checkpoint_root,
+                source_fresh_root=args.public_successor_source_fresh_root,
+                lot41a_material_root=args.public_successor_lot41a_material_root,
+                lot42_review_pr=args.public_successor_lot42_review_pr,
+                lot42_reviewed_head=args.public_successor_lot42_reviewed_head,
             ),
             expected_release_id=args.allowed_release_id,
             expected_manifest_sha256=release_digest,
@@ -400,6 +418,12 @@ def main(argv: list[str] | None = None) -> int:
             args.public_successor_target_pin_pull_request,
             args.public_successor_observed_v1_receipt_path,
             args.public_successor_database_dsn_file,
+            args.public_successor_source_private_root,
+            args.public_successor_source_checkpoint_root,
+            args.public_successor_source_fresh_root,
+            args.public_successor_lot41a_material_root,
+            args.public_successor_lot42_review_pr,
+            args.public_successor_lot42_reviewed_head,
         )
         if phase is None:
             _require(all(value is None for value in public_options),
@@ -473,6 +497,12 @@ def main(argv: list[str] | None = None) -> int:
                         target_pin_pull_request=args.public_successor_target_pin_pull_request,
                         observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
                         database_dsn=dsn_file.read_text(encoding="utf-8").strip(),
+                        source_private_root=args.public_successor_source_private_root,
+                        source_checkpoint_root=args.public_successor_source_checkpoint_root,
+                        source_fresh_root=args.public_successor_source_fresh_root,
+                        lot41a_material_root=args.public_successor_lot41a_material_root,
+                        lot42_review_pr=args.public_successor_lot42_review_pr,
+                        lot42_reviewed_head=args.public_successor_lot42_reviewed_head,
                     ),
                     expected_content_anchor_sha256=anchor_sha,
                     expected_pin_sha256=target_pin_sha,

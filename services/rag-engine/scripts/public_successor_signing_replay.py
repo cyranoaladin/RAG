@@ -11,6 +11,7 @@ import hashlib
 import importlib
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -20,6 +21,8 @@ from types import ModuleType
 import psycopg
 from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationVerdict,
+    PublicSuccessorLiveVerificationRequest,
+    VerifiedPublicSuccessorLiveEvidence,
     verify_content_anchor,
     verify_public_successor_activation,
 )
@@ -47,6 +50,12 @@ class PublicationSigningInputs:
     observed_v1_receipt_path: Path
     database_dsn: str = field(repr=False)
     temporal_authority_path: Path | None = None
+    source_private_root: Path | None = None
+    source_checkpoint_root: Path | None = None
+    source_fresh_root: Path | None = None
+    lot41a_material_root: Path | None = None
+    lot42_review_pr: int | None = None
+    lot42_reviewed_head: str | None = None
 
 
 @dataclass(frozen=True)
@@ -217,6 +226,313 @@ def _replay_publication_preissuance(
     return result.expires_at_utc
 
 
+def _replay_publication_source_pulse(
+    inputs: PublicationSigningInputs, pulse_path: Path, expected_sha256: str,
+) -> datetime:
+    """Recomposer les 253 reçus privés C avant toute autorité de publication."""
+    roots = (
+        inputs.source_private_root, inputs.source_checkpoint_root,
+        inputs.source_fresh_root,
+    )
+    if any(path is None or path.is_symlink() or not path.is_dir() for path in roots):
+        raise PublicationSigningReplayRefused("source pulse private inputs absent")
+    raw = _bytes(pulse_path)
+    if _sha(raw) != expected_sha256:
+        raise PublicationSigningReplayRefused("source pulse digest differs from C")
+    try:
+        report = json.loads(raw)
+        attested_at = report["attested_at_utc"]
+        module = _checkout_module("attest_student_derivative_source_currentness")
+        replayed = module.attest_repository(
+            inputs.repository_root, roots[0], roots[1], roots[2],
+            attested_at_utc=attested_at,
+        )
+        if module._canonical(replayed) != raw:
+            raise PublicationSigningReplayRefused("source pulse differs from private replay")
+    except (TypeError, ValueError, KeyError, OSError) as error:
+        raise PublicationSigningReplayRefused("source pulse private replay failed") from error
+    return datetime.now(UTC)
+
+
+def _reviewed_head_tree(repository_root: Path, head_sha: str) -> str:
+    """Exiger que l'objet Git relu localement soit le HEAD exact approuvé."""
+    result = subprocess.run(
+        ["git", "-C", str(repository_root), "rev-parse", "--verify", f"{head_sha}^{{tree}}"],
+        capture_output=True, text=True, check=False,
+    )
+    tree = result.stdout.strip()
+    if result.returncode != 0 or re.fullmatch(r"[0-9a-f]{40}", tree) is None:
+        raise PublicationSigningReplayRefused("LOT42 reviewed Git tree unavailable")
+    return tree
+
+
+def _load_lot41a_release_files(
+    inputs: PublicationSigningInputs, members: tuple[object, ...],
+) -> dict[str, bytes]:
+    """Relire les 22 pièces privées exactes sans suivre de lien symbolique."""
+    from nexus_contracts.authority_artifacts import canonical_authorization_path  # noqa: PLC0415
+    from nexus_contracts.authorization_set import canonical_review_binding_path  # noqa: PLC0415
+
+    root = inputs.lot41a_material_root
+    if root is None or root.is_symlink() or not root.is_dir():
+        raise PublicationSigningReplayRefused("LOT41A private material root absent")
+    files: dict[str, bytes] = {}
+    for member in members:
+        authorization_id = member.authorization_id  # type: ignore[attr-defined]
+        for relative in (
+            canonical_authorization_path(authorization_id),
+            canonical_review_binding_path(authorization_id),
+        ):
+            path = root
+            for component in Path(relative).parts:
+                path /= component
+                if path.is_symlink():
+                    raise PublicationSigningReplayRefused("LOT41A private material symlink")
+            if not path.is_file() or relative in files:
+                raise PublicationSigningReplayRefused("LOT41A private material incomplete")
+            files[relative] = path.read_bytes()
+    return files
+
+
+def _verified_live_lot42_review_binding(
+    inputs: PublicationSigningInputs, review: object, expected_digest: str,
+) -> tuple[str, str, str, int, str, str]:
+    """Relire l'APPROVED exacte et le blob LOT42 pendant que la PR est OPEN."""
+    from nexus_contracts.authority_artifacts import (  # noqa: PLC0415
+        canonical_publication_review_path,
+        git_blob_sha1,
+    )
+
+    from ingestor.ingestion_control.github_authority import (  # noqa: PLC0415
+        GitHubAuthorityError,
+        fetch_blob_at_ref,
+        verify_review,
+    )
+
+    number = inputs.lot42_review_pr
+    head = inputs.lot42_reviewed_head
+    if (type(number) is not int or number <= 0
+            or not isinstance(head, str) or re.fullmatch(r"[0-9a-f]{40}", head) is None):
+        raise PublicationSigningReplayRefused("LOT42 exact PR/head absent")
+    try:
+        raw = review.canonical_bytes()  # type: ignore[attr-defined]
+        digest = review.digest()  # type: ignore[attr-defined]
+        if digest != expected_digest or _sha(raw) != expected_digest:
+            raise PublicationSigningReplayRefused("LOT42 reviewed digest differs from C")
+        path = canonical_publication_review_path(
+            review_id=review.review_id, digest=digest,  # type: ignore[attr-defined]
+        )
+        live = verify_review(
+            repository="cyranoaladin/RAG", pull_request=number,
+            expected_head=head,
+        )
+        if (live.approved is not True or live.reason != "approved"
+                or live.repository != "cyranoaladin/RAG"
+                or live.pull_request != number or live.head_sha != head
+                or live.base_ref != "main" or live.head_pinned_status != "success"
+                or live.reviewer != "abenrhouma"
+                or type(live.review_id) is not int or live.review_id <= 0
+                or not isinstance(live.challenge, str)
+                or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", live.challenge) is None):
+            raise PublicationSigningReplayRefused("LOT42 exact live review absent")
+        blob = fetch_blob_at_ref(repository=live.repository, path=path, ref=head)
+        if blob.content != raw or blob.blob_sha != git_blob_sha1(raw):
+            raise PublicationSigningReplayRefused("LOT42 approved blob differs from C")
+        tree = _reviewed_head_tree(inputs.repository_root, head)
+    except (GitHubAuthorityError, OSError, TypeError, ValueError) as error:
+        raise PublicationSigningReplayRefused("LOT42 live review replay failed") from error
+    return (live.base_sha, head, tree, live.review_id, live.challenge, live.reviewer)
+
+
+def _verify_live_publication(
+    inputs: PublicationSigningInputs,
+    request: PublicSuccessorLiveVerificationRequest,
+    *, approved_pin_sha256: str,
+    pin_expires_at_utc: datetime,
+) -> VerifiedPublicSuccessorLiveEvidence:
+    """Rejouer les pièces privées, GitHub et la DB avant de fournir C."""
+    from nexus_contracts.review_binding import parse_trust_anchor  # noqa: PLC0415
+    from nexus_release_chain.public_lot41a_adapter import (  # noqa: PLC0415
+        verify_public_lot41a_set,
+    )
+
+    from ingestor.ingestion_control.github_authority import (  # noqa: PLC0415
+        load_trusted_reviewers,
+    )
+    from ingestor.ingestion_control.scope_authority import (  # noqa: PLC0415
+        verify_scope_authorization,
+    )
+    from ingestor.public_successor_db_guard import (  # noqa: PLC0415
+        require_public_successor_live_controls,
+        require_public_successor_startup_lot42,
+    )
+
+    root = request.bundle_root
+    content = request.content
+    authorities = request.authorities
+    if request.target_pin_sha256 != approved_pin_sha256 or (
+        request.pin_expires_at_utc != pin_expires_at_utc
+    ):
+        raise PublicationSigningReplayRefused("C target pin differs from live target")
+    digests = {
+        field: _sha(_bytes(root / "authorities" / f"{field}.bin"))
+        for field in authorities
+    }
+    if digests != dict(authorities):
+        raise PublicationSigningReplayRefused("C authority bytes differ during live replay")
+    _replay_live_scope_review(
+        inputs.repository_root, root,
+        authorities["public_scope_authority_sha256"],
+        content.expected_counts["subjects"],
+    )
+    preissuance_expiry = _replay_publication_preissuance(
+        inputs, content.content_anchor_sha256, content.content_manifest_sha256,
+        datetime.now(UTC),
+    )
+    pulse_at = _replay_publication_source_pulse(
+        inputs, root / "authorities/temporal_c_attestation_sha256.bin",
+        authorities["temporal_c_attestation_sha256"],
+    )
+    files = _load_lot41a_release_files(
+        inputs, tuple(request.authorization_set.members),
+    )
+    authorization_set, verified_set = verify_public_lot41a_set(
+        anchor_path=root / "content-anchor.json",
+        anchor_sha256=content.content_anchor_sha256,
+        release_root=root / "release",
+        authorization_ids=tuple(
+            member.authorization_id for member in request.authorization_set.members
+        ),
+        release_files=files,
+        trust_anchor=parse_trust_anchor(_bytes(
+            inputs.repository_root / "governance/trust-anchors/review-binding-v1.json"
+        )),
+        environment="production", now_utc=datetime.now(UTC),
+        accepted_reviewers=load_trusted_reviewers(),
+        revocation_registry_raw=_bytes(
+            inputs.repository_root / "governance/trust-anchors/authorization-revocations-v1.json"
+        ),
+        temporal_authority_raw=_bytes(
+            root / "authorities/temporal_a2_authority_sha256.bin"
+        ),
+    )
+    if authorization_set.canonical_bytes() != request.authorization_set.canonical_bytes():
+        raise PublicationSigningReplayRefused("live LOT41A set differs from C")
+
+    qualified = _checkout_module("qualified_public_text_transfer")
+    plan_raw = _bytes(root / "authorities/artifact_transfer_manifest_sha256.bin")
+    transfer_raw = _bytes(root / "authorities/observed_transfer_receipt_sha256.bin")
+    plan_doc = json.loads(plan_raw)
+    pin_raw = _bytes(
+        inputs.target_pin_path if inputs.target_pin_path.is_absolute()
+        else inputs.repository_root / inputs.target_pin_path
+    )
+    target = qualified.verify_qualified_transfer_target(
+        attestation_raw=transfer_raw,
+        expected_attestation_sha256=authorities["observed_transfer_receipt_sha256"],
+        plan_raw=plan_raw,
+        receipt_v1_raw=_bytes(inputs.observed_v1_receipt_path),
+        target_pin_raw=pin_raw,
+        expected_target_pin_sha256=approved_pin_sha256,
+        expected_content_anchor_sha256=content.content_anchor_sha256,
+        candidate_inventory_raw=_bytes(
+            root / "release/profile_gate/candidate_inventory.json"
+        ),
+        expected_candidate_inventory_sha256=content.candidate_inventory_sha256,
+        allowlist_raw=_bytes(
+            root / "release/profile_gate/private_transfer_allowlist.json"
+        ),
+        expected_allowlist_sha256=plan_doc["allowlist_sha256"],
+        expected_release_id=content.release_id,
+        destination_root=inputs.target_root,
+        database_dsn=inputs.database_dsn,
+    )
+    if (target.attestation_sha256 != authorities["observed_transfer_receipt_sha256"]
+            or target.plan_sha256 != authorities["artifact_transfer_manifest_sha256"]
+            or target.content_anchor_sha256 != content.content_anchor_sha256
+            or target.release_id != content.release_id):
+        raise PublicationSigningReplayRefused("qualified target differs from C")
+    binding = _verified_live_lot42_review_binding(
+        inputs, request.publication_batch_review,
+        authorities["publication_batch_review_receipt_sha256"],
+    )
+    expected_reviews = tuple(sorted((
+        str(member.scope.collection), member.authorization_id,
+        member.authorization_digest, member.review_binding_digest,
+    ) for member in request.authorization_set.members))
+    expected = PublicSuccessorActivationVerdict(
+        release_id=content.release_id,
+        content_anchor_sha256=content.content_anchor_sha256,
+        content_manifest_sha256=content.content_manifest_sha256,
+        authority_envelope_sha256=request.authority_envelope_sha256,
+        artifact_registry_sha256=content.artifact_registry_sha256,
+        release_registry_sha256=content.release_registry_sha256,
+        scope_authority_sha256=authorities["public_scope_authority_sha256"],
+        subject_sha256_by_collection=content.subject_sha256_by_collection,
+        scope_sha256_by_id=dict(request.scope_sha256_by_id),
+        counts=content.expected_counts,
+        expires_at_utc=min(
+            request.a2_expires_at_utc, pin_expires_at_utc,
+            verified_set.authorizations_effective_valid_until,
+            verified_set.earliest_review_binding_expires_at,
+            request.publication_batch_review.valid_until,
+            target.expires_at_utc, preissuance_expiry,
+        ),
+        authorization_review_evidence_by_id=expected_reviews,
+        transfer_manifest_sha256=target.plan_sha256,
+        publication_batch_review_id=request.publication_batch_review.review_id,
+        publication_batch_review_digest=(
+            authorities["publication_batch_review_receipt_sha256"]
+        ),
+        publication_batch_review_binding=binding,
+    )
+    observed_auth_ids: list[str] = []
+    with psycopg.connect(
+        inputs.database_dsn, options="-c default_transaction_read_only=on",
+    ) as conn:
+        for member in request.authorization_set.members:
+            observed = verify_scope_authorization(
+                conn, authorization_id=member.authorization_id, scope=member.scope,
+            )
+            if (observed.authorization_digest != member.authorization_digest
+                    or observed.valid_until != verified_set.authorizations_effective_valid_until
+                    or observed.authorization_id != member.authorization_id):
+                raise PublicationSigningReplayRefused("live LOT41A DB row differs from C")
+            observed_auth_ids.append(observed.authorization_id)
+        require_public_successor_live_controls(conn, expected)
+        revocations_at = datetime.now(UTC)
+        lot42_count = require_public_successor_startup_lot42(conn, expected, root)
+        conn.rollback()
+    checked_at = datetime.now(UTC)
+    if checked_at >= expected.expires_at_utc:
+        raise PublicationSigningReplayRefused("public authority expired during live replay")
+    return VerifiedPublicSuccessorLiveEvidence(
+        authority_sha256_by_field=digests,
+        content_anchor_sha256=content.content_anchor_sha256,
+        authority_envelope_sha256=request.authority_envelope_sha256,
+        target_pin_sha256=approved_pin_sha256,
+        release_id=content.release_id,
+        content_manifest_sha256=content.content_manifest_sha256,
+        counts=content.expected_counts,
+        scope_sha256_by_id=dict(request.scope_sha256_by_id),
+        verified_authorization_set=verified_set,
+        authorization_review_evidence_by_id=expected_reviews,
+        publication_batch_review_id=request.publication_batch_review.review_id,
+        publication_batch_review_digest=(
+            authorities["publication_batch_review_receipt_sha256"]
+        ),
+        publication_batch_review_binding=binding,
+        verified_at_utc=checked_at,
+        revocations_checked_at_utc=revocations_at,
+        source_pulse_replayed_at_utc=pulse_at,
+        active_authorization_ids=tuple(observed_auth_ids),
+        lot42_attestation_count=lot42_count,
+        revoked_authorization_ids=(), revoked_review_ids=(),
+        target_pin_expires_at_utc=pin_expires_at_utc,
+        expires_at_utc=expected.expires_at_utc,
+    )
+
+
 def replay_public_successor_publication(
     inputs: PublicationSigningInputs, *, expected_release_id: str,
     expected_manifest_sha256: str, now_utc: datetime,
@@ -269,6 +585,10 @@ def replay_public_successor_publication(
         expected_scope_authority_sha256=scope_sha,
         expected_target_pin_sha256=approved_pin_sha,
         now_utc=now_utc,
+        live_verifier=lambda request: _verify_live_publication(
+            inputs, request, approved_pin_sha256=approved_pin_sha,
+            pin_expires_at_utc=pin_expires_at,
+        ),
     )
     if not isinstance(verdict, PublicSuccessorActivationVerdict) or (
         verdict.release_id != expected_release_id

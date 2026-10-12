@@ -892,6 +892,7 @@ def _build_v2_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--public-successor-bundle-root", type=Path)
     p.add_argument("--public-successor-content-anchor-path", type=Path)
     p.add_argument("--public-successor-preissuance-receipt-path", type=Path)
+    p.add_argument("--public-successor-temporal-authority-path", type=Path)
     p.add_argument("--public-successor-private-cas-root", type=Path)
     p.add_argument("--public-successor-target-root", type=Path)
     p.add_argument("--public-successor-target-pin-path", type=Path)
@@ -899,6 +900,12 @@ def _build_v2_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--public-successor-target-pin-pull-request", type=int)
     p.add_argument("--public-successor-observed-v1-receipt-path", type=Path)
     p.add_argument("--public-successor-database-dsn-file", type=Path)
+    p.add_argument("--public-successor-source-private-root", type=Path)
+    p.add_argument("--public-successor-source-checkpoint-root", type=Path)
+    p.add_argument("--public-successor-source-fresh-root", type=Path)
+    p.add_argument("--public-successor-lot41a-material-root", type=Path)
+    p.add_argument("--public-successor-lot42-review-pr", type=int)
+    p.add_argument("--public-successor-lot42-reviewed-head")
     p.add_argument("--workflow-path", default=None)
     p.add_argument("--workflow-ref", required=True)
     p.add_argument("--run-id", type=int, required=True)
@@ -1683,6 +1690,7 @@ def _main_v2(argv: list[str]) -> int:
             args.public_successor_bundle_root,
             args.public_successor_content_anchor_path,
             args.public_successor_preissuance_receipt_path,
+            args.public_successor_temporal_authority_path,
             args.public_successor_private_cas_root,
             args.public_successor_target_root,
             args.public_successor_target_pin_path,
@@ -1690,6 +1698,12 @@ def _main_v2(argv: list[str]) -> int:
             args.public_successor_target_pin_pull_request,
             args.public_successor_observed_v1_receipt_path,
             args.public_successor_database_dsn_file,
+            args.public_successor_source_private_root,
+            args.public_successor_source_checkpoint_root,
+            args.public_successor_source_fresh_root,
+            args.public_successor_lot41a_material_root,
+            args.public_successor_lot42_review_pr,
+            args.public_successor_lot42_reviewed_head,
         )
         if args.public_successor_bundle_root is None:
             if any(value is not None for value in public_inputs):
@@ -1734,6 +1748,7 @@ def _main_v2(argv: list[str]) -> int:
                         repository_root=args.repo_root,
                         content_anchor_path=args.public_successor_content_anchor_path,
                         preissuance_receipt_path=args.public_successor_preissuance_receipt_path,
+                        temporal_authority_path=args.public_successor_temporal_authority_path,
                         private_cas_root=args.public_successor_private_cas_root,
                         target_root=args.public_successor_target_root,
                         target_pin_path=args.public_successor_target_pin_path,
@@ -1741,6 +1756,12 @@ def _main_v2(argv: list[str]) -> int:
                         target_pin_pull_request=args.public_successor_target_pin_pull_request,
                         observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
                         database_dsn=database_dsn,
+                        source_private_root=args.public_successor_source_private_root,
+                        source_checkpoint_root=args.public_successor_source_checkpoint_root,
+                        source_fresh_root=args.public_successor_source_fresh_root,
+                        lot41a_material_root=args.public_successor_lot41a_material_root,
+                        lot42_review_pr=args.public_successor_lot42_review_pr,
+                        lot42_reviewed_head=args.public_successor_lot42_reviewed_head,
                     )
                 public_publication = replay_public_successor_publication(
                     publication_inputs,

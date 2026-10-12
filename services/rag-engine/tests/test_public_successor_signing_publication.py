@@ -21,14 +21,17 @@ sys.path.insert(0, str(ROOT / "packages/release-chain/src"))
 sys.path.insert(0, str(ROOT / "packages/contracts/src"))
 sys.path.insert(0, str(ROOT / "services/rag-engine/src"))
 
+import attest_student_derivative_source_currentness as source_pulse  # noqa: E402
 import historical_staging_target_pin_receipt as historical  # noqa: E402
 import public_successor_signing_replay as replay  # noqa: E402
 import sign_production_readiness_manifest_cli as production  # noqa: E402
 import sign_staging_readiness_manifest_cli as staging  # noqa: E402
+from nexus_contracts.authority_artifacts import git_blob_sha1  # noqa: E402
 from nexus_release_chain.public_successor_activation import (  # noqa: E402
     PublicSuccessorActivationVerdict,
 )
 
+from ingestor.ingestion_control import github_authority  # noqa: E402
 from tests.test_sign_production_readiness_manifest_cli import (  # noqa: E402
     APPLICATION_IMAGE_DIGESTS,
     PR_HEAD_SHA,
@@ -64,6 +67,116 @@ def _activation() -> PublicSuccessorActivationVerdict:
         counts={"subjects": 11, "unique_artifacts": 253, "placements": 377, "unique_chunks": 3975},
         expires_at_utc=datetime.now(UTC) + timedelta(days=1),
     )
+
+
+def test_live_c_source_pulse_replays_private_253_receipts_exactly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pulse = tmp_path / "pulse.json"
+    raw = source_pulse._canonical({
+        "attested_at_utc": "2026-10-12T00:00:00Z", "status_counts": {"PASS": 253},
+    })
+    pulse.write_bytes(raw)
+    private = tmp_path / "private"
+    checkpoints = tmp_path / "checkpoints"
+    fresh = tmp_path / "fresh"
+    for path in (private, checkpoints, fresh):
+        path.mkdir()
+    inputs = SimpleNamespace(
+        repository_root=ROOT, source_private_root=private,
+        source_checkpoint_root=checkpoints, source_fresh_root=fresh,
+    )
+    monkeypatch.setattr(source_pulse, "attest_repository", lambda *_a, **_k: json.loads(raw))
+    observed = replay._replay_publication_source_pulse(
+        inputs, pulse, hashlib.sha256(raw).hexdigest(),
+    )
+    assert observed.tzinfo == UTC
+    monkeypatch.setattr(source_pulse, "attest_repository", lambda *_a, **_k: {
+        **json.loads(raw), "status_counts": {"PASS": 252, "BLOCKED": 1},
+    })
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="source pulse"):
+        replay._replay_publication_source_pulse(
+            inputs, pulse, hashlib.sha256(raw).hexdigest(),
+        )
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="source pulse"):
+        replay._replay_publication_source_pulse(inputs, pulse, "a" * 64)
+
+
+def test_publication_signer_names_private_source_pulse_roots() -> None:
+    options = staging._build_arg_parser()._option_string_actions
+    assert "--public-successor-source-private-root" in options
+    assert "--public-successor-source-checkpoint-root" in options
+    assert "--public-successor-source-fresh-root" in options
+    assert "--public-successor-lot42-review-pr" in options
+    assert "--public-successor-lot42-reviewed-head" in options
+    assert "--public-successor-lot41a-material-root" in options
+
+
+def test_live_c_refuses_missing_or_symlinked_lot41a_review_material(
+    tmp_path: Path,
+) -> None:
+    from nexus_contracts.authority_artifacts import canonical_authorization_path
+    from nexus_contracts.authorization_set import canonical_review_binding_path
+
+    material = tmp_path / "material"
+    material.mkdir()
+    member = SimpleNamespace(authorization_id="lot41a-student-public-test-v2")
+    paths = (
+        canonical_authorization_path(member.authorization_id),
+        canonical_review_binding_path(member.authorization_id),
+    )
+    for relative in paths:
+        path = material / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(relative.encode())
+    inputs = SimpleNamespace(lot41a_material_root=material)
+    assert replay._load_lot41a_release_files(inputs, (member,)) == {
+        relative: relative.encode() for relative in paths
+    }
+    binding = material / paths[1]
+    binding.unlink()
+    binding.symlink_to(material / paths[0])
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT41A"):
+        replay._load_lot41a_release_files(inputs, (member,))
+
+
+def test_live_lot42_requires_approved_open_head_and_exact_reviewed_blob(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = b"reviewed-lot42-bytes"
+    digest = hashlib.sha256(raw).hexdigest()
+    artifact = SimpleNamespace(
+        review_id="lot42-public-a2", digest=lambda: digest,
+        canonical_bytes=lambda: raw,
+    )
+    inputs = SimpleNamespace(
+        repository_root=ROOT, lot42_review_pr=778, lot42_reviewed_head="b" * 40,
+    )
+    live = SimpleNamespace(
+        approved=True, reason="approved", repository="cyranoaladin/RAG", pull_request=778,
+        base_sha="a" * 40, head_sha="b" * 40,
+        reviewer="abenrhouma", review_id=900,
+        challenge="NEXUS-TRUSTED-REVIEW-V1:" + "c" * 64,
+        base_ref="main", head_pinned_status="success",
+    )
+    monkeypatch.setattr(github_authority, "verify_review", lambda **_k: live)
+    monkeypatch.setattr(github_authority, "fetch_blob_at_ref", lambda **_k: SimpleNamespace(
+        content=raw, blob_sha=git_blob_sha1(raw),
+    ))
+    monkeypatch.setattr(replay, "_reviewed_head_tree", lambda *_: "d" * 40)
+    assert replay._verified_live_lot42_review_binding(
+        inputs, artifact, digest,
+    ) == ("a" * 40, "b" * 40, "d" * 40, 900,
+          "NEXUS-TRUSTED-REVIEW-V1:" + "c" * 64, "abenrhouma")
+    live.head_pinned_status = "failure"
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
+        replay._verified_live_lot42_review_binding(inputs, artifact, digest)
+    live.head_pinned_status = "success"
+    monkeypatch.setattr(github_authority, "fetch_blob_at_ref", lambda **_k: SimpleNamespace(
+        content=b"different", blob_sha=git_blob_sha1(b"different"),
+    ))
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="LOT42"):
+        replay._verified_live_lot42_review_binding(inputs, artifact, digest)
 
 
 def test_staging_publication_replay_refusal_precedes_key_read(
@@ -155,6 +268,13 @@ def test_production_v2_parser_requires_explicit_successor_bundle() -> None:
     assert "--public-successor-target-root" in options
     assert "--public-successor-target-pin-receipt-path" in options
     assert "--public-successor-target-pin-pull-request" in options
+    assert "--public-successor-temporal-authority-path" in options
+    assert "--public-successor-source-private-root" in options
+    assert "--public-successor-source-checkpoint-root" in options
+    assert "--public-successor-source-fresh-root" in options
+    assert "--public-successor-lot41a-material-root" in options
+    assert "--public-successor-lot42-review-pr" in options
+    assert "--public-successor-lot42-reviewed-head" in options
 
 
 def test_verified_target_pin_uses_historical_authority_and_exact_bytes(
