@@ -202,6 +202,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--public-successor-phase", choices=("INGESTION", "PUBLICATION"))
     parser.add_argument("--public-successor-content-anchor-path", type=Path)
     parser.add_argument("--public-successor-preissuance-receipt-path", type=Path)
+    parser.add_argument("--public-successor-temporal-authority-path", type=Path)
     parser.add_argument("--public-successor-private-cas-root", type=Path)
     parser.add_argument("--public-successor-repository-root", type=Path)
     parser.add_argument("--public-successor-bundle-root", type=Path)
@@ -250,11 +251,15 @@ def _verify_public_successor_ingestion_replay(
         receipt_sha = hashlib.sha256(
             args.public_successor_preissuance_receipt_path.read_bytes()
         ).hexdigest()
+        temporal_path = getattr(args, "public_successor_temporal_authority_path", None)
+        if temporal_path is not None and temporal_path.is_symlink():
+            raise SigningRefused("public successor A2 symlink refused")
+        temporal_raw = temporal_path.read_bytes() if temporal_path is not None else None
         verdict = verify_preissuance_authority(
             args.public_successor_content_anchor_path, anchor_sha, release_digest,
             args.public_successor_preissuance_receipt_path, receipt_sha,
             args.public_successor_repository_root, args.public_successor_private_cas_root,
-            issued_at,
+            issued_at, temporal_authority_raw=temporal_raw,
         )
     except (OSError, PreissuanceError) as error:
         raise SigningRefused("public successor preissuance replay failed") from error
@@ -266,7 +271,11 @@ def _verify_public_successor_ingestion_replay(
         and issued_at < verdict.expires_at_utc,
         "public successor preissuance replay incomplete",
     )
-    return anchor_sha, receipt_sha, verdict.expires_at_utc
+    return (
+        anchor_sha,
+        hashlib.sha256(temporal_raw).hexdigest() if temporal_raw is not None else receipt_sha,
+        verdict.expires_at_utc,
+    )
 
 
 def _verify_public_successor_publication_replay(
@@ -277,6 +286,7 @@ def _verify_public_successor_publication_replay(
         args.public_successor_bundle_root,
         args.public_successor_content_anchor_path,
         args.public_successor_preissuance_receipt_path,
+        args.public_successor_temporal_authority_path,
         args.public_successor_private_cas_root,
         args.public_successor_repository_root,
         args.public_successor_target_root,
@@ -303,6 +313,7 @@ def _verify_public_successor_publication_replay(
                 repository_root=args.public_successor_repository_root,
                 content_anchor_path=args.public_successor_content_anchor_path,
                 preissuance_receipt_path=args.public_successor_preissuance_receipt_path,
+                temporal_authority_path=args.public_successor_temporal_authority_path,
                 private_cas_root=args.public_successor_private_cas_root,
                 target_root=args.public_successor_target_root,
                 target_pin_path=args.public_successor_target_pin_path,
@@ -379,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
         public_options = (
             args.public_successor_content_anchor_path,
             args.public_successor_preissuance_receipt_path,
+            args.public_successor_temporal_authority_path,
             args.public_successor_private_cas_root,
             args.public_successor_repository_root,
             args.public_successor_bundle_root,
@@ -395,7 +407,7 @@ def main(argv: list[str] | None = None) -> int:
             anchor_sha = phase_authority_sha = target_pin_sha = None
             expires_at = issued_at + timedelta(days=args.valid_days)
         elif phase == "INGESTION":
-            _require(all(value is None for value in public_options[4:]),
+            _require(all(value is None for value in public_options[5:]),
                      "PUBLICATION replay inputs are not INGESTION inputs")
             _require_public_checkout_matches_merge(args.merge_sha)
             anchor_sha, phase_authority_sha, evidence_expiry = (
@@ -453,6 +465,7 @@ def main(argv: list[str] | None = None) -> int:
                         repository_root=args.public_successor_repository_root,
                         content_anchor_path=args.public_successor_content_anchor_path,
                         preissuance_receipt_path=args.public_successor_preissuance_receipt_path,
+                        temporal_authority_path=args.public_successor_temporal_authority_path,
                         private_cas_root=args.public_successor_private_cas_root,
                         target_root=args.public_successor_target_root,
                         target_pin_path=args.public_successor_target_pin_path,

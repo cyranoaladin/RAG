@@ -21,6 +21,11 @@ from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationVerdict,
     verify_content_anchor,
 )
+from nexus_release_chain.public_successor_temporal import (
+    APPROVED_A1_ANCHOR_SHA256,
+    PublicSuccessorTemporalError,
+    verify_temporal_authority_preissuance,
+)
 
 from ingestor.collection_config import canonicalize_catalogue_voie, load_collection_config
 from ingestor.ingestion_control.sealed_evidence import RightsClearance
@@ -57,6 +62,40 @@ def _read_json(path: Path, expected_sha256: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise PublicTextRuntimeAuthorityError(f"invalid authority object: {path.name}")
     return value
+
+
+def _verified_a2_expiry(
+    *, content: Any, activation: PublicSuccessorActivationVerdict,
+    authority_envelope_path: Path | None, temporal_authority_path: Path | None,
+    now_utc: datetime,
+) -> datetime | None:
+    if content.content_anchor_sha256 != APPROVED_A1_ANCHOR_SHA256:
+        if authority_envelope_path is not None or temporal_authority_path is not None:
+            raise PublicTextRuntimeAuthorityError("A2 supplied for a different A")
+        return None
+    if authority_envelope_path is None or temporal_authority_path is None:
+        raise PublicTextRuntimeAuthorityError("A2 and its C envelope binding required")
+    envelope = _read_json(authority_envelope_path, activation.authority_envelope_sha256)
+    authorities = envelope.get("authorities")
+    expected = (
+        authorities.get("temporal_a2_authority_sha256")
+        if isinstance(authorities, dict) else None
+    )
+    if (not isinstance(expected, str) or _SHA.fullmatch(expected) is None
+            or temporal_authority_path.is_symlink() or not temporal_authority_path.is_file()):
+        raise PublicTextRuntimeAuthorityError("A2 absent from the signed C envelope")
+    temporal_raw = temporal_authority_path.read_bytes()
+    if hashlib.sha256(temporal_raw).hexdigest() != expected:
+        raise PublicTextRuntimeAuthorityError("A2 differs from the signed C envelope")
+    try:
+        expiry = verify_temporal_authority_preissuance(
+            content, temporal_raw, now_utc=now_utc,
+        )
+    except PublicSuccessorTemporalError as exc:
+        raise PublicTextRuntimeAuthorityError("A2 temporal authority invalid") from exc
+    if activation.expires_at_utc > expiry:
+        raise PublicTextRuntimeAuthorityError("C expiry exceeds A2")
+    return expiry
 
 
 @dataclass(frozen=True)
@@ -202,6 +241,8 @@ def load_public_text_runtime_authorities(
     transfer_manifest_path: Path,
     expected_transfer_manifest_sha256: str,
     now_utc: datetime | None = None,
+    authority_envelope_path: Path | None = None,
+    temporal_authority_path: Path | None = None,
 ) -> PublicTextRuntimeAuthorities:
     """Relire A sous un verdict C déjà vérifié par le gate de readiness signé."""
     if not isinstance(activation, PublicSuccessorActivationVerdict):
@@ -228,6 +269,11 @@ def load_public_text_runtime_authorities(
         dict(activation.counts) != content.expected_counts,
     )):
         raise PublicTextRuntimeAuthorityError("activation C differs from content A")
+    temporal_expiry = _verified_a2_expiry(
+        content=content, activation=activation,
+        authority_envelope_path=authority_envelope_path,
+        temporal_authority_path=temporal_authority_path, now_utc=now,
+    )
     anchor = _read_json(content_anchor_path, expected_content_anchor_sha256)
     sidecars = anchor["preparation_sidecars"]
     candidate_inventory_sha256 = anchor["candidate_inventory_sha256"]
@@ -273,7 +319,7 @@ def load_public_text_runtime_authorities(
     if (
         currentness_expiry.tzinfo is None
         or currentness_expiry.utcoffset() != UTC.utcoffset(now)
-        or now >= currentness_expiry
+        or (temporal_expiry is None and now >= currentness_expiry)
         or rights.get("kind") != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_RIGHTS_REGISTRY_V2"
         or rights.get("status") != "CANDIDATE_NOT_AUTHORIZED"
         or rights.get("release_id") != content.release_id
@@ -468,7 +514,10 @@ def load_public_text_runtime_authorities(
             registry_sha256=sidecars["public_rights_registry.json"],
             _paths={sha: row["source_path"] for sha, row in artifact_by_sha.items()},
             _decision_id=activation.authority_envelope_sha256,
-            _expires_at_utc=min(activation.expires_at_utc, currentness_expiry),
+            _expires_at_utc=min(
+                activation.expires_at_utc,
+                temporal_expiry if temporal_expiry is not None else currentness_expiry,
+            ),
         ),
         sealed_release_catalog=sealed_catalog,
     )

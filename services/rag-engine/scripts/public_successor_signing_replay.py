@@ -46,6 +46,7 @@ class PublicationSigningInputs:
     target_pin_pull_request: int
     observed_v1_receipt_path: Path
     database_dsn: str = field(repr=False)
+    temporal_authority_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -190,6 +191,32 @@ def recheck_publication_pin_before_key(
         raise PublicationSigningReplayRefused("target pin changed before key access")
 
 
+def _replay_publication_preissuance(
+    inputs: PublicationSigningInputs, anchor_sha: str,
+    manifest_sha256: str, now_utc: datetime,
+) -> datetime:
+    """Rejouer le CAS A1 et l'autorité temporelle A2 sans prolonger A1."""
+    if inputs.temporal_authority_path is None:
+        raise PublicationSigningReplayRefused("A2 authority required for publication replay")
+    preissuance = _checkout_module("check_public_successor_preissuance")
+    try:
+        a2_raw = _bytes(inputs.temporal_authority_path)
+        receipt_sha = _sha(_bytes(inputs.preissuance_receipt_path))
+        result = preissuance.verify_preissuance_authority(
+            inputs.content_anchor_path, anchor_sha, manifest_sha256,
+            inputs.preissuance_receipt_path, receipt_sha,
+            inputs.repository_root, inputs.private_cas_root, now_utc,
+            temporal_authority_raw=a2_raw,
+        )
+    except Exception as error:  # noqa: BLE001 - frontière de signature fail-closed
+        raise PublicationSigningReplayRefused("A2/CAS publication replay failed") from error
+    if (result.preissuance_verified is not True
+            or result.publication_authorized is not False
+            or result.content_anchor_sha256 != anchor_sha):
+        raise PublicationSigningReplayRefused("A2/CAS publication replay incomplete")
+    return result.expires_at_utc
+
+
 def replay_public_successor_publication(
     inputs: PublicationSigningInputs, *, expected_release_id: str,
     expected_manifest_sha256: str, now_utc: datetime,
@@ -257,17 +284,9 @@ def replay_public_successor_publication(
         inputs.repository_root, root, scope_sha, verdict.counts["subjects"],
     )
 
-    preissuance = _checkout_module("check_public_successor_preissuance")
-    receipt_sha = _sha(_bytes(inputs.preissuance_receipt_path))
-    preissuance_result = preissuance.verify_preissuance_authority(
-        inputs.content_anchor_path, anchor_sha, expected_manifest_sha256,
-        inputs.preissuance_receipt_path, receipt_sha,
-        inputs.repository_root, inputs.private_cas_root, datetime.now(UTC),
+    preissuance_expiry = _replay_publication_preissuance(
+        inputs, anchor_sha, expected_manifest_sha256, datetime.now(UTC),
     )
-    if (preissuance_result.preissuance_verified is not True
-            or preissuance_result.publication_authorized is not False
-            or preissuance_result.content_anchor_sha256 != anchor_sha):
-        raise PublicationSigningReplayRefused("CAS and currentness replay incomplete")
 
     qualified = _checkout_module("qualified_public_text_transfer")
     attestation_path = root / "authorities/observed_transfer_receipt_sha256.bin"
@@ -322,6 +341,8 @@ def replay_public_successor_publication(
         transfer_manifest_path=plan_path,
         expected_transfer_manifest_sha256=target_verdict.plan_sha256,
         now_utc=datetime.now(UTC),
+        authority_envelope_path=root / "authority-envelope.json",
+        temporal_authority_path=root / "authorities/temporal_a2_authority_sha256.bin",
     )
     with psycopg.connect(
         inputs.database_dsn, options="-c default_transaction_read_only=on",
@@ -332,7 +353,7 @@ def replay_public_successor_publication(
         )
     if datetime.now(UTC) >= min(
         verdict.expires_at_utc, target_verdict.expires_at_utc,
-        preissuance_result.expires_at_utc, pin_expires_at,
+        preissuance_expiry, pin_expires_at,
     ):
         raise PublicationSigningReplayRefused("public authority expired during replay")
     return PublicationSigningReplayVerdict(
@@ -340,6 +361,6 @@ def replay_public_successor_publication(
         target_pin_sha256=approved_pin_sha,
         expires_at_utc=min(
             verdict.expires_at_utc, target_verdict.expires_at_utc,
-            preissuance_result.expires_at_utc, pin_expires_at,
+            preissuance_expiry, pin_expires_at,
         ),
     )
