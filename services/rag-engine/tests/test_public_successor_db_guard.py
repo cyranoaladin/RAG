@@ -435,7 +435,7 @@ def test_startup_refuses_lot42_foreign_authorization_before_service(
 
 
 @pytest.mark.parametrize("column", [
-    "rights", "quality_digest", "events", "review_head", "review_blob",
+    "rights", "quality_digest", "events", "review_head", "review_blob", "fingerprint",
     "attestation_digest",
 ])
 def test_startup_refuses_lot42_attestation_without_substantive_proof(
@@ -451,13 +451,14 @@ def test_startup_refuses_lot42_attestation_without_substantive_proof(
         )}, INVENTORY_SHA,
     ))
     database = _Database()
-    positions = {"rights": 15, "quality_digest": 18, "events": 22,
+    positions = {"rights": 15, "quality_digest": 18, "events": 22, "fingerprint": 14,
                  "review_head": 25, "review_blob": 13,
                  "attestation_digest": 31}
     changed = list(database.attestations[0])
     changed[positions[column]] = {
         "rights": "usage_interne", "quality_digest": "", "events": [],
         "review_head": "f" * 40, "review_blob": "e" * 40,
+        "fingerprint": "0" * 64,
         "attestation_digest": "0" * 64,
     }[column]
     database.attestations = [tuple(changed)]
@@ -489,6 +490,15 @@ def test_real_a_derives_exact_public_lot42_population(tmp_path: Path) -> None:
     assert len({key[1] for key in placements}) == 253
     assert len({key[0] for key in placements}) == 11
     assert inventory_sha == content.candidate_inventory_sha256
-    assert {facts[2] for facts in placements.values()} == {
-        content.artifact_registry_sha256,
+    expected_fingerprints = {
+        path.stem.removesuffix(".release"): json.loads(path.read_bytes())["profile"]["fingerprint"]
+        for path in (release / "profile_gate/subjects").glob("*.release.json")
     }
+    assert len(expected_fingerprints) == 11
+    assert {facts[2] for (collection, _, _), facts in placements.items()} == set(
+        expected_fingerprints.values()
+    )
+    assert all(
+        facts[2] == expected_fingerprints[collection]
+        for (collection, _, _), facts in placements.items()
+    )

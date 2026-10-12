@@ -151,20 +151,22 @@ def _expected_lot42_population(
     for collection, sha in content.subject_sha256_by_collection.items():
         subject = _json_under_digest(gate / f"subjects/{collection}.release.json", sha)
         profile = subject.get("profile")
+        fingerprint = profile.get("fingerprint") if isinstance(profile, dict) else None
+        if not isinstance(fingerprint, str) or _SHA256.fullmatch(fingerprint) is None:
+            raise PublicSuccessorDBRefused("A profile fingerprint absent")
         for placement in subject.get("placements", []):
             content_sha = placement["artifact_id"]
             artifact = by_content.get(content_sha)
-            if artifact is None or not isinstance(profile, dict):
-                raise PublicSuccessorDBRefused("A placement artifact or profile absent")
+            if artifact is None:
+                raise PublicSuccessorDBRefused("A placement artifact absent")
             key = (collection, content_sha, placement["source_placement_id"])
             if key in expected:
                 raise PublicSuccessorDBRefused("A placement duplicate")
-            # LOT42-RELEASE-BATCH-V1 stocke ici le SHA du registre d'artefacts
-            # du lot (attest_publication_cli), pas le fingerprint du profil
-            # unitaire. Les profils A sont vérifiés séparément par C/LOT41A.
+            # Le Worker LOT42 public inscrit le fingerprint du profil de
+            # collection autorisé, déjà scellé dans ce subject A.
             expected[key] = (
                 placement["placement_id"], placement["currentness"],
-                content.artifact_registry_sha256, artifact["source_url"],
+                fingerprint, artifact["source_url"],
                 len(artifact["chunks"]),
             )
     if len(expected) != verdict.counts["placements"] or len(by_content) != len({key[1] for key in expected}):
