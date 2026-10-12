@@ -120,7 +120,9 @@ def load_sources(root: Path) -> dict[str, Any]:
     }
 
 
-def validate_inclusions(source: dict[str, Any], inclusion: object) -> frozenset[str]:
+def validate_inclusions(
+    source: dict[str, Any], inclusion: object, *, as_of: datetime | None = None,
+) -> frozenset[str]:
     """Exiger une décision probante par SHA, sans assimiler ceci à une review de scope."""
     if inclusion is None:
         raise ValueError("inclusion attestation required")
@@ -158,7 +160,13 @@ def validate_inclusions(source: dict[str, Any], inclusion: object) -> frozenset[
         )
     except (TypeError, ValueError):
         raise ValueError("verified inclusion freshness invalid") from None
-    if valid_until.tzinfo is None or valid_until <= datetime.now(timezone.utc):
+    now = datetime.now(timezone.utc)
+    if as_of is not None and (
+        as_of.tzinfo is None or as_of.utcoffset() != timezone.utc.utcoffset(as_of)
+        or as_of > now
+    ):
+        raise ValueError("historical inclusion replay clock invalid")
+    if valid_until.tzinfo is None or valid_until <= (as_of or now):
         raise ValueError("verified inclusion freshness expired")
     decisions = inclusion["decisions"]
     expected = sorted(item["content_sha256"] for item in inputs["artifacts"]["artifacts"])
@@ -199,6 +207,7 @@ def validate_inclusions(source: dict[str, Any], inclusion: object) -> frozenset[
 def build_documents(
     source: dict[str, Any], *, inclusion: dict[str, Any] | None = None,
     legacy_profile_binding: bool = False,
+    as_of: datetime | None = None,
 ) -> dict[Path, bytes]:
     """Réidentifier le candidat sous un nouvel ID ; conserver tous les verrous."""
     inputs = source["inputs"]
@@ -221,7 +230,7 @@ def build_documents(
         raise ValueError("complete profile population differs")
     if source["allowlist"].get("transfer_status") != "NOT_TRANSFERRED":
         raise ValueError("source transfer status differs")
-    included = validate_inclusions(source, inclusion)
+    included = validate_inclusions(source, inclusion, as_of=as_of)
     selection_sha = digest(canonical(inclusion))
     # L'identité dépend des preuves d'entrée, jamais d'une horloge ou d'un HEAD mobile.
     seed = canonical({

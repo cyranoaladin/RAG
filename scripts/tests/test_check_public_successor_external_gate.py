@@ -497,6 +497,20 @@ def test_preparation_registries_and_profiles_match_replayed_population(
     _verify_preparation_semantics(source, replay, index, PREPARATION)
 
 
+def test_preparation_replay_uses_verified_historical_cas_instant() -> None:
+    from build_student_public_successor_release import load_sources
+
+    source = load_sources(ROOT)
+    replay = json.loads((PREPARATION / "inclusion_attestation.json").read_bytes())
+    index = json.loads((PREPARATION.parent / "preparation-index.json").read_bytes())
+    with pytest.raises(ValueError, match="freshness expired"):
+        _verify_preparation_semantics(source, replay, index, PREPARATION)
+    _verify_preparation_semantics(
+        source, replay, index, PREPARATION,
+        as_of=datetime(2026, 10, 10, 21, tzinfo=timezone.utc),
+    )
+
+
 @pytest.mark.parametrize("field", ["version", "fingerprint"])
 def test_v2_preparation_rejects_resealed_subject_profile_substitution(
     field: str, tmp_path: Path, historical_preparation_clock: None,

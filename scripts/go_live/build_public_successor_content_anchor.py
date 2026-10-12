@@ -265,6 +265,7 @@ def inspect_content_preparation(
     *,
     private_cas_root: Path | None = None,
     repository_root: Path | None = None,
+    cas_as_of: datetime | None = None,
 ) -> dict[str, Any]:
     """Rejouer la population #313 réelle directement depuis A, sans C."""
     anchor = build_content_anchor(manifest_path, expected_manifest_sha256)
@@ -296,7 +297,7 @@ def inspect_content_preparation(
                         "source_candidate_manifest_sha256"
                     ],
                     "inclusion_attestation_sha256": _sha(inclusion_path.read_bytes()),
-                }}, index,
+                }}, index, as_of=cas_as_of,
             )
     except ExternalGateError as error:
         raise ContentAnchorError(f"preparation replay refused: {error}") from error
