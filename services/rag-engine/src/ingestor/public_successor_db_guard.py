@@ -7,8 +7,11 @@ transforme jamais une ligne de contrôle en autorité de publication.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
+import os
 import re
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,8 +33,6 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_anchor,
 )
 
-from ingestor.ingestion_control.github_authority import load_trusted_reviewers
-
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _SHA1 = re.compile(r"[0-9a-f]{40}\Z")
 _AUTH_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}\Z")
@@ -39,6 +40,48 @@ _AUTH_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}\Z")
 
 class PublicSuccessorDBRefused(RuntimeError):
     """LOT41A, LOT42 ou les révocations vivantes ne sont pas conformes à C."""
+
+
+def _load_governed_reviewer_module() -> tuple[Any, Path]:
+    """Charger le lecteur canonique pur dans le checkout ou l'image API aplatie."""
+    module_path = next(
+        (
+            parent / "scripts/github/trusted_human_review.py"
+            for parent in Path(__file__).resolve().parents
+            if (parent / "scripts/github/trusted_human_review.py").is_file()
+        ),
+        None,
+    )
+    if module_path is None or module_path.is_symlink():
+        raise PublicSuccessorDBRefused("governed reviewer module unavailable")
+    spec = importlib.util.spec_from_file_location(
+        "nexus_public_successor_trusted_review", module_path,
+    )
+    if spec is None or spec.loader is None:
+        raise PublicSuccessorDBRefused("governed reviewer module unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as error:
+        sys.modules.pop(spec.name, None)
+        raise PublicSuccessorDBRefused("governed reviewer module unavailable") from error
+    return module, module_path.with_name("trusted-reviewers.json")
+
+
+_TRUSTED_REVIEW_MODULE, _TRUSTED_REVIEW_CONFIG = _load_governed_reviewer_module()
+
+
+def _governed_reviewers() -> tuple[str, ...]:
+    """Relire l'allowlist à chaque requête, conformément à ADR-0058."""
+    override = os.environ.get("NEXUS_TRUSTED_REVIEWERS_CONFIG", "").strip()
+    path = Path(override) if override else _TRUSTED_REVIEW_CONFIG
+    if path.is_symlink():
+        raise PublicSuccessorDBRefused("governed reviewer allowlist unavailable")
+    try:
+        return tuple(_TRUSTED_REVIEW_MODULE.load_config(path).reviewers)
+    except Exception as error:
+        raise PublicSuccessorDBRefused("governed reviewer allowlist unavailable") from error
 
 
 def _expected_authorizations(
@@ -380,7 +423,7 @@ def require_public_successor_live_controls(
                 raise PublicSuccessorDBRefused("live LOT41A rows differ from C")
             sealed_digests: list[str] = []
             seen: set[str] = set()
-            allowed_reviewers = load_trusted_reviewers()
+            allowed_reviewers = _governed_reviewers()
             for row in rows:
                 if (len(row) != 16 or row[0] in seen
                         or row[0] not in expected_by_id

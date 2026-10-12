@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +28,35 @@ from ingestor.public_successor_db_guard import (
     require_public_successor_pinned_db,
     require_public_successor_startup_lot42,
 )
+
+
+def test_public_guard_imports_without_writer_package_in_flat_api_image(tmp_path: Path) -> None:
+    """L'image API installe le garde à plat et n'emporte pas `ingestor`."""
+    module = Path(guard.__file__).resolve()
+    code = """
+import importlib.abc
+import importlib.util
+import sys
+
+class ForbidWriterPackage(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "ingestor" or fullname.startswith("ingestor."):
+            raise ModuleNotFoundError(f"writer package forbidden: {fullname}")
+        return None
+
+sys.meta_path.insert(0, ForbidWriterPackage())
+spec = importlib.util.spec_from_file_location("public_successor_db_guard", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print("PUBLIC_GUARD_FLAT_IMPORT_OK")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(module)],
+        capture_output=True, text=True, check=False, timeout=30, cwd=tmp_path,
+        env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "PUBLIC_GUARD_FLAT_IMPORT_OK"
 
 
 class _PinnedIdentityConn:
@@ -305,11 +337,43 @@ def test_live_controls_refuse_review_identity_different_from_c() -> None:
         require_public_successor_live_controls(database, verdict)
 
 
-def test_live_controls_refuse_untrusted_review_signer(
+def test_live_controls_use_governed_reviewer_allowlist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(guard, "load_trusted_reviewers", lambda: ())
+    observed: list[tuple[str, ...]] = []
+    verify = guard.require_trusted_reviewer
+
+    def record_reviewer(proof: object, *, allowed_reviewers: tuple[str, ...]) -> None:
+        observed.append(allowed_reviewers)
+        verify(proof, allowed_reviewers=allowed_reviewers)
+
+    monkeypatch.setattr(guard, "require_trusted_reviewer", record_reviewer)
+    require_public_successor_live_controls(_Database(), _verdict())
+    assert observed == [(REVIEWER,)]
+
+
+def test_live_controls_refuse_reviewer_removed_from_governed_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "trusted-reviewers.json"
+    config.write_text(json.dumps({
+        "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+        "repository": "cyranoaladin/RAG",
+        "base_ref": "main",
+        "reviewers": ["another-reviewer"],
+    }))
+    monkeypatch.setenv("NEXUS_TRUSTED_REVIEWERS_CONFIG", str(config))
     with pytest.raises(PublicSuccessorDBRefused, match="sealed review"):
+        require_public_successor_live_controls(_Database(), _verdict())
+
+
+def test_live_controls_refuse_missing_governed_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "NEXUS_TRUSTED_REVIEWERS_CONFIG", str(tmp_path / "missing.json"),
+    )
+    with pytest.raises(PublicSuccessorDBRefused, match="governed reviewer"):
         require_public_successor_live_controls(_Database(), _verdict())
 
 
