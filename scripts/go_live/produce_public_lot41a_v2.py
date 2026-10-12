@@ -16,6 +16,9 @@ from nexus_contracts.authority_artifacts import canonical_authorization_path
 from nexus_contracts.authorization_set import canonical_review_binding_path
 from nexus_contracts.review_binding import parse_trust_anchor
 from nexus_release_chain.public_lot41a_adapter import build_public_lot41a_set
+from public_successor_authorization_review_receipt import (
+    build_exact_head_authorization_review_receipt,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -49,6 +52,16 @@ def _trusted_reviewers() -> tuple[str, ...]:
     return tuple(policy["reviewers"])
 
 
+def _write_private_review_receipt(path: Path, authorization_set, files: dict[str, bytes]) -> None:
+    """Écrire les octets déterministes après vérification complète, sans écraser."""
+    if (not path.is_absolute() or not path.parent.is_dir()
+            or path.resolve().is_relative_to(REPO_ROOT.resolve())):
+        raise ValueError("review receipt requires an existing private output directory")
+    raw = build_exact_head_authorization_review_receipt(authorization_set, files)
+    with path.open("xb") as output:
+        output.write(raw)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--anchor-path", type=Path, required=True)
@@ -56,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--release-root", type=Path, required=True)
     parser.add_argument("--temporal-authority-path", type=Path)
     parser.add_argument("--material-root", type=Path, required=True)
+    parser.add_argument("--review-receipt-output", type=Path)
     parser.add_argument("--authorization-id", action="append", required=True)
     args = parser.parse_args(argv)
     try:
@@ -90,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
                 REPO_ROOT / "governance/trust-anchors/authorization-revocations-v1.json"
             ).read_bytes(),
         )
+        if args.review_receipt_output is not None:
+            _write_private_review_receipt(args.review_receipt_output, result, files)
     except (ValueError, OSError, KeyError) as error:
         print(f"public LOT41A-V2 refused: {error}", file=sys.stderr)
         return 1

@@ -298,6 +298,27 @@ def _load_lot41a_release_files(
     return files
 
 
+def _verify_exact_head_authorization_review_receipt(
+    bundle_root: Path, expected_sha256: str, authorization_set: object,
+    release_files: dict[str, bytes],
+) -> None:
+    """Recomposer le reçu #327 depuis les 22 octets déjà vérifiés par LOT41A."""
+    raw = _bytes(
+        bundle_root / "authorities/exact_head_authorization_review_receipt_sha256.bin"
+    )
+    if _sha(raw) != expected_sha256:
+        raise PublicationSigningReplayRefused("authorization review receipt digest differs")
+    try:
+        checker = _checkout_module("public_successor_authorization_review_receipt")
+        expected = checker.build_exact_head_authorization_review_receipt(
+            authorization_set, release_files,
+        )
+    except Exception as error:  # noqa: BLE001 - preuve externe fail-closed
+        raise PublicationSigningReplayRefused("authorization review receipt replay failed") from error
+    if raw != expected:
+        raise PublicationSigningReplayRefused("authorization review receipt differs from LOT41A")
+
+
 def _verified_live_lot42_review_binding(
     inputs: PublicationSigningInputs, review: object, expected_digest: str,
 ) -> tuple[str, str, str, int, str, str]:
@@ -510,6 +531,10 @@ def _verify_live_publication(
     )
     if authorization_set.canonical_bytes() != request.authorization_set.canonical_bytes():
         raise PublicationSigningReplayRefused("live LOT41A set differs from C")
+    _verify_exact_head_authorization_review_receipt(
+        root, authorities["exact_head_authorization_review_receipt_sha256"],
+        authorization_set, files,
+    )
 
     qualified = _checkout_module("qualified_public_text_transfer")
     plan_raw = _bytes(root / "authorities/artifact_transfer_manifest_sha256.bin")
