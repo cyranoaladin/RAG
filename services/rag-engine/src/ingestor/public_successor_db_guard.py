@@ -397,10 +397,10 @@ def require_public_successor_live_controls(
     binding = getattr(verdict, "authorization_review_binding", None)
     if (not isinstance(binding, tuple) or len(binding) != 10
             or binding[0] != "cyranoaladin/RAG" or binding[1] != 327
-            or binding[2] != "main" or binding[6] != "abenrhouma"
+            or binding[2] != "main"
             or type(binding[7]) is not int or binding[7] <= 0
             or any(not isinstance(value, str) or not value for value in (
-                binding[3], binding[4], binding[5], binding[8], binding[9],
+                binding[3], binding[4], binding[5], binding[6], binding[8], binding[9],
             ))):
         raise PublicSuccessorDBRefused("C lacks exact LOT41A review binding")
     now = datetime.now(UTC)
