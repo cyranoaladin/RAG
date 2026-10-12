@@ -47,6 +47,14 @@ from nexus_release_chain.release_readiness import (
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _ANCHOR_KIND = "NEXUS_PUBLIC_SUCCESSOR_CONTENT_ANCHOR_V1"
 _TEXT_MIME = "text/plain; charset=utf-8"
+_A2_ENVELOPE_KIND = "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_A2_V1"
+_A2_AUTHORITY_FIELDS = frozenset({
+    "temporal_a2_authority_sha256",
+    "temporal_a2_issue_attestation_sha256",
+    "temporal_c_attestation_sha256",
+    "source_inventory_packet_sha256",
+    "a2_transfer_binding_sha256",
+})
 
 
 class PublicSuccessorActivationError(ValueError):
@@ -690,6 +698,7 @@ def verify_public_lot41a_authorization_set(
     release_root: Path,
     content: PublicSuccessorContentVerdict,
     now_utc: datetime,
+    *, temporal_authority_raw: bytes | None = None,
 ) -> AuthorizationSetV2:
     """Vérifier forme, fenêtre et couverture exacte ; signatures séparées.
 
@@ -716,6 +725,31 @@ def verify_public_lot41a_authorization_set(
                 < authorization_set.authorizations_effective_valid_until)
     ):
         raise PublicSuccessorActivationError("LOT41A A identity, counts or validity differ")
+    if temporal_authority_raw is not None:
+        from .public_successor_temporal import (  # noqa: PLC0415
+            PublicSuccessorTemporalError,
+            verify_temporal_authority_preissuance,
+        )
+        try:
+            verify_temporal_authority_preissuance(
+                content, temporal_authority_raw, now_utc=now_utc,
+            )
+            temporal = json.loads(temporal_authority_raw)
+            valid_from = datetime.fromisoformat(temporal["valid_from_utc"])
+            valid_until = datetime.fromisoformat(temporal["valid_until_utc"])
+        except (PublicSuccessorTemporalError, KeyError, ValueError) as error:
+            raise PublicSuccessorActivationError("A2 LOT41A temporal authority invalid") from error
+        if any(
+            member.authorization_id != (
+                "lot41a-student-public-"
+                + str(member.scope.collection).removeprefix("rag_nexus_").replace("_", "-")
+                + "-v2"
+            )
+            or member.valid_from != valid_from
+            or member.valid_until != valid_until
+            for member in authorization_set.members
+        ):
+            raise PublicSuccessorActivationError("A2 LOT41A IDs or dates differ")
     return authorization_set
 
 
@@ -1093,6 +1127,52 @@ def verify_publication_batch_review(
     return review
 
 
+def _verify_a2_offline_c(
+    root: Path, content: PublicSuccessorContentVerdict,
+    authorities: dict[str, str], authority_raw: bytes,
+    expected_target_pin_sha256: str, now_utc: datetime,
+) -> datetime:
+    """Rejouer les liaisons A2/C hors ligne ; ne prononce aucune activation.
+
+    La capture privée effective, les reviews et la DB restent des gates du
+    signataire. Des seuls octets du bundle ne peuvent attester ces faits live.
+    """
+    from .public_successor_a2_transfer_binding import (  # noqa: PLC0415
+        A2TransferBindingError,
+        verify_a2_transfer_binding,
+    )
+    from .public_successor_temporal import (  # noqa: PLC0415
+        PublicSuccessorTemporalError,
+        verify_temporal_successor,
+    )
+
+    def material(field: str, label: str) -> bytes:
+        try:
+            return _read(root, f"authorities/{field}.bin", authorities[field], json_required=False)
+        except (KeyError, PublicSuccessorActivationError) as error:
+            raise PublicSuccessorActivationError(f"{label} absent or divergent") from error
+
+    issue_raw = material("temporal_a2_issue_attestation_sha256", "A2 issue attestation")
+    pulse_raw = material("temporal_c_attestation_sha256", "A2 C pulse")
+    packet_raw = material("source_inventory_packet_sha256", "A2 source inventory")
+    approval_raw = material("pr300_final_authority_receipt_sha256", "A2 PR300 approval")
+    plan_raw = material("artifact_transfer_manifest_sha256", "A2 transfer plan")
+    pin_raw = _read(root, "authorities/target-pin.json", expected_target_pin_sha256,
+                    json_required=False)
+    binding_raw = material("a2_transfer_binding_sha256", "A2 transfer binding")
+    try:
+        expiry = verify_temporal_successor(
+            content, root / "release", authority_raw, issue_raw, pulse_raw,
+            source_packet_raw=packet_raw, approval_raw=approval_raw, now_utc=now_utc,
+        )
+        verify_a2_transfer_binding(
+            binding_raw, authority_raw, pin_raw, plan_raw, now_utc=now_utc,
+        )
+    except (PublicSuccessorTemporalError, A2TransferBindingError) as error:
+        raise PublicSuccessorActivationError(f"A2 C evidence invalid: {error}") from error
+    return expiry
+
+
 def verify_public_successor_activation(
     bundle_root: Path,
     *,
@@ -1128,7 +1208,6 @@ def verify_public_successor_activation(
         or _SHA256.fullmatch(expected_target_pin_sha256) is None
     ):
         raise PublicSuccessorActivationError("signed release, registry or target pin differs")
-    verify_content_currentness(root / "release", content, now)
     try:
         envelope = _read(root, "authority-envelope.json", expected_authority_envelope_sha256)
     except PublicSuccessorActivationError as error:
@@ -1138,7 +1217,9 @@ def verify_public_successor_activation(
         "content_anchor_sha256", "content_release_id", "content_manifest_sha256",
         "expected_counts", "authorities",
     } or (
-        envelope.get("kind") != "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1"
+        envelope.get("kind") not in {
+            "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1", _A2_ENVELOPE_KIND,
+        }
         or envelope.get("status") != "EVIDENCE_BYTES_ONLY_NOT_ACTIVABLE"
         or envelope.get("activation_allowed") is not False
         or envelope.get("semantic_verification_complete") is not False
@@ -1149,10 +1230,31 @@ def verify_public_successor_activation(
     ):
         raise PublicSuccessorActivationError("authority envelope does not bind A")
     authorities = envelope["authorities"]
-    if not isinstance(authorities, dict) or set(authorities) != (
-        _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS
-    ):
-        raise PublicSuccessorActivationError("all 21 authority fields are required")
+    a2 = envelope["kind"] == _A2_ENVELOPE_KIND
+    expected_fields = _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS | (
+        _A2_AUTHORITY_FIELDS if a2 else frozenset()
+    )
+    if not isinstance(authorities, dict) or set(authorities) != expected_fields:
+        raise PublicSuccessorActivationError("versioned authority field population differs")
+    if a2:
+        try:
+            authority_raw = _read(
+                root, "authorities/temporal_a2_authority_sha256.bin",
+                authorities["temporal_a2_authority_sha256"], json_required=False,
+            )
+        except PublicSuccessorActivationError as error:
+            raise PublicSuccessorActivationError("A2 authority absent or divergent") from error
+        from .public_successor_temporal import (  # noqa: PLC0415
+            APPROVED_A2_AUTHORITY_SHA256,
+        )
+        if hashlib.sha256(authority_raw).hexdigest() != APPROVED_A2_AUTHORITY_SHA256:
+            raise PublicSuccessorActivationError("A2 authority differs from approved digest")
+        _verify_a2_offline_c(
+            root, content, authorities, authority_raw,
+            expected_target_pin_sha256, now,
+        )
+    else:
+        verify_content_currentness(root / "release", content, now)
     for field, digest in authorities.items():
         _read(root, f"authorities/{field}.bin", digest, json_required=False)
     if (
@@ -1223,6 +1325,7 @@ def verify_public_successor_activation(
     )
     authorization_set = verify_public_lot41a_authorization_set(
         authorization_raw, root / "release", content, now,
+        temporal_authority_raw=authority_raw if a2 else None,
     )
     revocation_raw = _read(
         root, "authorities/revocation_evidence_sha256.bin",

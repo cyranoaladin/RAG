@@ -154,6 +154,58 @@ def test_public_lot41a_refuses_equal_count_wrong_content_binding() -> None:
         )
 
 
+def test_a2_lot41a_requires_renewed_ids_and_exact_temporal_window() -> None:
+    anchor = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
+    release = ROOT / (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60"
+    )
+    authority_raw = (ROOT / "docs/reports/go_live/"
+                     "student_public_successor_temporal_continuity_a2_20261011_v2.json").read_bytes()
+    temporal = json.loads(authority_raw)
+    content = verify_content_anchor(anchor, hashlib.sha256(anchor.read_bytes()).hexdigest(), release)
+    projection = derive_public_release_scope_placement(release, content)
+    by_scope: dict[str, tuple[object, set[str]]] = {}
+    for entry in projection.placements:
+        by_scope.setdefault(scope_digest(entry.scope), (entry.scope, set()))[1].add(entry.content_sha256)
+
+    def authorization_set(suffix: str) -> AuthorizationSetV2:
+        members = []
+        for n, (digest, (scope, contents)) in enumerate(sorted(by_scope.items())):
+            values = tuple(sorted(contents))
+            members.append(AuthorizationSetMemberV1.model_validate({
+                "authorization_id": (
+                    "lot41a-student-public-"
+                    + str(scope.collection).removeprefix("rag_nexus_").replace("_", "-")
+                    + f"-{suffix}"
+                ),
+                "authorization_digest": hashlib.sha256(f"auth:{n}".encode()).hexdigest(),
+                "review_binding_digest": hashlib.sha256(f"review:{n}".encode()).hexdigest(),
+                "scope": scope, "scope_digest": digest,
+                "allowed_content_sha256": values,
+                "allowed_content_count": len(values),
+                "allowed_content_set_sha256": content_set_digest(values),
+                "valid_from": temporal["valid_from_utc"],
+                "valid_until": temporal["valid_until_utc"],
+            }))
+        return AuthorizationSetV2.build(
+            members=members, corpus_manifest_sha256=content.content_manifest_sha256,
+            profile_manifest_digest=projection.profile_manifest_digest,
+            release_scope_placement_digest=projection.digest(),
+        )
+
+    now = datetime(2026, 10, 13, tzinfo=UTC)
+    with pytest.raises(PublicSuccessorActivationError, match="A2 LOT41A"):
+        verify_public_lot41a_authorization_set(
+            authorization_set("v1").canonical_bytes(), release, content, now,
+            temporal_authority_raw=authority_raw,
+        )
+    assert verify_public_lot41a_authorization_set(
+        authorization_set("v2").canonical_bytes(), release, content, now,
+        temporal_authority_raw=authority_raw,
+    ).authorization_binding_count == 377
+
+
 def test_public_revocation_registry_refuses_revoked_lot41a_authorization() -> None:
     assert verify_public_authorization_revocations(
         b'{"protocol_version":"NEXUS-AUTHORIZATION-REVOCATIONS-V1",'
@@ -479,6 +531,83 @@ def test_content_anchor_without_final_envelope_cannot_activate(tmp_path: Path) -
             expected_scope_authority_sha256="e" * 64,
             expected_target_pin_sha256="d" * 64,
             now_utc=datetime(2026, 10, 10, 21, tzinfo=UTC),
+        )
+
+
+def _a2_bundle(tmp_path: Path, *, include_authority: bool) -> tuple[object, str]:
+    from nexus_release_chain.release_readiness import _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS
+
+    anchor_path = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
+    release = ROOT / (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60"
+    )
+    content = verify_content_anchor(
+        anchor_path, hashlib.sha256(anchor_path.read_bytes()).hexdigest(), release,
+    )
+    (tmp_path / "release").symlink_to(release, target_is_directory=True)
+    (tmp_path / "content-anchor.json").write_bytes(anchor_path.read_bytes())
+    authorities = {name: "0" * 64 for name in _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS}
+    authorities.update({
+        name: "0" * 64 for name in (
+            "temporal_a2_authority_sha256",
+            "temporal_a2_issue_attestation_sha256",
+            "temporal_c_attestation_sha256",
+            "source_inventory_packet_sha256",
+            "a2_transfer_binding_sha256",
+        )
+    })
+    if include_authority:
+        a2_raw = (ROOT / "docs/reports/go_live/"
+                  "student_public_successor_temporal_continuity_a2_20261011_v2.json").read_bytes()
+        a2_path = tmp_path / "authorities/temporal_a2_authority_sha256.bin"
+        a2_path.parent.mkdir()
+        a2_path.write_bytes(a2_raw)
+        authorities["temporal_a2_authority_sha256"] = hashlib.sha256(a2_raw).hexdigest()
+    envelope = {
+        "kind": "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_A2_V1",
+        "status": "EVIDENCE_BYTES_ONLY_NOT_ACTIVABLE",
+        "activation_allowed": False,
+        "semantic_verification_complete": False,
+        "content_anchor_sha256": content.content_anchor_sha256,
+        "content_release_id": content.release_id,
+        "content_manifest_sha256": content.content_manifest_sha256,
+        "expected_counts": content.expected_counts,
+        "authorities": authorities,
+    }
+    envelope_raw = (json.dumps(envelope, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+    (tmp_path / "authority-envelope.json").write_bytes(envelope_raw)
+    return content, hashlib.sha256(envelope_raw).hexdigest()
+
+
+def test_a2_envelope_does_not_reuse_expired_a1_currentness(tmp_path: Path) -> None:
+    """A versioned C bundle must inspect A2, then fail on absent C evidence."""
+    content, envelope_sha = _a2_bundle(tmp_path, include_authority=False)
+    with pytest.raises(PublicSuccessorActivationError, match="A2 authority.*absent"):
+        verify_public_successor_activation(
+            tmp_path,
+            expected_content_anchor_sha256=content.content_anchor_sha256,
+            expected_authority_envelope_sha256=envelope_sha,
+            expected_release_id=content.release_id,
+            expected_registry_sha256=content.release_registry_sha256,
+            expected_scope_authority_sha256="0" * 64,
+            expected_target_pin_sha256="0" * 64,
+            now_utc=datetime(2026, 10, 13, tzinfo=UTC),
+        )
+
+
+def test_a2_c_requires_issue_and_post_issue_source_pulse(tmp_path: Path) -> None:
+    content, envelope_sha = _a2_bundle(tmp_path, include_authority=True)
+    with pytest.raises(PublicSuccessorActivationError, match="A2 issue.*absent"):
+        verify_public_successor_activation(
+            tmp_path,
+            expected_content_anchor_sha256=content.content_anchor_sha256,
+            expected_authority_envelope_sha256=envelope_sha,
+            expected_release_id=content.release_id,
+            expected_registry_sha256=content.release_registry_sha256,
+            expected_scope_authority_sha256="0" * 64,
+            expected_target_pin_sha256="0" * 64,
+            now_utc=datetime(2026, 10, 13, tzinfo=UTC),
         )
 
 
