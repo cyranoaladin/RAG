@@ -17,6 +17,7 @@ from nexus_contracts.authority_artifacts import (
     git_blob_sha1,
 )
 from nexus_contracts.authorization_set import (
+    VerifiedAuthorizationSetV1,
     canonical_review_binding_path,
     scope_digest,
 )
@@ -33,6 +34,7 @@ from nexus_release_chain.public_lot41a_adapter import (
     _positive_derivative_facts,
     build_public_lot41a_set,
 )
+from nexus_release_chain import public_lot41a_adapter
 from nexus_release_chain.public_successor_activation import (
     derive_public_release_scope_placement,
     verify_content_anchor,
@@ -193,6 +195,28 @@ def test_a2_adapter_uses_sealed_temporal_authority_after_a1_expiry() -> None:
         revocation_registry_raw=(ROOT / "governance/trust-anchors/authorization-revocations-v1.json").read_bytes(),
     )
     assert (result.authorization_count, result.unique_content_count, result.authorization_binding_count) == (11, 253, 377)
+
+
+def test_a2_verified_adapter_returns_live_review_validity_for_c() -> None:
+    ids, files, trust_anchor = _test_material(a2=True)
+    authorization_set, verified = public_lot41a_adapter.verify_public_lot41a_set(
+        anchor_path=ANCHOR, anchor_sha256=ANCHOR_SHA, release_root=RELEASE,
+        temporal_authority_raw=A2.read_bytes(), authorization_ids=ids,
+        release_files=files, trust_anchor=trust_anchor, environment="test",
+        now_utc=datetime(2026, 10, 13, tzinfo=UTC),
+        accepted_reviewers=("abenrhouma",),
+        revocation_registry_raw=(
+            ROOT / "governance/trust-anchors/authorization-revocations-v1.json"
+        ).read_bytes(),
+    )
+    assert authorization_set.authorization_count == 11
+    assert isinstance(verified, VerifiedAuthorizationSetV1)
+    assert verified.authorizations_effective_valid_until == (
+        authorization_set.authorizations_effective_valid_until
+    )
+    assert verified.earliest_review_binding_expires_at == datetime(
+        2026, 10, 18, 21, 54, 37, 14823, tzinfo=UTC,
+    )
 
 
 def test_a2_adapter_refuses_old_authorization_ids_even_before_a1_expiry() -> None:

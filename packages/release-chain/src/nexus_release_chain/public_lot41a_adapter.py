@@ -18,6 +18,7 @@ from nexus_contracts.authority_artifacts import (
 from nexus_contracts.authorization_set import (
     AuthorizationSetV2,
     ReleaseScopePlacementEntryV1,
+    VerifiedAuthorizationSetV1,
     VerifiedProfileFactV1,
     canonical_review_binding_path,
     scope_digest,
@@ -147,7 +148,7 @@ def _positive_derivative_facts(
     return domains
 
 
-def build_public_lot41a_set(
+def verify_public_lot41a_set(
     *,
     anchor_path: Path,
     anchor_sha256: str,
@@ -160,8 +161,8 @@ def build_public_lot41a_set(
     accepted_reviewers: tuple[str, ...],
     revocation_registry_raw: bytes,
     temporal_authority_raw: bytes | None = None,
-) -> AuthorizationSetV2:
-    """Dériver le set V2 de A puis vérifier chaque revue signée avant sortie.
+) -> tuple[AuthorizationSetV2, VerifiedAuthorizationSetV1]:
+    """Dériver le set V2 de A et retourner sa vérification signée exacte.
 
     Aucun SHA d'autorisation ou de revue n'est fabriqué depuis les placements.
     """
@@ -288,7 +289,7 @@ def build_public_lot41a_set(
         authorization_facts_by_scope_digest=facts,
         corpus_manifest_sha256=content.content_manifest_sha256,
     )
-    verify_authorization_set_v2(
+    verified = verify_authorization_set_v2(
         authorization_set,
         release_files=release_files,
         trust_anchor=trust_anchor,
@@ -299,5 +300,36 @@ def build_public_lot41a_set(
         release_scope_placement=projection,
         verified_profiles=tuple(profile_facts),
         revocation_registry_raw=revocation_registry_raw,
+    )
+    return authorization_set, verified
+
+
+def build_public_lot41a_set(
+    *,
+    anchor_path: Path,
+    anchor_sha256: str,
+    release_root: Path,
+    authorization_ids: tuple[str, ...],
+    release_files: Mapping[str, bytes],
+    trust_anchor: TrustAnchor,
+    environment: Literal["production", "test"],
+    now_utc: datetime,
+    accepted_reviewers: tuple[str, ...],
+    revocation_registry_raw: bytes,
+    temporal_authority_raw: bytes | None = None,
+) -> AuthorizationSetV2:
+    """Conserver l'API historique de production du set A2 vérifié."""
+    authorization_set, _verified = verify_public_lot41a_set(
+        anchor_path=anchor_path,
+        anchor_sha256=anchor_sha256,
+        release_root=release_root,
+        authorization_ids=authorization_ids,
+        release_files=release_files,
+        trust_anchor=trust_anchor,
+        environment=environment,
+        now_utc=now_utc,
+        accepted_reviewers=accepted_reviewers,
+        revocation_registry_raw=revocation_registry_raw,
+        temporal_authority_raw=temporal_authority_raw,
     )
     return authorization_set
