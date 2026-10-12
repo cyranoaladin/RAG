@@ -1,0 +1,33 @@
+policy_id: PUBLIC_SUCCESSOR_A2_SEVEN_DAY_CURRENTNESS_V1
+version: 1
+authority_kind: NEXUS_PUBLIC_SUCCESSOR_TEMPORAL_CONTINUITY_A2_V1
+content_anchor_mode: immutable_A1_exact_sha256
+approved_a1_content_anchor_sha256: 1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0
+approved_a1_release_id: student-public-successor-20261010-40b956c6f5ec0c60
+authorized_population:
+  collections: 11
+  derivative_text_artifacts: 253
+  placements: 377
+  chunks: 3975
+initial_source_review:
+  exact_derivative_source_pairs_required: 253
+  currentness_pass_required: 253
+  revocation_pass_required: 253
+  source_capture_max_age_minutes_at_issue: 60
+  private_source_receipt_replay_required: true
+  private_cas_replay_required: true
+authority_validity_days: 7
+valid_from_utc: issue_observed_at_utc
+valid_until_utc: valid_from_plus_seven_days
+c_time:
+  minimum_authority_remaining_hours: 24
+  independent_source_and_revocation_revalidation_required: true
+  source_capture_max_age_minutes: 60
+  revoked_or_drifted_source_action: refuse
+  pulse_does_not_change_a2_sha256: true
+forbidden:
+  - modify_A1_content_or_24h_policy
+  - redate_historical_capture
+  - include_CFTR_source
+  - publish_without_scope_review_authorization_and_transfer
+activation_allowed: false

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import copy
+import hashlib
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,8 +21,8 @@ from nexus_release_chain.public_successor_activation import (
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/go_live"))
 
-import build_public_lot41a_authorizations as generator  # noqa: E402
-from build_public_lot41a_authorizations import build_proposals  # noqa: E402
+import build_public_lot41a_authorizations as generator
+from build_public_lot41a_authorizations import build_proposals
 
 ANCHOR = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
 RELEASE = ROOT / (
@@ -30,6 +30,7 @@ RELEASE = ROOT / (
     "profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60"
 )
 ATTESTATION = ROOT / "docs/reports/go_live/student_derivative_source_currentness_20261011.json"
+A2 = ROOT / "docs/reports/go_live/student_public_successor_temporal_continuity_a2_20261011_v2.json"
 NOW = datetime(2026, 10, 11, 16, tzinfo=UTC)
 ANCHOR_SHA256 = "1731e2a5690c4043dd21d02576d843f90dc90c7a2f7ec2cc736f7dd3563df7e0"
 ATTESTATION_SHA256 = "76c68ea269f6031244d9f8824186abe0299f2810494e1d28b02e13cc4e2d912c"
@@ -121,6 +122,32 @@ def test_expired_a_cannot_generate_new_proposals() -> None:
             anchor_sha256=hashlib.sha256(ANCHOR.read_bytes()).hexdigest(),
             release_root=RELEASE,
             currentness_attestation_path=ATTESTATION,
+            now_utc=datetime(2026, 10, 13, tzinfo=UTC),
+        )
+
+
+def test_a2_generates_distinct_versioned_proposals_after_a1_expiry() -> None:
+    proposals = build_proposals(
+        anchor_path=ANCHOR, anchor_sha256=ANCHOR_SHA256, release_root=RELEASE,
+        currentness_attestation_path=None, temporal_authority_path=A2,
+        now_utc=datetime(2026, 10, 13, tzinfo=UTC),
+    )
+    assert len(proposals) == 11
+    rows = [parse_scope_authorization_artifact(raw) for raw in proposals.values()]
+    assert all(row.authorization_id.endswith("-v2") for row in rows)
+    assert all(row.valid_from == datetime(2026, 10, 11, 21, 54, 37, 14823, tzinfo=UTC) for row in rows)
+    assert all(row.valid_until == datetime(2026, 10, 18, 21, 54, 37, 14823, tzinfo=UTC) for row in rows)
+    assert sum(len(row.allowed_content_sha256) for row in rows) == 377
+    assert len({sha for row in rows for sha in row.allowed_content_sha256}) == 253
+
+
+def test_a2_changed_authority_refuses_proposals(tmp_path: Path) -> None:
+    altered = tmp_path / "a2.json"
+    altered.write_bytes(A2.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="A2"):
+        build_proposals(
+            anchor_path=ANCHOR, anchor_sha256=ANCHOR_SHA256, release_root=RELEASE,
+            currentness_attestation_path=None, temporal_authority_path=altered,
             now_utc=datetime(2026, 10, 13, tzinfo=UTC),
         )
 
