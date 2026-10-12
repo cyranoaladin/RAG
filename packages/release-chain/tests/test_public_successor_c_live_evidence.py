@@ -69,6 +69,12 @@ def _case():
         member.scope.collection, member.authorization_id,
         member.authorization_digest, member.review_binding_digest,
     ) for member in members))
+    authorization_review_binding = (
+        "cyranoaladin/RAG", 327, "main", "1" * 40, "2" * 40,
+        "cyranoaladin", "abenrhouma", 123,
+        "NEXUS-TRUSTED-REVIEW-V1:" + "3" * 64,
+        "2026-10-11T00:00:00Z",
+    )
     live = c.VerifiedPublicSuccessorLiveEvidence(
         authority_sha256_by_field=authorities,
         content_anchor_sha256=content.content_anchor_sha256,
@@ -80,6 +86,7 @@ def _case():
         scope_sha256_by_id=scope_sha256_by_id,
         verified_authorization_set=verified,
         authorization_review_evidence_by_id=reviews,
+        authorization_review_binding=authorization_review_binding,
         publication_batch_review_id=batch.review_id,
         publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
         publication_batch_review_binding=("1" * 40, "2" * 40, "3" * 40, 1,
@@ -99,6 +106,7 @@ def _case():
         "authorities": authorities, "scope_sha256_by_id": scope_sha256_by_id,
         "authorization_set": authorization_set, "batch_review": batch,
         "expected_target_pin_sha256": "1" * 64,
+        "authorization_review_binding": authorization_review_binding,
         "a2_expires_at_utc": NOW + timedelta(days=6),
         "pin_expires_at_utc": NOW + timedelta(hours=8),
         "now_utc": NOW,
@@ -168,6 +176,7 @@ def test_signed_c_runtime_uses_exact_signed_binding_and_expiry() -> None:
         authorization_set=kwargs["authorization_set"],
         batch_review=kwargs["batch_review"],
         expected_target_pin_sha256=kwargs["expected_target_pin_sha256"],
+        authorization_review_binding=kwargs["authorization_review_binding"],
         a2_expires_at_utc=kwargs["a2_expires_at_utc"],
         pin_expires_at_utc=kwargs["pin_expires_at_utc"],
         now_utc=kwargs["now_utc"],
@@ -307,6 +316,7 @@ def test_signed_c_runtime_refuses_missing_or_divergent_authority(mutation: str) 
             authorization_set=kwargs["authorization_set"],
             batch_review=kwargs["batch_review"],
             expected_target_pin_sha256=kwargs["expected_target_pin_sha256"],
+            authorization_review_binding=kwargs["authorization_review_binding"],
             a2_expires_at_utc=kwargs["a2_expires_at_utc"],
             pin_expires_at_utc=kwargs["pin_expires_at_utc"],
             now_utc=kwargs["now_utc"],

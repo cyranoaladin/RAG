@@ -14,13 +14,23 @@ from pathlib import Path
 from typing import Any
 
 from nexus_contracts.authority_artifacts import (
+    canonical_authorization_path,
     canonical_publication_review_path,
     git_blob_sha1,
+)
+from nexus_contracts.trusted_review_evidence import (
+    SealedTrustedReviewEvidenceError,
+    parse_sealed_trusted_review_evidence,
+    require_challenge_is_self_consistent,
+    require_evidence_matches_authorization,
+    require_trusted_reviewer,
 )
 from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationVerdict,
     verify_content_anchor,
 )
+
+from ingestor.ingestion_control.github_authority import load_trusted_reviewers
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _SHA1 = re.compile(r"[0-9a-f]{40}\Z")
@@ -339,6 +349,15 @@ def require_public_successor_live_controls(
     """
     expected = _expected_authorizations(verdict)
     expected_by_id = {row[1]: row[2:] for row in expected}
+    binding = getattr(verdict, "authorization_review_binding", None)
+    if (not isinstance(binding, tuple) or len(binding) != 10
+            or binding[0] != "cyranoaladin/RAG" or binding[1] != 327
+            or binding[2] != "main" or binding[6] != "abenrhouma"
+            or type(binding[7]) is not int or binding[7] <= 0
+            or any(not isinstance(value, str) or not value for value in (
+                binding[3], binding[4], binding[5], binding[8], binding[9],
+            ))):
+        raise PublicSuccessorDBRefused("C lacks exact LOT41A review binding")
     now = datetime.now(UTC)
     if now >= verdict.expires_at_utc:
         raise PublicSuccessorDBRefused("C expired")
@@ -346,25 +365,66 @@ def require_public_successor_live_controls(
         with conn.cursor() as cursor:
             cursor.execute(
                 "SELECT authorization_id, authorization_digest, review_evidence_digest, "
-                "revoked_at, valid_from, valid_until "
+                "revoked_at, valid_from, valid_until, review_evidence, "
+                "evidence_repository, evidence_pull_request, evidence_base_sha, "
+                "evidence_head_sha, evidence_reviewer, evidence_review_id, "
+                "evidence_challenge, artifact_path, artifact_blob_sha "
                 "FROM ingestion_control.scope_authorizations "
                 "WHERE authorization_id = ANY(%s)",
                 (list(expected_by_id),),
             )
             rows = cursor.fetchall()
-            if len(rows) != len(expected_by_id) or any(
-                len(row) != 6
-                or expected_by_id.get(row[0]) != (row[1], row[2])
-                or row[3] is not None
-                or not (row[4] <= now < row[5])
-                for row in rows
-            ):
+            if len(rows) != len(expected_by_id):
                 raise PublicSuccessorDBRefused("live LOT41A rows differ from C")
+            sealed_digests: list[str] = []
+            seen: set[str] = set()
+            allowed_reviewers = load_trusted_reviewers()
+            for row in rows:
+                if (len(row) != 16 or row[0] in seen
+                        or row[0] not in expected_by_id
+                        or row[1] != expected_by_id[row[0]][0]
+                        or row[3] is not None
+                        or not (row[4] <= now < row[5])
+                        or not isinstance(row[2], str)
+                        or _SHA256.fullmatch(row[2]) is None):
+                    raise PublicSuccessorDBRefused("live LOT41A rows differ from C")
+                seen.add(row[0])
+                try:
+                    proof = parse_sealed_trusted_review_evidence(row[6])
+                    require_challenge_is_self_consistent(proof)
+                    require_trusted_reviewer(
+                        proof, allowed_reviewers=allowed_reviewers,
+                    )
+                    require_evidence_matches_authorization(
+                        proof, authorization_id=row[0], artifact_path=row[14],
+                        artifact_blob_sha=row[15], repository=row[7],
+                        pull_request=row[8], base_sha=row[9], head_sha=row[10],
+                        reviewer=row[11], review_id=row[12], challenge=row[13],
+                    )
+                except SealedTrustedReviewEvidenceError as error:
+                    raise PublicSuccessorDBRefused("live LOT41A sealed review invalid") from error
+                if (
+                    proof.digest() != row[2]
+                    or proof.artifact_sha256 != row[1]
+                    or proof.artifact_path != canonical_authorization_path(row[0])
+                    or proof.repository != binding[0]
+                    or proof.pull_request != binding[1]
+                    or proof.pull_request_base_ref != binding[2]
+                    or proof.pull_request_base_sha != binding[3]
+                    or proof.pull_request_head_sha != binding[4]
+                    or proof.pull_request_author != binding[5]
+                    or proof.reviewer != binding[6]
+                    or proof.review_id != binding[7]
+                    or proof.challenge != binding[8]
+                    or proof.canonical_document()["review_submitted_at"] != binding[9]
+                ):
+                    raise PublicSuccessorDBRefused("live LOT41A sealed review differs from C")
+                sealed_digests.append(row[2])
             cursor.execute(
                 "SELECT review_evidence_digest "
                 "FROM ingestion_control.revoked_review_evidence "
                 "WHERE review_evidence_digest = ANY(%s)",
-                ([row[3] for row in expected],),
+                (sealed_digests,),
             )
             if cursor.fetchall():
                 raise PublicSuccessorDBRefused("sealed LOT41A review evidence revoked")
