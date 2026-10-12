@@ -786,6 +786,12 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
             or readiness.public_successor_content_anchor_digest is None
             or readiness.public_successor_authority_envelope_digest is None
             or readiness.public_successor_target_pin_digest is None
+            or readiness.public_successor_c_expires_at_utc is None
+            or readiness.public_successor_c_verified_at_utc is None
+            or readiness.public_successor_lot42_review_binding is None
+            or not readiness.issued_at <= readiness.public_successor_c_verified_at_utc
+                <= datetime.now(UTC)
+                < readiness.public_successor_c_expires_at_utc
         ):
             raise ValueError("public successor signed A/C binding differs")
         verdict = _cached_public_successor_verdict(
@@ -805,6 +811,7 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
                 expected_registry_sha256=registry_sha,
                 expected_scope_authority_sha256=scope_sha,
                 expected_target_pin_sha256=readiness.public_successor_target_pin_digest,
+                signed_runtime_readiness=(signed_raw, anchor_raw),
             ),
         )
         if not isinstance(verdict, PublicSuccessorActivationVerdict):
@@ -817,6 +824,9 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
             != readiness.public_successor_authority_envelope_digest
             or verdict.release_registry_sha256 != registry_sha
             or verdict.scope_authority_sha256 != scope_sha
+            or verdict.expires_at_utc > readiness.public_successor_c_expires_at_utc
+            or verdict.publication_batch_review_binding
+                != readiness.public_successor_lot42_review_binding
             or dict(verdict.subject_sha256_by_collection)
             != dict(expected.subject_manifest_sha256_by_collection)
             or set(dict(verdict.subject_sha256_by_collection)) != set(registry.collections)

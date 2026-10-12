@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from nexus_contracts.authorization_set import VerifiedAuthorizationSetV1
+from nexus_contracts.production_readiness import ProductionReadinessManifestV2
 from nexus_release_chain import public_successor_activation as c
 
 NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
@@ -55,6 +58,7 @@ def _case():
     scope_sha256_by_id = {f"scope-{n}": SHA for n in range(11)}
     batch = SimpleNamespace(
         review_id="lot42-test", valid_until=NOW + timedelta(days=2),
+        digest=lambda: authorities["publication_batch_review_receipt_sha256"],
     )
     reviews = tuple(sorted((
         member.scope.collection, member.authorization_id,
@@ -125,6 +129,90 @@ def test_c_live_replay_clock_is_read_after_supplier(monkeypatch: pytest.MonkeyPa
     assert c._post_replay_utc_now(completed_at + timedelta(seconds=1)) == (
         completed_at + timedelta(seconds=1)
     )
+
+
+def _signed_readiness(live: c.VerifiedPublicSuccessorLiveEvidence) -> ProductionReadinessManifestV2:
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "contracts/tests/fixtures/legacy_v2/production_readiness_manifest_v2.json"
+    )
+    fields = json.loads(fixture.read_bytes())
+    fields.update(
+        issued_at=NOW - timedelta(minutes=1),
+        sealed_manifest_digest=live.content_manifest_sha256,
+        public_successor_content_manifest_digest=live.content_manifest_sha256,
+        public_successor_content_anchor_digest=live.content_anchor_sha256,
+        public_successor_authority_envelope_digest=live.authority_envelope_sha256,
+        public_successor_target_pin_digest=live.target_pin_sha256,
+        public_successor_c_expires_at_utc=live.expires_at_utc,
+        public_successor_c_verified_at_utc=NOW - timedelta(seconds=30),
+        public_successor_lot42_review_binding=live.publication_batch_review_binding,
+    )
+    return ProductionReadinessManifestV2.model_validate(fields)
+
+
+def test_signed_c_runtime_uses_exact_signed_binding_and_expiry() -> None:
+    live, kwargs = _case()
+    readiness = _signed_readiness(live)
+    verdict = c._finalize_a2_signed_readiness(
+        readiness=readiness,
+        content=kwargs["content"],
+        authority_envelope_sha256=kwargs["authority_envelope_sha256"],
+        authorities=kwargs["authorities"],
+        scope_sha256_by_id=kwargs["scope_sha256_by_id"],
+        authorization_set=kwargs["authorization_set"],
+        batch_review=kwargs["batch_review"],
+        expected_target_pin_sha256=kwargs["expected_target_pin_sha256"],
+        a2_expires_at_utc=kwargs["a2_expires_at_utc"],
+        pin_expires_at_utc=kwargs["pin_expires_at_utc"],
+        now_utc=kwargs["now_utc"],
+    )
+    assert verdict.expires_at_utc == live.expires_at_utc
+    assert verdict.publication_batch_review_binding == live.publication_batch_review_binding
+
+
+@pytest.mark.parametrize("mutation", [
+    "expired", "a", "c", "pin", "lot42", "overlong", "future_replay",
+])
+def test_signed_c_runtime_refuses_missing_or_divergent_authority(mutation: str) -> None:
+    live, kwargs = _case()
+    readiness = _signed_readiness(live)
+    if mutation == "expired":
+        kwargs["now_utc"] = live.expires_at_utc
+    elif mutation == "a":
+        kwargs["content"] = SimpleNamespace(**{
+            **vars(kwargs["content"]), "content_anchor_sha256": "0" * 64,
+        })
+    elif mutation == "c":
+        kwargs["authority_envelope_sha256"] = "0" * 64
+    elif mutation == "pin":
+        kwargs["expected_target_pin_sha256"] = "0" * 64
+    elif mutation == "lot42":
+        kwargs["authorities"] = {
+            **kwargs["authorities"], "publication_batch_review_receipt_sha256": "0" * 64,
+        }
+    elif mutation == "future_replay":
+        readiness = readiness.model_copy(update={
+            "public_successor_c_verified_at_utc": NOW + timedelta(seconds=1),
+        })
+    else:
+        readiness = readiness.model_copy(update={
+            "public_successor_c_expires_at_utc": NOW + timedelta(days=7),
+        })
+    with pytest.raises(c.PublicSuccessorActivationError):
+        c._finalize_a2_signed_readiness(
+            readiness=readiness,
+            content=kwargs["content"],
+            authority_envelope_sha256=kwargs["authority_envelope_sha256"],
+            authorities=kwargs["authorities"],
+            scope_sha256_by_id=kwargs["scope_sha256_by_id"],
+            authorization_set=kwargs["authorization_set"],
+            batch_review=kwargs["batch_review"],
+            expected_target_pin_sha256=kwargs["expected_target_pin_sha256"],
+            a2_expires_at_utc=kwargs["a2_expires_at_utc"],
+            pin_expires_at_utc=kwargs["pin_expires_at_utc"],
+            now_utc=kwargs["now_utc"],
+        )
 
 
 @pytest.mark.parametrize("mutation", [

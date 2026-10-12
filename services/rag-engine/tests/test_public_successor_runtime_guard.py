@@ -54,6 +54,10 @@ class _VerifiedC:
     expires_at_utc: datetime = field(
         default_factory=lambda: datetime.now(UTC) + timedelta(minutes=5)
     )
+    publication_batch_review_binding: tuple[str, str, str, int, str, str] = (
+        "1" * 40, "2" * 40, "3" * 40, 42,
+        "NEXUS-TRUSTED-REVIEW-V1:" + "4" * 64, "abenrhouma",
+    )
 
     @property
     def scope_sha256_by_id(self) -> tuple[tuple[str, str], ...]:
@@ -104,18 +108,29 @@ def _scope(*, subject_sha: str = SUBJECT_SHA, rights: str = "public_allowed") ->
 
 
 def _signed_readiness(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    *, c_expires_at_utc: datetime | None = None,
 ) -> tuple[Path, Path]:
     fixture = (
         Path(__file__).resolve().parents[3]
         / "packages/contracts/tests/fixtures/legacy_v2/production_readiness_manifest_v2.json"
     )
     document = json.loads(fixture.read_bytes())
+    issued_at = datetime.now(UTC) - timedelta(minutes=2)
     document.update(
+        issued_at=issued_at,
         public_successor_content_manifest_digest=MANIFEST_SHA,
         public_successor_content_anchor_digest=ANCHOR_SHA,
         public_successor_authority_envelope_digest=ENVELOPE_SHA,
         public_successor_target_pin_digest=TARGET_PIN_SHA,
+        public_successor_c_expires_at_utc=(
+            c_expires_at_utc or datetime.now(UTC) + timedelta(hours=1)
+        ),
+        public_successor_c_verified_at_utc=issued_at + timedelta(minutes=1),
+        public_successor_lot42_review_binding=(
+            "1" * 40, "2" * 40, "3" * 40, 42,
+            "NEXUS-TRUSTED-REVIEW-V1:" + "4" * 64, "abenrhouma",
+        ),
     )
     manifest = ProductionReadinessManifestV2.model_validate(document)
     signed = sign_production_readiness_manifest_v2(
@@ -199,6 +214,41 @@ def test_signed_readiness_and_exact_c_can_authorize_a_without_rewriting_it(
     assert calls[0]["expected_registry_sha256"] == REGISTRY_SHA
     assert calls[0]["expected_scope_authority_sha256"] == SCOPE_AUTHORITY_SHA
     assert calls[0]["expected_target_pin_sha256"] == TARGET_PIN_SHA
+    assert calls[0]["signed_runtime_readiness"][0] == (
+        tmp_path / "bundle/readiness-manifest.json"
+    ).read_bytes()
+
+
+def test_expired_signed_c_is_refused_before_semantic_callback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(
+        tmp_path, monkeypatch,
+        c_expires_at_utc=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    with pytest.raises(RuntimeError, match="public successor"):
+        endpoint._verify_public_successor_candidate(registry)
+    assert calls == []
+
+
+def test_mutated_signed_c_expiry_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    readiness_path, _ = _signed_readiness(tmp_path, monkeypatch)
+    signed = json.loads(readiness_path.read_bytes())
+    signed["manifest"]["public_successor_c_expires_at_utc"] = (
+        datetime.now(UTC) + timedelta(days=2)
+    ).isoformat()
+    readiness_path.write_text(json.dumps(signed), encoding="utf-8")
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    with pytest.raises(RuntimeError, match="public successor"):
+        endpoint._verify_public_successor_candidate(registry)
+    assert calls == []
 
 
 def test_signed_c_cache_hit_and_bundle_mutation_replays_semantic_gate(
@@ -325,6 +375,24 @@ def test_cached_c_still_queries_live_db_on_each_request(
     assert endpoint._release_evidence_for_v2_artifact(_scope()) is True
     assert len(calls) == 1
     assert len(live_calls) == 2
+
+
+def test_cached_signed_c_refuses_live_db_revocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    _install_verifier(monkeypatch, _VerifiedC())
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+    monkeypatch.setattr(endpoint.PoolSettings, "from_env", lambda: object())
+    monkeypatch.setattr(endpoint, "runtime_database_budget", nullcontext)
+    monkeypatch.setattr(endpoint, "pool_connection", lambda _: nullcontext(object()))
+    monkeypatch.setattr(
+        endpoint, "require_public_successor_live_controls",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("revoked")),
+    )
+    assert endpoint._release_evidence_for_v2_artifact(_scope()) is False
 
 
 @pytest.mark.parametrize("tamper", ["manifest", "registry", "subject", "scope"])
@@ -515,6 +583,7 @@ def test_blue_green_wrapper_requires_signed_a_c_before_docker(
     )
     assert len(calls) == 1
     assert calls[0]["expected_content_anchor_sha256"] == ANCHOR_SHA
+    assert calls[0]["signed_runtime_readiness"] == (signed_raw, anchor_raw)
 
 
 @pytest.mark.parametrize("tamper", ["material_readiness", "scope", "subject"])

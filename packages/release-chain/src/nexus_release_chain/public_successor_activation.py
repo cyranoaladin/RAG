@@ -37,6 +37,11 @@ from nexus_contracts.authorization_set import (
     verify_authorization_binding_set_v2,
 )
 from nexus_contracts.ingestion import ResourceScope
+from nexus_contracts.production_readiness import (
+    ProductionReadinessManifestV2,
+    parse_production_readiness_trust_anchor,
+    verify_production_readiness_manifest_v2,
+)
 from nexus_contracts.scope import RetrievalScopeArtifactV3
 
 from nexus_release_chain.release_readiness import (
@@ -1170,7 +1175,7 @@ def verify_publication_batch_review(
             observed_collections=content.subject_sha256_by_collection,
             observed_counts=content.expected_counts,
             observed_placement_states={field: tuple(
-                row.payload.get(field) for row in release.placements
+                row.payload[field] for row in release.placements
             ) for field in ("currentness", "placement_status", "review_status")},
             observed_source_url_count=len(set(urls)),
         )
@@ -1335,6 +1340,79 @@ def _finalize_a2_live_evidence(
     )
 
 
+def _finalize_a2_signed_readiness(
+    *, readiness: ProductionReadinessManifestV2,
+    content: PublicSuccessorContentVerdict,
+    authority_envelope_sha256: str,
+    authorities: Mapping[str, str],
+    scope_sha256_by_id: Mapping[str, str],
+    authorization_set: AuthorizationSetV2,
+    batch_review: ReleaseBatchPublicationReviewArtifact,
+    expected_target_pin_sha256: str,
+    a2_expires_at_utc: datetime,
+    pin_expires_at_utc: datetime,
+    now_utc: datetime,
+) -> PublicSuccessorActivationVerdict:
+    """Relire C au runtime sous une assertion C effectivement signée.
+
+    Seul le producteur de la signature avait accès au rejeu live complet.
+    La DB et ses révocations doivent encore être revérifiées par l'appelant.
+    """
+    expiry = readiness.public_successor_c_expires_at_utc
+    verified_at = readiness.public_successor_c_verified_at_utc
+    binding = readiness.public_successor_lot42_review_binding
+    static_expiry = min(
+        a2_expires_at_utc, pin_expires_at_utc,
+        authorization_set.authorizations_effective_valid_until,
+        batch_review.valid_until,
+    )
+    if (
+        not isinstance(readiness, ProductionReadinessManifestV2)
+        or set(authorities) != _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS
+        or readiness.public_successor_content_manifest_digest
+            != content.content_manifest_sha256
+        or readiness.public_successor_content_anchor_digest
+            != content.content_anchor_sha256
+        or readiness.public_successor_authority_envelope_digest
+            != authority_envelope_sha256
+        or readiness.public_successor_target_pin_digest
+            != expected_target_pin_sha256
+        or readiness.sealed_manifest_digest != content.content_manifest_sha256
+        or expiry is None or verified_at is None
+        or not readiness.issued_at <= verified_at <= now_utc < expiry
+        or expiry > static_expiry
+        or readiness.issued_at < a2_expires_at_utc - timedelta(days=7)
+        or binding is None
+        or batch_review.digest()
+            != authorities["publication_batch_review_receipt_sha256"]
+    ):
+        raise PublicSuccessorActivationError("signed runtime C authority differs or expired")
+    expected_reviews = tuple(sorted((
+        str(member.scope.collection), member.authorization_id,
+        member.authorization_digest, member.review_binding_digest,
+    ) for member in authorization_set.members))
+    if len(expected_reviews) != content.expected_counts["subjects"]:
+        raise PublicSuccessorActivationError("signed C authorization population differs")
+    return PublicSuccessorActivationVerdict(
+        release_id=content.release_id,
+        content_anchor_sha256=content.content_anchor_sha256,
+        content_manifest_sha256=content.content_manifest_sha256,
+        authority_envelope_sha256=authority_envelope_sha256,
+        artifact_registry_sha256=content.artifact_registry_sha256,
+        release_registry_sha256=content.release_registry_sha256,
+        scope_authority_sha256=authorities["public_scope_authority_sha256"],
+        subject_sha256_by_collection=content.subject_sha256_by_collection,
+        scope_sha256_by_id=dict(scope_sha256_by_id),
+        counts=content.expected_counts,
+        expires_at_utc=expiry,
+        authorization_review_evidence_by_id=expected_reviews,
+        transfer_manifest_sha256=authorities["artifact_transfer_manifest_sha256"],
+        publication_batch_review_id=batch_review.review_id,
+        publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
+        publication_batch_review_binding=binding,
+    )
+
+
 def verify_public_successor_activation(
     bundle_root: Path,
     *,
@@ -1346,6 +1424,7 @@ def verify_public_successor_activation(
     expected_target_pin_sha256: str,
     now_utc: datetime | None = None,
     live_verifier: PublicSuccessorLiveVerifier | None = None,
+    signed_runtime_readiness: tuple[bytes, bytes] | None = None,
 ) -> PublicSuccessorActivationVerdict:
     """Refuser C tant que chaque autorité externe n'est pas vérifiée sémantiquement.
 
@@ -1353,7 +1432,27 @@ def verify_public_successor_activation(
     signée doit être refusée par l'appelant avant cet appel. Le bundle seul
     ne peut ni signer ses propres digests, ni se déclarer activable.
     """
-    now = now_utc or datetime.now(UTC)
+    runtime_now = now_utc or datetime.now(UTC)
+    if live_verifier is not None and signed_runtime_readiness is not None:
+        raise PublicSuccessorActivationError("C proof modes are mutually exclusive")
+    signed_readiness: ProductionReadinessManifestV2 | None = None
+    if signed_runtime_readiness is not None:
+        try:
+            signed_raw, trust_anchor_raw = signed_runtime_readiness
+            signed_readiness = verify_production_readiness_manifest_v2(
+                signed_raw,
+                trust_anchor=parse_production_readiness_trust_anchor(trust_anchor_raw),
+                environment="production",
+            )
+        except Exception as error:
+            raise PublicSuccessorActivationError("signed runtime C proof invalid") from error
+    if signed_readiness is not None:
+        signed_now = signed_readiness.public_successor_c_verified_at_utc
+        if signed_now is None:
+            raise PublicSuccessorActivationError("signed C replay time absent")
+        now = signed_now
+    else:
+        now = runtime_now
     if now.tzinfo is None or now.utcoffset() != UTC.utcoffset(now):
         raise PublicSuccessorActivationError("activation clock must be UTC")
     root = bundle_root.resolve()
@@ -1509,7 +1608,9 @@ def verify_public_successor_activation(
         authorities["artifact_transfer_manifest_sha256"],
         tuple(member.authorization_id for member in authorization_set.members), now,
     )
-    if not a2 or a2_expiry is None or live_verifier is None:
+    if not a2 or a2_expiry is None or (
+        live_verifier is None and signed_readiness is None
+    ):
         raise PublicSuccessorActivationError(
             "public successor authority semantics incomplete: activation refused"
         )
@@ -1517,6 +1618,18 @@ def verify_public_successor_activation(
         _compact_document(target_pin_raw, "target pin").get("expires_at_utc"),
         "pin expiry",
     )
+    if signed_readiness is not None:
+        return _finalize_a2_signed_readiness(
+            readiness=signed_readiness, content=content,
+            authority_envelope_sha256=expected_authority_envelope_sha256,
+            authorities=authorities, scope_sha256_by_id=scope_sha256_by_id,
+            authorization_set=authorization_set, batch_review=batch_review,
+            expected_target_pin_sha256=expected_target_pin_sha256,
+            a2_expires_at_utc=a2_expiry, pin_expires_at_utc=pin_expiry,
+            now_utc=runtime_now,
+        )
+    if live_verifier is None:
+        raise PublicSuccessorActivationError("trusted live C verifier absent")
     request = PublicSuccessorLiveVerificationRequest(
         bundle_root=root, content=content,
         authority_envelope_sha256=expected_authority_envelope_sha256,

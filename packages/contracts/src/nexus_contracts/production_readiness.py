@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from types import MappingProxyType
 from typing import Any, Literal
@@ -298,6 +298,12 @@ class ProductionReadinessManifestV2(StrictBaseModel):
     public_successor_target_pin_digest: StrictStr | None = Field(
         default=None, pattern=_HEX64
     )
+    # Ces faits proviennent uniquement du verdict C live avant signature.
+    public_successor_c_expires_at_utc: AwareDatetime | None = None
+    public_successor_c_verified_at_utc: AwareDatetime | None = None
+    public_successor_lot42_review_binding: (
+        tuple[StrictStr, StrictStr, StrictStr, StrictInt, StrictStr, StrictStr] | None
+    ) = None
 
     workflow_path: StrictStr = Field(pattern=_WORKFLOW_PATH)
     workflow_ref: StrictStr = Field(min_length=1, max_length=255)
@@ -332,6 +338,20 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             raise ValueError(
                 f"release_tag {value!r} must match release/rag/YYYYMMDD-<merge_sha12>"
             )
+        return value
+
+    @field_validator("public_successor_lot42_review_binding")
+    @classmethod
+    def _lot42_binding_is_exact(
+        cls, value: tuple[str, str, str, int, str, str] | None,
+    ) -> tuple[str, str, str, int, str, str] | None:
+        if value is None:
+            return None
+        if (any(re.fullmatch(_GIT_SHA1, sha) is None for sha in value[:3])
+                or value[3] <= 0
+                or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", value[4]) is None
+                or value[5] != "abenrhouma"):
+            raise ValueError("public successor LOT42 exact review binding invalid")
         return value
 
     @model_validator(mode="after")
@@ -377,6 +397,9 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             self.public_successor_content_anchor_digest,
             self.public_successor_authority_envelope_digest,
             self.public_successor_target_pin_digest,
+            self.public_successor_c_expires_at_utc,
+            self.public_successor_c_verified_at_utc,
+            self.public_successor_lot42_review_binding,
         )
         if any(value is not None for value in successor_fields) != all(
             value is not None for value in successor_fields
@@ -387,6 +410,20 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             and self.public_successor_content_manifest_digest != self.sealed_manifest_digest
         ):
             raise ValueError("public successor content digest differs from sealed_manifest_digest")
+        if self.public_successor_c_expires_at_utc is not None and (
+            self.public_successor_c_expires_at_utc.utcoffset() != UTC.utcoffset(self.issued_at)
+            or self.public_successor_c_expires_at_utc <= self.issued_at
+        ):
+            raise ValueError("public successor C expiry must be UTC and after signature issuance")
+        if (self.public_successor_c_verified_at_utc is not None
+                and self.public_successor_c_expires_at_utc is not None) and (
+            self.public_successor_c_verified_at_utc.utcoffset() != UTC.utcoffset(self.issued_at)
+            or not self.issued_at <= self.public_successor_c_verified_at_utc
+                < self.public_successor_c_expires_at_utc
+            or self.public_successor_c_verified_at_utc - self.issued_at
+                > timedelta(hours=1)
+        ):
+            raise ValueError("public successor C replay time invalid or stale")
         return self
 
     def canonical_document(self) -> dict[str, Any]:
@@ -428,6 +465,11 @@ class ProductionReadinessManifestV2(StrictBaseModel):
                 self.public_candidate_provenance_run_attempt
             )
         if self.public_successor_content_manifest_digest is not None:
+            c_expiry = self.public_successor_c_expires_at_utc
+            c_verified = self.public_successor_c_verified_at_utc
+            review_binding = self.public_successor_lot42_review_binding
+            if c_expiry is None or c_verified is None or review_binding is None:
+                raise ValueError("public successor signed C evidence incomplete")
             document["public_successor_content_manifest_digest"] = (
                 self.public_successor_content_manifest_digest
             )
@@ -440,6 +482,9 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             document["public_successor_target_pin_digest"] = (
                 self.public_successor_target_pin_digest
             )
+            document["public_successor_c_expires_at_utc"] = _canonical_moment(c_expiry)
+            document["public_successor_c_verified_at_utc"] = _canonical_moment(c_verified)
+            document["public_successor_lot42_review_binding"] = list(review_binding)
         return document
 
     def canonical_bytes(self) -> bytes:
