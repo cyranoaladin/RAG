@@ -613,6 +613,34 @@ def test_a2_c_requires_issue_and_post_issue_source_pulse(tmp_path: Path) -> None
         )
 
 
+@pytest.mark.parametrize("mutation", ["missing", "unknown", "v1_with_a2"])
+def test_c_refuses_incomplete_or_mixed_a2_authority_schema(
+    tmp_path: Path, mutation: str,
+) -> None:
+    content, _ = _a2_bundle(tmp_path, include_authority=True)
+    envelope_path = tmp_path / "authority-envelope.json"
+    envelope = json.loads(envelope_path.read_bytes())
+    if mutation == "missing":
+        envelope["authorities"].pop("temporal_c_attestation_sha256")
+    elif mutation == "unknown":
+        envelope["authorities"]["unrecognized_sha256"] = "0" * 64
+    else:
+        envelope["kind"] = "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1"
+    raw = (json.dumps(envelope, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+    envelope_path.write_bytes(raw)
+    with pytest.raises(PublicSuccessorActivationError, match="authority field population"):
+        verify_public_successor_activation(
+            tmp_path,
+            expected_content_anchor_sha256=content.content_anchor_sha256,
+            expected_authority_envelope_sha256=hashlib.sha256(raw).hexdigest(),
+            expected_release_id=content.release_id,
+            expected_registry_sha256=content.release_registry_sha256,
+            expected_scope_authority_sha256="0" * 64,
+            expected_target_pin_sha256="0" * 64,
+            now_utc=datetime(2026, 10, 13, tzinfo=UTC),
+        )
+
+
 def test_internal_symlink_is_refused_even_with_identical_bytes(tmp_path: Path) -> None:
     copied = tmp_path / "release"
     shutil.copytree(RELEASE, copied)
