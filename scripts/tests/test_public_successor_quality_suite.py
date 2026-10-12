@@ -34,7 +34,12 @@ def test_real_suite_covers_exact_public_release_and_33_positive_cases() -> None:
         row.get("expected_citation", {}).get("licence_id") == "ETALAB-2.0"
         for spec in suite["collections"].values() for row in spec["positive"]
     )
-    assert all(len(spec.get("scope_digest", "")) == 64 for spec in suite["collections"].values())
+    assert all(
+        len(spec.get("signed_scope_sha256", "")) == 64
+        and len(spec.get("server_filter_sha256", "")) == 64
+        and spec["signed_scope_sha256"] != spec["server_filter_sha256"]
+        for spec in suite["collections"].values()
+    )
     assert suite["expected_population"] == {
         "collections": 11, "artifacts": 253, "placements": 377, "chunks": 3975,
     }
@@ -60,13 +65,19 @@ def test_real_suite_covers_exact_public_release_and_33_positive_cases() -> None:
         "teacher_expected_http", 200
     ),
     lambda d: d["collections"]["rag_nexus_nsi_terminale_specialite"].__setitem__(
-        "scope_digest", "b" * 64
+        "signed_scope_sha256", "b" * 64
+    ),
+    lambda d: d["collections"]["rag_nexus_nsi_terminale_specialite"].__setitem__(
+        "server_filter_sha256", "b" * 64
     ),
     lambda d: d["collections"]["rag_nexus_nsi_terminale_specialite"]["positive"][0].__setitem__(
         "expected_text_anchor", "Représentation des arbres binaires de recherche"
     ),
     lambda d: d["collections"]["rag_nexus_nsi_terminale_specialite"]["positive"][0].__setitem__(
-        "expected_chunk_ids", ["0" * 64]
+        "expected_chunk_id", "0" * 64
+    ),
+    lambda d: d["collections"]["rag_nexus_nsi_terminale_specialite"]["positive"][0].__setitem__(
+        "expected_chunk_sha256", "0" * 64
     ),
 ])
 def test_tampering_fails_closed(mutation) -> None:
@@ -84,12 +95,19 @@ def test_positive_response_checks_identity_pages_scope_and_full_attribution() ->
     collection = "rag_nexus_nsi_terminale_specialite"
     case = suite["collections"][collection]["positive"][0]
     artifact = index[collection][case["expected_content_sha256"]]
-    chunk = next(row for row in artifact["chunks"] if row["page_start"] in case["expected_pages_any"])
+    chunk = next(row for row in artifact["chunks"] if row["chunk_id"] == case["expected_chunk_id"])
+    text = "Contexte. " + case["expected_text_anchor"] + " Développement complémentaire."
+    index = copy.deepcopy(index)
+    index[collection][case["expected_content_sha256"]]["chunks"] = [
+        {**row, "chunk_sha256": hashlib.sha256(text.encode()).hexdigest()}
+        if row["chunk_id"] == case["expected_chunk_id"] else row
+        for row in artifact["chunks"]
+    ]
     result = {
         "chunk_id": chunk["chunk_id"],
         "doc_id": case["expected_content_sha256"],
         "title": case["expected_citation"]["source_label"],
-        "excerpt": "Pour rechercher une clé dans un ABR, on parcourt les nœuds depuis la racine.",
+        "excerpt": case["expected_text_anchor"][:50],
         "score": 0.42,
         "metadata": {
             "collection": collection,
@@ -104,10 +122,15 @@ def test_positive_response_checks_identity_pages_scope_and_full_attribution() ->
         },
     }
     valid_response = {"results": [result], "filters_applied": {
-        "collection": collection, "scope_digest": suite["collections"][collection]["scope_digest"],
+        "collection": collection,
+        "scope_digest": suite["collections"][collection]["server_filter_sha256"],
     }}
-    scope_digest = suite["collections"][collection]["scope_digest"]
-    assert module.check_positive(case, valid_response, index, scope_digest=scope_digest)
+    filter_digest = suite["collections"][collection]["server_filter_sha256"]
+    chunk_texts = {case["expected_chunk_id"]: text}
+    assert module.check_positive(
+        case, valid_response, index, server_filter_sha256=filter_digest,
+        chunk_text_by_id=chunk_texts,
+    )
     for corrupt in (
         lambda r: r["metadata"].__setitem__("collection", "rag_nexus_hggsp_premiere_specialite"),
         lambda r: r["metadata"].__setitem__("placement_id", "0" * 64),
@@ -117,17 +140,40 @@ def test_positive_response_checks_identity_pages_scope_and_full_attribution() ->
         lambda r: r.__setitem__("title", None),
         lambda r: r.__setitem__("excerpt", ""),
         lambda r: r.__setitem__("score", float("nan")),
+        lambda r: r.__setitem__("excerpt", "passage inventé absent du chunk"),
     ):
         changed = copy.deepcopy(result)
         corrupt(changed)
         with pytest.raises(module.QualitySuiteError):
-            module.check_positive(case, {**valid_response, "results": [changed]}, index, scope_digest=scope_digest)
+            module.check_positive(case, {**valid_response, "results": [changed]}, index,
+                                  server_filter_sha256=filter_digest, chunk_text_by_id=chunk_texts)
     with pytest.raises(module.QualitySuiteError):
-        module.check_positive(case, {"results": [result], "filters_applied": {}}, index, scope_digest=scope_digest)
+        module.check_positive(case, {"results": [result], "filters_applied": {}}, index,
+                              server_filter_sha256=filter_digest, chunk_text_by_id=chunk_texts)
     with pytest.raises(module.QualitySuiteError):
         module.check_positive(case, {**valid_response, "filters_applied": {
             "collection": collection, "scope_digest": "b" * 64,
-        }}, index, scope_digest=scope_digest)
+        }}, index, server_filter_sha256=filter_digest, chunk_text_by_id=chunk_texts)
+    with pytest.raises(module.QualitySuiteError):
+        module.check_positive(case, {**valid_response, "filters_applied": {
+            "collection": collection,
+            "scope_digest": suite["collections"][collection]["signed_scope_sha256"],
+        }}, index, server_filter_sha256=filter_digest, chunk_text_by_id=chunk_texts)
+    with pytest.raises(module.QualitySuiteError):
+        module.check_positive(case, valid_response, index,
+                              server_filter_sha256=filter_digest, chunk_text_by_id={})
+    altered = copy.deepcopy(index)
+    other_text = "Titre générique du chapitre. Ce passage ne contient aucune notion utile."
+    altered[collection][case["expected_content_sha256"]]["chunks"] = [
+        {**row, "chunk_sha256": hashlib.sha256(other_text.encode()).hexdigest()}
+        if row["chunk_id"] == case["expected_chunk_id"] else row
+        for row in altered[collection][case["expected_content_sha256"]]["chunks"]
+    ]
+    wrong_preview = {**valid_response, "results": [{**result, "excerpt": "Titre générique"}]}
+    with pytest.raises(module.QualitySuiteError):
+        module.check_positive(case, wrong_preview, altered,
+                              server_filter_sha256=filter_digest,
+                              chunk_text_by_id={case["expected_chunk_id"]: other_text})
 
 
 def test_private_anchor_check_rejects_title_only_or_wrong_page(tmp_path: Path) -> None:

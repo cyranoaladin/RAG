@@ -6,10 +6,8 @@
         {
           "collection": "rag_nexus_dgemc_terminale_option",
           "expected_anchor_sha256": "1b98da471d512c3969ea99d1288485f5aa47c3bb1ccce14ac1eae6020b70ce79",
-          "expected_chunk_ids": [
-            "65d766932fd432897e1506534e6b9cbaef06f78467c5076a6059935bfc080144",
-            "a36c2c21c070e5e219be3c3d5fba2b38c6199c1805c87cdfe225697767f10ce7"
-          ],
+          "expected_chunk_id": "65d766932fd432897e1506534e6b9cbaef06f78467c5076a6059935bfc080144",
+          "expected_chunk_sha256": "e1f6edf31bd09d19c3e3b2c5c8642a4020458052d930723dc9b78d3cf7b64e78",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/la-place-de-l-europe-et-de-l-union-europeenne-ue-dans-les-programmes-d-enseignement-70242.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:03.529Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -29,9 +27,8 @@
         {
           "collection": "rag_nexus_dgemc_terminale_option",
           "expected_anchor_sha256": "dbdffeff2541ed0dd5218524bc1e9fb68e8bf964d88b262e05373a2919e2204b",
-          "expected_chunk_ids": [
-            "d4b548bd74c20e8d1598ea66a2f84c18cbc99f2d045423cf6bf16e3f9ee02bfa"
-          ],
+          "expected_chunk_id": "d4b548bd74c20e8d1598ea66a2f84c18cbc99f2d045423cf6bf16e3f9ee02bfa",
+          "expected_chunk_sha256": "39a34d492bd8a18b9effb5b91e27eb63334882c52dda5f6a75ef00e8a70c25c0",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ficheconcoursdnccat4pdf-126128.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:01.003Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -51,11 +48,8 @@
         {
           "collection": "rag_nexus_dgemc_terminale_option",
           "expected_anchor_sha256": "83bc5d0592d8b160ade784973b21abab7394b1377a0ebbdc6d4bc314a9ecd873",
-          "expected_chunk_ids": [
-            "0464e92732dd22b4dc39700193fe2d96ec5d68bc5b2ca9d107c02f6e38f3eb89",
-            "43ea006587674ef51a8bf185818130b38ae83a9aaca50666cbc32492acedd6e6",
-            "7fe608f58e179974be70f3bc388f2724f54bbec629cb12cf319c03ebc1c9d3b2"
-          ],
+          "expected_chunk_id": "7fe608f58e179974be70f3bc388f2724f54bbec629cb12cf319c03ebc1c9d3b2",
+          "expected_chunk_sha256": "ff582e85542ef11e9fa2ddc74017ed76b456fcb9f29f278c2d5fcd2afe401db3",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ficheconcoursdncpdf-126119.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:01.042Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -73,9 +67,10 @@
           "query": "Quelles sources servent à enseigner l’État de droit ?"
         }
       ],
-      "scope_digest": "6d1c2fcb0de33683631854d679d7bde8de0c5731bc4a9f68181cbc8f31999263",
       "scope_id": "student_public_dgemc_terminale_option_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "80413efb1651971502161ae3ab6b895e0a2e13595033e46d8cf57b92955e448d",
+      "signed_scope_sha256": "6d1c2fcb0de33683631854d679d7bde8de0c5731bc4a9f68181cbc8f31999263",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -87,11 +82,8 @@
         {
           "collection": "rag_nexus_hggsp_premiere_specialite",
           "expected_anchor_sha256": "9b117904597f71e176bce497d481631c33913bc5ab01dcbd24136e282872e673",
-          "expected_chunk_ids": [
-            "64f30d2119956961cc5a38ff33b1ca081446597d6d72d36c3de6c95bd6225071",
-            "68b784c6549780caf0b06db996935534c7fe1b7e45e48614edc99b00fab77826",
-            "a1cb2332cac75edbc78dd803284b0394a78b41a1d98a29bf79efc083ce5e3ec4"
-          ],
+          "expected_chunk_id": "68b784c6549780caf0b06db996935534c7fe1b7e45e48614edc99b00fab77826",
+          "expected_chunk_sha256": "15cfcfd79e52964fda886017d4ae3523a225a87b2c4a166d12623e7d519bdd51",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspe1hggsptheme1democratie1169458pdf-83250.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:08.230Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -111,10 +103,8 @@
         {
           "collection": "rag_nexus_hggsp_premiere_specialite",
           "expected_anchor_sha256": "62b5d0565215e16f1f0f68dc9ce9fbf24cea51cc0edbeb94c9bf16bd9c09a870",
-          "expected_chunk_ids": [
-            "37597f3fef58171ca2b6619c4e73e279017d1611b1dd566a97698da00726160b",
-            "512e82ce250b59a4adcbae161f86a5789160ad6b69d01e038e1f999e1a91846e"
-          ],
+          "expected_chunk_id": "37597f3fef58171ca2b6619c4e73e279017d1611b1dd566a97698da00726160b",
+          "expected_chunk_sha256": "44646ca7e337db5efd6c6fd7fed7f290aada874574eadb92821e133c2884d5aa",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeo1retheme4chinetechno1263905pdf-83070.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:17.235Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -134,10 +124,8 @@
         {
           "collection": "rag_nexus_hggsp_premiere_specialite",
           "expected_anchor_sha256": "dd1b093503e4e62bc30febc02fa9902658a1252d61606093c0684f708f36b165",
-          "expected_chunk_ids": [
-            "a9c4941047cceedd0a157a0415b3c93584b209b3434f94527ae430b146238987",
-            "f5cf771d23f3ab77fd0298baf1955c31e0eb64d70a582768a901dbcccf471d86"
-          ],
+          "expected_chunk_id": "f5cf771d23f3ab77fd0298baf1955c31e0eb64d70a582768a901dbcccf471d86",
+          "expected_chunk_sha256": "69cc828e28c2dbc8a90e572be19be70da7aa74d552da386f2ef1fc990b212681",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg1histtheme4premiere-gmfin-emp-euro-70665.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:18.087Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -155,9 +143,10 @@
           "query": "Comment la Première Guerre mondiale contribue-t-elle à la fin des empires européens ?"
         }
       ],
-      "scope_digest": "3f509d61c4d8c690f0d3ce9ff903079bcc4da7401ab963433d0f9c12aae2268b",
       "scope_id": "student_public_hggsp_premiere_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "f0330757ae583df4032b6db108f6e487b04d4b4fc59a5f3046b6066ca6904648",
+      "signed_scope_sha256": "3f509d61c4d8c690f0d3ce9ff903079bcc4da7401ab963433d0f9c12aae2268b",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -169,11 +158,8 @@
         {
           "collection": "rag_nexus_hggsp_terminale_specialite",
           "expected_anchor_sha256": "1030b53cfd31ba6692f854ba01099fd81a84d053406c089d4c64fd6e881406ab",
-          "expected_chunk_ids": [
-            "b2ebdf9a4b13bba1279c5a982173994adeda2899ee8cd525c656ca45fb7bd452",
-            "e7a2823ba320679bba37f177a89e58a64f6b1b166f5be3971411c31f29f1013a",
-            "ea6edc3a2d2a5b5241d68223a5784f47f42688115f47e717430e593e8d6b58e1"
-          ],
+          "expected_chunk_id": "e7a2823ba320679bba37f177a89e58a64f6b1b166f5be3971411c31f29f1013a",
+          "expected_chunk_sha256": "d266fe19e83597f79dda36a0878bd43eb26f20806c1c7a8c8cea954ac88bd102",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra22lycee-gthggsptheme-2faire-la-guerre-et-faire-la-paix-93786.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:21.550Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -193,10 +179,8 @@
         {
           "collection": "rag_nexus_hggsp_terminale_specialite",
           "expected_anchor_sha256": "bd1cf97746d83d003a2a10f357329801331eeb076ec44848a873975dd98eba0c",
-          "expected_chunk_ids": [
-            "bf927898ffc0a26942d2c27a2b4cfc5ab99be3b632a2c4bc32d73c4ffee040f6",
-            "e4b80f003d84b411f5f45e255d17d184d046f8e895a9d6ca7ed5b1e5e52038b6"
-          ],
+          "expected_chunk_id": "bf927898ffc0a26942d2c27a2b4cfc5ab99be3b632a2c4bc32d73c4ffee040f6",
+          "expected_chunk_sha256": "a72fc06eefc3502ac3eae73f13e2d92ef177da97aed5674728adf7286aee6ea9",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegthggspenvironnementexploitationprotectionenjeupdf-102786.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:23.778Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -216,11 +200,8 @@
         {
           "collection": "rag_nexus_hggsp_terminale_specialite",
           "expected_anchor_sha256": "a6b5acb96cf33b2968cf294ec4e8b70d8cd9fd023dbb9ef4eef063f83529a507",
-          "expected_chunk_ids": [
-            "2004f51f305dbd1efc9e175887b8aabfbbf5e56f4a7753bc2bd14563fd9fb748",
-            "4a2d2779a1eeca27c6100b5482712df409a2e0894205a2b7d903d770566afddf",
-            "918e254f7716f4dbdf69182ce634e6cd86a94da5323222c3608987dd56cf3519"
-          ],
+          "expected_chunk_id": "4a2d2779a1eeca27c6100b5482712df409a2e0894205a2b7d903d770566afddf",
+          "expected_chunk_sha256": "624f9c6b2538a97c240b9a0715d7dfb72e5b95ab521cbd6be49b8afaf20a62c9",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeggeotthemeconclusiffranceregionsunioneuforceetrecompositions1313446pdf-83079.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:13.041Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -238,9 +219,10 @@
           "query": "Pourquoi le littoral français concentre-t-il des flux mondialisés ?"
         }
       ],
-      "scope_digest": "0e59a231d6b58f8c21dde98f947d72b69ff9e64ecb314d6d6326992ff33f2ea0",
       "scope_id": "student_public_hggsp_terminale_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "62578d7a3583e5670f39844d62cdc2ab325889d365caa747c192779a8eb6244e",
+      "signed_scope_sha256": "0e59a231d6b58f8c21dde98f947d72b69ff9e64ecb314d6d6326992ff33f2ea0",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -252,9 +234,8 @@
         {
           "collection": "rag_nexus_hlp_premiere_specialite",
           "expected_anchor_sha256": "c68daceb292f1c3a50a7b181e838a769372fdca1a3e0d806886d02136a14d582",
-          "expected_chunk_ids": [
-            "09a7faeb12d44b12cc6b85a12aec8d1be8e22dfeb96e1e8a81ac579ebf88f0fc"
-          ],
+          "expected_chunk_id": "09a7faeb12d44b12cc6b85a12aec8d1be8e22dfeb96e1e8a81ac579ebf88f0fc",
+          "expected_chunk_sha256": "87c43b66b776a50327ff70bd7eba418490dee2c151eb126bb0800926619cdeab",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche3pdf-112773.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:26.131Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -274,9 +255,8 @@
         {
           "collection": "rag_nexus_hlp_premiere_specialite",
           "expected_anchor_sha256": "9151ab6fc0faa62f066a89a77f54b4d6b31e6cf94cc26079cac5b6f08ca09fa3",
-          "expected_chunk_ids": [
-            "18853c5a1fa164b69980265c8499d5a064c01508bbba3a137f2f232f20b4aff6"
-          ],
+          "expected_chunk_id": "18853c5a1fa164b69980265c8499d5a064c01508bbba3a137f2f232f20b4aff6",
+          "expected_chunk_sha256": "e9d47b510a062903b747fe11e1b9ac1a258b893c591a42bc1bd7538fb0bdf92e",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyemancipationfemininepdf-113547.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:25.815Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -296,9 +276,8 @@
         {
           "collection": "rag_nexus_hlp_premiere_specialite",
           "expected_anchor_sha256": "726f2c000f19ee661b9a7554c4ddaedda94c1f3b49f3fbe72641ba33bd71d04d",
-          "expected_chunk_ids": [
-            "0abd6fcec446a2f8df4b80a9ba73b1d7f6e4138e4c0f685c236365356418fb9c"
-          ],
+          "expected_chunk_id": "0abd6fcec446a2f8df4b80a9ba73b1d7f6e4138e4c0f685c236365356418fb9c",
+          "expected_chunk_sha256": "1ca34628d1ba04fbf26b6192a49dd8e0c2c15adc1e777a904ee84cd68fc16215",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpenseignement-humanite-litterature-philosophie1194699pdf-83925.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:04.825Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -316,9 +295,10 @@
           "query": "Comment la littérature et la philosophie s’associent-elles dans l’enseignement HLP ?"
         }
       ],
-      "scope_digest": "d8e632872b3e1eaea05b5fd40747f52cb94ccaa6111eda3b5a32182923743775",
       "scope_id": "student_public_hlp_premiere_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "89895d8eb5167fe370eb33ae649e27a364abdf4732dac59a2744ecb963426f55",
+      "signed_scope_sha256": "d8e632872b3e1eaea05b5fd40747f52cb94ccaa6111eda3b5a32182923743775",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -330,9 +310,8 @@
         {
           "collection": "rag_nexus_hlp_terminale_specialite",
           "expected_anchor_sha256": "32e83913632b96fc571a39f0ec6da1c2c3743e7ca80c2950c55695e36aa30b11",
-          "expected_chunk_ids": [
-            "3b3dab5f796145a31e2d35cad0069c75fe99ff4595d3cfa9fe79839f982fbe86"
-          ],
+          "expected_chunk_id": "3b3dab5f796145a31e2d35cad0069c75fe99ff4595d3cfa9fe79839f982fbe86",
+          "expected_chunk_sha256": "cb2c987527f9b472784774a29700c4744088e0591729a3c6f953a12371238389",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelleoeuvreparcours-128667.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:26.664Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -352,10 +331,8 @@
         {
           "collection": "rag_nexus_hlp_terminale_specialite",
           "expected_anchor_sha256": "43d83e62b08728f793c220055176a7dfd4f6f9289d591ad56c3c14c94ec0f05b",
-          "expected_chunk_ids": [
-            "dfa6dcc00f708992aa40f638650b078311125a47f25aa5f7e09a5d5c9d3f60e4",
-            "f647f96295420e9d1528664f8d46b207954cb8899a672f7fc2b130624acb3189"
-          ],
+          "expected_chunk_id": "f647f96295420e9d1528664f8d46b207954cb8899a672f7fc2b130624acb3189",
+          "expected_chunk_sha256": "1c97f1ae4a7cb357acfd8df8952b319a2ac0b672d3be269c6cda8413416bae7d",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyromanepistolairepdf-113550.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:25.861Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -375,9 +352,8 @@
         {
           "collection": "rag_nexus_hlp_terminale_specialite",
           "expected_anchor_sha256": "a8d49e1b1ff82fa5355f8ee2c69ee16f43b286e252350b87a29d2b0a450ce341",
-          "expected_chunk_ids": [
-            "c201021c184fa76bebd8b4e8c2a208d5fd4cfaf7a4f8396fc4aec7acf80e9174"
-          ],
+          "expected_chunk_id": "c201021c184fa76bebd8b4e8c2a208d5fd4cfaf7a4f8396fc4aec7acf80e9174",
+          "expected_chunk_sha256": "df9cbc6d38f1963e23bf43ab9cae8cf69f0fb881a3e5027019a3f935db15d3f4",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelle-entretiensastrespenseerecitpdf-126224.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:26.628Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -395,9 +371,10 @@
           "query": "Comment Fontenelle met-il en scène le cheminement de la Marquise vers le savoir ?"
         }
       ],
-      "scope_digest": "14e8a56fb1d668ea987d0b31223d378ca4d76dd0e277464608ce87b12cf2ee89",
       "scope_id": "student_public_hlp_terminale_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "24576296a023410d2f410fe37f2d9647d4c5fc07a2d31d2cd6f9cd60ca5fd34f",
+      "signed_scope_sha256": "14e8a56fb1d668ea987d0b31223d378ca4d76dd0e277464608ce87b12cf2ee89",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -409,10 +386,8 @@
         {
           "collection": "rag_nexus_nsi_premiere_specialite",
           "expected_anchor_sha256": "b3812c64b21727caf9d5c4f506efc02ba99f1c0707f66ab6347cc0da1c972a58",
-          "expected_chunk_ids": [
-            "2729aa99457eda94f5295f218c92c3a8809f7e86405921b7b93eea807b84cc52",
-            "b593c00cfe7cb40e2170dcdd0fe6ff81147951e73a74e532625459f3a70ccfda"
-          ],
+          "expected_chunk_id": "2729aa99457eda94f5295f218c92c3a8809f7e86405921b7b93eea807b84cc52",
+          "expected_chunk_sha256": "4200a8c27849cc3a3bb5b311057b0142e6620758d225255ed011bd44643f1165",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20nsigtplus-court-chemin1307008pdf-89577.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:17.799Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -432,11 +407,8 @@
         {
           "collection": "rag_nexus_nsi_premiere_specialite",
           "expected_anchor_sha256": "3daf8a9bbaca4ef64dfe8de4edcc48265ef4aa8da8a00a40bdc7554580ef883a",
-          "expected_chunk_ids": [
-            "1c9e6e789aba2a526c29afa3e7938eca4a6f309f536daacf39a00e5cdc51a80f",
-            "c4d59fc8386a0fe982563da80386000336ae257eb65c889351deb2ff239604a5",
-            "edaa4b1fa3d91f9d6f74b7dfadbda47dc702a33e148cbdea84e58c493e5d25d2"
-          ],
+          "expected_chunk_id": "c4d59fc8386a0fe982563da80386000336ae257eb65c889351deb2ff239604a5",
+          "expected_chunk_sha256": "7ca1cd3c62f5160e82e57a9ead3986b935dae8ecf9cbc58404e13f0b6efe5415",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsialgo-gloutons1170764pdf-89559.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:27.124Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -456,10 +428,8 @@
         {
           "collection": "rag_nexus_nsi_premiere_specialite",
           "expected_anchor_sha256": "46912bcb6119394f391f0a42a5b280006c7b94071e1391a5bde5ba99f65035fb",
-          "expected_chunk_ids": [
-            "4118edcf78849a625ae1f9983308d0c43e47feedb305e9fb045df8a4599b49f6",
-            "462a09ed21df2cd3191be496ced3781db297147bdc98d65ef3b8e64c54c8c4db"
-          ],
+          "expected_chunk_id": "462a09ed21df2cd3191be496ced3781db297147bdc98d65ef3b8e64c54c8c4db",
+          "expected_chunk_sha256": "5bea6942f95ff0e4d9de83e3f37f024d3670508bb2f11ff27364dd90b01c280e",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsiihminteractionclientserveur1170771pdf-89535.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:27.445Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -477,9 +447,10 @@
           "query": "Comment le client et le serveur échangent-ils des requêtes ?"
         }
       ],
-      "scope_digest": "681b8fb26bd6ca2e8ace31f823112e3af67d047dabc98aca5b01afa46d35fad1",
       "scope_id": "student_public_nsi_premiere_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "c378261ba8c2410c1255d78003d6dff373896fd4b42b19bf20bc4b51c2d470d2",
+      "signed_scope_sha256": "681b8fb26bd6ca2e8ace31f823112e3af67d047dabc98aca5b01afa46d35fad1",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -491,9 +462,8 @@
         {
           "collection": "rag_nexus_nsi_terminale_specialite",
           "expected_anchor_sha256": "0fc8b096bf6725b4a4690ec41f51d50c07d03d633424b78653858c16fd921fdc",
-          "expected_chunk_ids": [
-            "3a57325c40dcc7062e7472ab44e1c5dc02ff7163797bcf965ef04d99f1f471f0"
-          ],
+          "expected_chunk_id": "3a57325c40dcc7062e7472ab44e1c5dc02ff7163797bcf965ef04d99f1f471f0",
+          "expected_chunk_sha256": "198f0f41fa9d564052221fafdb7abde3f66db437e5de2e8c9acd754f3f0afa64",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsiarbres-binaires-recherchepdf-70530.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:19.397Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -513,9 +483,8 @@
         {
           "collection": "rag_nexus_nsi_terminale_specialite",
           "expected_anchor_sha256": "f3c259d029c01e2b4fad70dfdd046987d5941c63a522d74f79bf54cbc9a9607c",
-          "expected_chunk_ids": [
-            "2d052132ebf75bd2c1f5c81a7eff106a6d669ccc4e84bc5ec10c0b3409097e9a"
-          ],
+          "expected_chunk_id": "2d052132ebf75bd2c1f5c81a7eff106a6d669ccc4e84bc5ec10c0b3409097e9a",
+          "expected_chunk_sha256": "711a12a1053c8558eda5fc77502e120c08dc1aac4b24694381aaf43eb1b24afa",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsirepresentation-graphespdf-70554.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:20.405Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -535,10 +504,8 @@
         {
           "collection": "rag_nexus_nsi_terminale_specialite",
           "expected_anchor_sha256": "6f47538865bec462d490ec60f7af0174bcc34d55d0c4a6128b7b44ce4090a40f",
-          "expected_chunk_ids": [
-            "24532e689024256cc1d8b75581ccc4d8dbad96e6fd188ed81d18bf9018b6646c",
-            "650cfc3ebccdcd59ce9915c84027f7f8bbd8187113cb2fe51eb19a82360e22a0"
-          ],
+          "expected_chunk_id": "24532e689024256cc1d8b75581ccc4d8dbad96e6fd188ed81d18bf9018b6646c",
+          "expected_chunk_sha256": "23875d1435a8bdc2b882e06ff9be7acff279f19f7256c582d96dbe94d5c6721c",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsivocabulaireprogrammationobjetpdf-70557.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:20.803Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -556,9 +523,10 @@
           "query": "Quel est le principe de l’encapsulation en programmation objet ?"
         }
       ],
-      "scope_digest": "f7b73f07eeb34efbabf8802bc1e8d4de2ac554608a546a321ff9c300faf49f37",
       "scope_id": "student_public_nsi_terminale_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "5bcc6f19d2e178a20c1485d1af5f804bcea99a9f11e8fd06e29e865fc5229586",
+      "signed_scope_sha256": "f7b73f07eeb34efbabf8802bc1e8d4de2ac554608a546a321ff9c300faf49f37",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -570,9 +538,8 @@
         {
           "collection": "rag_nexus_ses_premiere_specialite",
           "expected_anchor_sha256": "1db8cebf9caf3f6810cbb85610ba9e82a5fccb438d227d91010fc1a573b02798",
-          "expected_chunk_ids": [
-            "ac520fc3dd80480c8a432de0375b2dc94c470281dfdbd386b669113eb96fe7b5"
-          ],
+          "expected_chunk_id": "ac520fc3dd80480c8a432de0375b2dc94c470281dfdbd386b669113eb96fe7b5",
+          "expected_chunk_sha256": "f092c0814db569bf3f4e81357103d390186ac91fa2ea60cda57ddfe2ee656ec5",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eremarcheconcurrentiel1166055pdf-82776.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:08.817Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -592,10 +559,8 @@
         {
           "collection": "rag_nexus_ses_premiere_specialite",
           "expected_anchor_sha256": "68c98dfc06745f3280977e1234ebec676ea1acc545bb6fb354c6ec81b3ad663e",
-          "expected_chunk_ids": [
-            "60570fa53b89b99bbfd79e0d4f7bdc684d661f251af0eae14ad5fc20e2698cf5",
-            "66ad63f70be1e0b7f1dee3c748393a7b3b3cb034d7d4479b0526cefcdabb1c61"
-          ],
+          "expected_chunk_id": "60570fa53b89b99bbfd79e0d4f7bdc684d661f251af0eae14ad5fc20e2698cf5",
+          "expected_chunk_sha256": "bda03a631c47ab3a540518974f59d47af4a482b6caa1c7afbbf58278ecd35dc1",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1ereopinionpublique1172949pdf-82800.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:08.956Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -615,11 +580,8 @@
         {
           "collection": "rag_nexus_ses_premiere_specialite",
           "expected_anchor_sha256": "3150f4587c61c8e9fa5dc6f53e0a93266c4773e2459e23646392f95b3f3d6839",
-          "expected_chunk_ids": [
-            "3f6395397195f42002156a7e1699f90c65ee436c70c1641a561c274a695e8eea",
-            "69828c0593803cad3a24db92edfd2f115273ca29da6e7f7165fdc55024c2a047",
-            "6dbef1c31850b3a956c0f665e21faf1f1d3410eaa2d60db5f28730a65fa44b53"
-          ],
+          "expected_chunk_id": "6dbef1c31850b3a956c0f665e21faf1f1d3410eaa2d60db5f28730a65fa44b53",
+          "expected_chunk_sha256": "1813ac145f9ea58597799bd9eae47b0eea1ae8d457d1fecee4d64d16c5e6e3f9",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1spesesentreprises1311919pdf-82809.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:12.468Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -637,9 +599,10 @@
           "query": "Comment la financiarisation modifie-t-elle la gouvernance des entreprises ?"
         }
       ],
-      "scope_digest": "f9327c81c945b27a27b5b251e71a9dc50282314d610e25da278247393bb41b01",
       "scope_id": "student_public_ses_premiere_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "2e11fdff975401821b6eba6cc8b1f3af12e8fcb4c95af8cd05830fc95c2207dd",
+      "signed_scope_sha256": "f9327c81c945b27a27b5b251e71a9dc50282314d610e25da278247393bb41b01",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -651,11 +614,8 @@
         {
           "collection": "rag_nexus_ses_terminale_specialite",
           "expected_anchor_sha256": "380b00a5e1e78ac1506e2afd6af5d2c08c154015544f804c55a9065c4238878b",
-          "expected_chunk_ids": [
-            "9a13205229537953dc721af34758b41f97b01373ede7b4f6a751f0acd998552f",
-            "af6ad5b5d6030ea34f3cf73d74126b7ab8cada6ab6d74427851cb09a83eb366b",
-            "f5460707aa5af1ad58289b7086683b785b62f06af0992c56a5aa21ddb93f24b4"
-          ],
+          "expected_chunk_id": "f5460707aa5af1ad58289b7086683b785b62f06af0992c56a5aa21ddb93f24b4",
+          "expected_chunk_sha256": "31279454f61524dbfe156b3a182cbf089fa473bc251c65434b5e9cd7e3092e75",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesexpliquer-crises-financieres-reguler-systeme-70161.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:14.890Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -675,11 +635,8 @@
         {
           "collection": "rag_nexus_ses_terminale_specialite",
           "expected_anchor_sha256": "be902ee3643eeb0f50833fb9417c4e1ee0599a3c039aa9bdc116ace2f8ed788e",
-          "expected_chunk_ids": [
-            "947f3d4c9542b91af23b2bf16cf67d1cb15128f817912fdc46caefa08cd7e834",
-            "b434b3dd46e631625b79816c09b00ff7ea40ab9356cd9d844e9caa2c186f4d84",
-            "d7eb67fa21c0ce40943fa81fc2d16fad1d58346874ed8bac1859149acbe3b837"
-          ],
+          "expected_chunk_id": "d7eb67fa21c0ce40943fa81fc2d16fad1d58346874ed8bac1859149acbe3b837",
+          "expected_chunk_sha256": "78f7a005e55f225adcfd899e351d80bc34a6d71ec2f7adc0f8565dd8d66b6a21",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesfondements-commerce-international-internationalisation-70155.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:14.900Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -699,10 +656,8 @@
         {
           "collection": "rag_nexus_ses_terminale_specialite",
           "expected_anchor_sha256": "fefcd00eff7f398bac6bef6289c260f70a578ee40def046e5a33fb430a68cbff",
-          "expected_chunk_ids": [
-            "7c0f461f13cdcc663b2aee00c9cd37e9b419718bcb0f8b5036b33c40904e0d7c",
-            "ecf865fea15bbb6b2b950f7e422ace2fefa3540bc072516f09ce3d19a2949e12"
-          ],
+          "expected_chunk_id": "ecf865fea15bbb6b2b950f7e422ace2fefa3540bc072516f09ce3d19a2949e12",
+          "expected_chunk_sha256": "fa5d04899e0862a4dca30888c446dfa157ea341e995a60af87925e50532ee7f7",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesmutations-travail-emploi1343961pdf-82824.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:15.010Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -720,9 +675,10 @@
           "query": "Comment les évolutions de l’organisation du travail fragilisent-elles son rôle intégrateur ?"
         }
       ],
-      "scope_digest": "9ddcfdbc29845f97d469ccea43fb782e93f9371d038d5f6c38d07e452276608f",
       "scope_id": "student_public_ses_terminale_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "a85a849bcbf25cf28ee97bc1ab8c74c718c3fb33fd0fd5bc9f31279497af1c7f",
+      "signed_scope_sha256": "9ddcfdbc29845f97d469ccea43fb782e93f9371d038d5f6c38d07e452276608f",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -734,11 +690,8 @@
         {
           "collection": "rag_nexus_svt_premiere_specialite",
           "expected_anchor_sha256": "c2593422c8f1f363232730676f00d850f7e6335e9c285f66c57f55aeddf71ee2",
-          "expected_chunk_ids": [
-            "0f6ee05e6a91585278eaf7cb3ff003149bcf24f9477da534f286bd28625d8f0e",
-            "7df79920c78fc147faf0c1981ab8ed7d2fca278e486f89d1f8061e44856d6a81",
-            "f1d549213e7f2dd5e17c87b6205706fd02fb58249c9f7f2829d4630bc291a903"
-          ],
+          "expected_chunk_id": "0f6ee05e6a91585278eaf7cb3ff003149bcf24f9477da534f286bd28625d8f0e",
+          "expected_chunk_sha256": "bf09478edc1c662cce857051738fda88a1127aa86ad1e51a06ed604ffd9ddeaf",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtinformation-genetique-transmission-expression-variation1218874pdf-82896.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:05.675Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -758,9 +711,8 @@
         {
           "collection": "rag_nexus_svt_premiere_specialite",
           "expected_anchor_sha256": "d5981fe974576bc44378de22f6f24d49f66b0a9f166e9dba41eaea50d1fcb8cf",
-          "expected_chunk_ids": [
-            "7637c95efd1e266743bb5b2a9fd55e03cdfe0cc12097576f3a419b1819e3b8c9"
-          ],
+          "expected_chunk_id": "7637c95efd1e266743bb5b2a9fd55e03cdfe0cc12097576f3a419b1819e3b8c9",
+          "expected_chunk_sha256": "3927cec94ea11edef29ad85545fc6a894a5fd8244b0034c355e11c4df95936f2",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtdynamiqueinterne1179401pdf-82893.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:05.492Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -780,9 +732,8 @@
         {
           "collection": "rag_nexus_svt_premiere_specialite",
           "expected_anchor_sha256": "c123ca4aababddba84ce1fa976544f9e7d54351f6eb95931555dac05d9ae09e4",
-          "expected_chunk_ids": [
-            "af4aeb4234215eee6125fdbc8cc5b8771228ad47bce4131b1f3d4393e40638e4"
-          ],
+          "expected_chunk_id": "af4aeb4234215eee6125fdbc8cc5b8771228ad47bce4131b1f3d4393e40638e4",
+          "expected_chunk_sha256": "1f8cb23c1c3bc0859bf13f6147c510b2274b1b72bf4f09f06d5fb733ea82653f",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtsystemeimmunitaire1160682pdf-82977.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:05.768Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -800,9 +751,10 @@
           "query": "Quel est le rôle du microbiote dans la santé humaine ?"
         }
       ],
-      "scope_digest": "adccabf97320fb8974598f5b9ceeb017e2d6847a439fdc2dac90ae53707560ca",
       "scope_id": "student_public_svt_premiere_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "2432762531da9321424f3c7c20891a8d86d0d0fe911f6e57c9923c124a354a40",
+      "signed_scope_sha256": "adccabf97320fb8974598f5b9ceeb017e2d6847a439fdc2dac90ae53707560ca",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,
@@ -814,9 +766,8 @@
         {
           "collection": "rag_nexus_svt_terminale_specialite",
           "expected_anchor_sha256": "6a5813057b8c0233f0e47330d2ee505caf4e70e8537dd446c0b8e702a689a046",
-          "expected_chunk_ids": [
-            "0d908758693c2b2d0a200521328d1bd5e045bb72b7a18cfdc7c2912925c051dd"
-          ],
+          "expected_chunk_id": "0d908758693c2b2d0a200521328d1bd5e045bb72b7a18cfdc7c2912925c051dd",
+          "expected_chunk_sha256": "9346b30d9729b55008a3b9916bbe30608e407f72bb7cbf765625d6ab017ea411",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2simclimatmntpdf-68493.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:17.071Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -836,9 +787,8 @@
         {
           "collection": "rag_nexus_svt_terminale_specialite",
           "expected_anchor_sha256": "343e117879ebb710088877ab022bc811bd508a330fd28d184b170d14d12d5709",
-          "expected_chunk_ids": [
-            "bba9c44d3665d2670850a4c71c9dcfa483dde5f0cf254191ce981c030a24f6aa"
-          ],
+          "expected_chunk_id": "bba9c44d3665d2670850a4c71c9dcfa483dde5f0cf254191ce981c030a24f6aa",
+          "expected_chunk_sha256": "f4dcc6d890db330a55f02bef0b5b42986ab3cc8bb8e665b0df765d6af387d45d",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2basedonneespaleontologique1313162pdf-82962.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:15.924Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -858,10 +808,8 @@
         {
           "collection": "rag_nexus_svt_terminale_specialite",
           "expected_anchor_sha256": "1ea6223e7545fba546b96aabbca87f18631da0e25dfa8f38187cba9342d731fd",
-          "expected_chunk_ids": [
-            "68a688fb8e4063d07935e24edabfefdc15ead53c82fe31277d684b1944552113",
-            "d8798b9c542c51d5e49d01af05c6a548fc2c1f6708a78b3eb1e5e4fe54d9f700"
-          ],
+          "expected_chunk_id": "d8798b9c542c51d5e49d01af05c6a548fc2c1f6708a78b3eb1e5e4fe54d9f700",
+          "expected_chunk_sha256": "34c6057e992d040c5f625cf574d8abf3e0258be9bf4ad973d343843ed7a9c015",
           "expected_citation": {
             "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvtloihardyweinberg1296958pdf-82917.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:15.427Z. PDF, images et OCR graphique non redistribués.",
             "licence_id": "ETALAB-2.0",
@@ -879,9 +827,10 @@
           "query": "Dans quelles conditions la loi de Hardy-Weinberg prévoit-elle les fréquences génotypiques ?"
         }
       ],
-      "scope_digest": "acd2e78081f8fc088a4852cdb16896e54dee68b5244d7dfe416f2db1fcdb5e8f",
       "scope_id": "student_public_svt_terminale_specialite_v1",
       "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "02cd90b7727f6140e6b9751aaaf4607edf2d77cb301b5fbc0e6be867fcebff07",
+      "signed_scope_sha256": "acd2e78081f8fc088a4852cdb16896e54dee68b5244d7dfe416f2db1fcdb5e8f",
       "student_expected_http": 200,
       "teacher_expected_http": 403,
       "unauthenticated_expected_http": 401,

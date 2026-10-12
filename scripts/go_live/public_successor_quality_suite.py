@@ -14,6 +14,7 @@ import math
 import re
 import sys
 import unicodedata
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +64,31 @@ def _json(path: Path) -> dict[str, Any]:
 def _same_digest(path: Path, digest: str) -> None:
     if not SHA256.fullmatch(str(digest)) or _sha(path) != digest:
         raise QualitySuiteError(f"digest divergent : {path.name}")
+
+
+def _server_filter_digest(scope: RetrievalScopeArtifactV3) -> str:
+    """Rejoue les prédicats de `ServerRetrievalScope.filter_digest` pour student V3."""
+    evidence = scope.evidence_subject
+    payload = {
+        "tenant": evidence.tenant,
+        "niveau": evidence.niveau.value,
+        "voie": evidence.voie.value,
+        "matiere": evidence.matiere,
+        "statut_enseignement": evidence.statut_enseignement.value,
+        "candidat": evidence.candidat.value,
+        "audiences": tuple(evidence.audiences),
+        "rights": tuple(right.value for right in evidence.rights),
+        "visibilities": (evidence.visibility,),
+        "school_year": evidence.school_year,
+        "collection": evidence.collection,
+        "programme_version": evidence.programme_version,
+        "scope_id": scope.scope_id,
+        "scope_digest": scope.sha256_digest(),
+        "source_sha256": scope.source_sha256,
+        "review_status": "reviewed",
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -171,7 +197,8 @@ def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any
                 },
             })
             if (spec["scope_id"] != scopes[name] or spec["student_expected_http"] != 200
-                or spec["scope_digest"] != scope.sha256_digest()
+                or spec["signed_scope_sha256"] != scope.sha256_digest()
+                or spec["server_filter_sha256"] != _server_filter_digest(scope)
                 or spec["teacher_expected_http"] != 403
                 or spec["unauthenticated_expected_http"] != 401
                 or spec["scope_mismatch_expected_http"] != 403
@@ -193,13 +220,12 @@ def validate_suite(root: Path, suite: dict[str, Any]) -> dict[str, dict[str, Any
                 if (not expected_pages or not all(isinstance(n, int) and not isinstance(n, bool) for n in expected_pages)
                     or not set(expected_pages) <= pages):
                     raise QualitySuiteError(f"pages attendues hors manifeste : {name}")
-                expected_chunks = sorted(
-                    chunk["chunk_id"] for chunk in index[name][content]["chunks"]
-                    if chunk["page_start"] in expected_pages
-                )
-                if (len(expected_pages) != 1 or not expected_chunks
-                    or row["expected_chunk_ids"] != expected_chunks):
-                    raise QualitySuiteError(f"chunks de la page probante divergents : {name}")
+                expected_chunks = [chunk for chunk in index[name][content]["chunks"]
+                                   if chunk["chunk_id"] == row["expected_chunk_id"]]
+                if (len(expected_pages) != 1 or len(expected_chunks) != 1
+                    or expected_chunks[0]["page_start"] != expected_pages[0]
+                    or expected_chunks[0]["chunk_sha256"] != row["expected_chunk_sha256"]):
+                    raise QualitySuiteError(f"chunk probant divergent : {name}")
                 anchor = row["expected_text_anchor"]
                 if (not isinstance(anchor, str) or len(anchor.split()) < 12
                     or len(anchor) < 75 or len(anchor) > 350
@@ -249,16 +275,65 @@ def verify_text_anchors(suite: dict[str, Any], derivative_dir: Path) -> int:
     return checked
 
 
+def verify_anchor_chunks(
+    root: Path, suite: dict[str, Any], index: dict[str, dict[str, Any]],
+    derivative_dir: Path, tokenizer_snapshot: Path,
+) -> int:
+    """Rejoue le chunker scellé et lie chaque ancre à un seul chunk exact."""
+    script_dir = root / "services/rag-pedago/scripts"
+    sys.path.insert(0, str(script_dir))
+    try:
+        from build_student_public_successor import PinnedE5TokenCounter  # type: ignore[import-not-found]
+        from nexus_release_chain.publication_chunking import chunk_verified_derivative
+    except ImportError as exc:
+        raise QualitySuiteError("dépendances du chunker de publication absentes") from exc
+    counter = PinnedE5TokenCounter(tokenizer_snapshot)
+    verified = 0
+    for name, spec in suite["collections"].items():
+        for row in spec["positive"]:
+            sha = row["expected_content_sha256"]
+            artifact = index[name][sha]
+            content = (derivative_dir / f"{sha}.txt").read_bytes()
+            if hashlib.sha256(content).hexdigest() != sha:
+                raise QualitySuiteError(f"dérivé divergent : {name}/{row['id']}")
+            receipt_sha = artifact["derivative_receipt_sha256"]
+            receipt_path = (root / "docs/reports/go_live/student_rights_evidence/derivative_receipts"
+                            / receipt_sha[:2] / f"{receipt_sha}.json")
+            _same_digest(receipt_path, receipt_sha)
+            receipt = _json(receipt_path)
+            chunks = chunk_verified_derivative(
+                content=content, receipt=receipt, token_counter=counter, target_tokens=384,
+            )
+            public_chunks = artifact["chunks"]
+            if len(chunks) != len(public_chunks):
+                raise QualitySuiteError(f"population de chunks divergente : {name}/{row['id']}")
+            matching: list[str] = []
+            anchor = " ".join(row["expected_text_anchor"].split())
+            for position, (chunk, public) in enumerate(zip(chunks, public_chunks, strict=True)):
+                chunk_sha = hashlib.sha256(chunk.text.encode()).hexdigest()
+                chunk_id = hashlib.sha256(f"{sha}:{position}:{chunk_sha}".encode()).hexdigest()
+                if (chunk_id != public["chunk_id"] or chunk_sha != public["chunk_sha256"]
+                    or chunk.page_start != public["page_start"]
+                    or chunk.page_end != public["page_end"]):
+                    raise QualitySuiteError(f"chunker ou manifeste divergent : {name}/{row['id']}")
+                if anchor in " ".join(chunk.text.split()):
+                    matching.append(chunk_id)
+            if matching != [row["expected_chunk_id"]]:
+                raise QualitySuiteError(f"ancre sans chunk unique : {name}/{row['id']}")
+            verified += 1
+    return verified
+
+
 def check_positive(
     case: dict[str, Any], response: dict[str, Any], index: dict[str, dict[str, Any]],
-    *, scope_digest: str,
+    *, server_filter_sha256: str, chunk_text_by_id: Mapping[str, str],
 ) -> bool:
     """Contrôle tous les résultats servis ; retourne le hit source/page attendu."""
     try:
         collection = case["collection"]
         filters = response["filters_applied"]
         if (filters["collection"] != collection
-            or filters["scope_digest"] != scope_digest):
+            or filters["scope_digest"] != server_filter_sha256):
             raise QualitySuiteError(f"{collection} : filtres serveur divergents")
         results = response["results"]
         if not isinstance(results, list) or not results:
@@ -286,6 +361,11 @@ def check_positive(
             chunk = chunks.get(result["chunk_id"])
             if chunk is None or chunk["page_start"] is None or chunk["page_end"] is None:
                 raise QualitySuiteError(f"{collection} : chunk/page hors manifeste")
+            chunk_text = chunk_text_by_id.get(result["chunk_id"])
+            if (not isinstance(chunk_text, str)
+                or hashlib.sha256(chunk_text.encode()).hexdigest() != chunk["chunk_sha256"]
+                or result["excerpt"] not in chunk_text):
+                raise QualitySuiteError(f"{collection} : preview non lié au chunk servi")
             citation = result["citation"]
             expected = artifact["citation"]
             fields = ("source_uri", "source_label", "licensor", "licence_id",
@@ -296,8 +376,10 @@ def check_positive(
                 or any(citation[key] != expected[key] or not citation[key] for key in fields)):
                 raise QualitySuiteError(f"{collection} : citation ou attribution divergente")
             if (content == case["expected_content_sha256"]
-                and result["chunk_id"] in case["expected_chunk_ids"]
+                and result["chunk_id"] == case["expected_chunk_id"]
                 and citation["page"] in case["expected_pages_any"]):
+                if " ".join(case["expected_text_anchor"].split()) not in " ".join(chunk_text.split()):
+                    raise QualitySuiteError(f"{collection} : ancre absente du chunk servi")
                 expected_hit = True
         return expected_hit
     except (KeyError, TypeError, ValueError) as exc:
@@ -309,19 +391,27 @@ def main() -> int:
     parser.add_argument("--repository-root", type=Path, default=ROOT)
     parser.add_argument("--derivative-dir", type=Path,
                         help="Répertoire privé des dérivés exacts, requis pour prouver les ancres")
+    parser.add_argument("--tokenizer-snapshot", type=Path,
+                        help="Snapshot local du tokenizer E5 piné pour rejouer les chunks privés")
     args = parser.parse_args()
     try:
         suite = _json(args.repository_root / SUITE_PATH)
         validate_suite(args.repository_root, suite)
         if args.derivative_dir is not None:
+            if args.tokenizer_snapshot is None:
+                raise QualitySuiteError("--tokenizer-snapshot requis avec --derivative-dir")
             count = verify_text_anchors(suite, args.derivative_dir)
             if count != 33:
                 raise QualitySuiteError(f"ancrage incomplet : {count}/33")
+            index = validate_suite(args.repository_root, suite)
+            if verify_anchor_chunks(args.repository_root, suite, index,
+                                    args.derivative_dir, args.tokenizer_snapshot) != 33:
+                raise QualitySuiteError("liaison aux chunks incomplète")
     except QualitySuiteError as exc:
         print(f"PUBLIC_SUCCESSOR_QUALITY_SUITE=FAIL reason={exc}")
         return 1
     print("PUBLIC_SUCCESSOR_QUALITY_SUITE=PASS collections=11 positive_cases=33 "
-          f"anchors_verified={'33' if args.derivative_dir is not None else 'not_run'}")
+          f"anchors_and_chunks_verified={'33' if args.derivative_dir is not None else 'not_run'}")
     return 0
 
 
