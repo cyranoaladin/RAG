@@ -852,6 +852,65 @@ def _compact_document(raw: bytes, label: str) -> dict[str, Any]:
     return document
 
 
+def derive_worker_transfer_manifest_sha256(plan_raw: bytes, receipt_v1_raw: bytes) -> str:
+    """Rebuild Worker A's observed manifest identity from the verified V1 pair.
+
+    This is distinct from the plan SHA carried by A2. Callers must first replay
+    the full A/V1/V2/pin checks; this reconstruction also rejects a substituted
+    or incomplete pair before its SHA is compared with the live DB.
+    """
+    plan = _compact_document(plan_raw, "worker transfer plan")
+    receipt = _compact_document(receipt_v1_raw, "worker transfer V1 receipt")
+    plan_sha = hashlib.sha256(plan_raw).hexdigest()
+    files = plan.get("files")
+    observed_files = receipt.get("files")
+    if (
+        plan.get("kind") != "NEXUS_STUDENT_PUBLIC_TEXT_TRANSFER_MANIFEST_V1"
+        or receipt.get("kind") != "NEXUS_STUDENT_PUBLIC_TEXT_OBSERVED_TRANSFER_V1"
+        or receipt.get("transfer_manifest_sha256") != plan_sha
+        or receipt.get("release_id") != plan.get("release_id")
+        or receipt.get("file_count") != plan.get("file_count")
+        or receipt.get("derivative_receipt_count") != plan.get("derivative_receipt_count")
+        or not isinstance(files, list) or not isinstance(observed_files, list)
+        or len(files) != plan.get("file_count")
+        or len(observed_files) != len(files)
+        or any(not isinstance(row, dict) for row in files + observed_files)
+    ):
+        raise PublicSuccessorActivationError("worker transfer plan/V1 pair differs")
+    expected = {row.get("file"): row.get("sha256_expected") for row in files}
+    actual = {row.get("file"): row.get("sha256_observed") for row in observed_files}
+    if (
+        len(expected) != len(files) or len(actual) != len(observed_files)
+        or expected != actual
+        or any(not isinstance(name, str) or not isinstance(sha, str)
+               or _SHA256.fullmatch(sha) is None for name, sha in expected.items())
+    ):
+        raise PublicSuccessorActivationError("worker transfer observed files differ")
+    worker = {
+        "manifest_kind": "NEXUS-STAGING-ARTIFACT-TRANSFER-V1",
+        "release_id": plan["release_id"],
+        "transfer_method": "octets textuels observes et re-haches sur la destination",
+        "destination_target_identity": receipt.get("target_identity"),
+        "destination_identity_status": "CLAIMED_UNQUALIFIED",
+        "observed_host": receipt.get("observed_host"),
+        "destination_realpath": receipt.get("destination_realpath"),
+        "source_plan_sha256": plan_sha,
+        "observed_transfer_receipt_sha256": hashlib.sha256(receipt_v1_raw).hexdigest(),
+        "file_count": plan["file_count"],
+        "derivative_receipt_count": plan["derivative_receipt_count"],
+        "digest_missing": 0,
+        "digest_mismatches": 0,
+        "files": [
+            {"file": row["file"], "sha256_expected": row["sha256_expected"],
+             "sha256_observed": actual[row["file"]]}
+            for row in files
+        ],
+    }
+    raw = (json.dumps(worker, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":")) + "\n").encode()
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _transfer_utc(value: Any, label: str) -> datetime:
     if not isinstance(value, str) or not value.endswith("Z"):
         raise PublicSuccessorActivationError(f"transfer {label}: UTC absent")
@@ -1603,9 +1662,12 @@ def verify_public_successor_activation(
         root, "authorities/publication_batch_review_receipt_sha256.bin",
         authorities["publication_batch_review_receipt_sha256"], json_required=False,
     )
+    worker_transfer_sha = derive_worker_transfer_manifest_sha256(
+        plan_raw, receipt_v1_raw,
+    )
     batch_review = verify_publication_batch_review(
         batch_review_raw, content, root / "release",
-        authorities["artifact_transfer_manifest_sha256"],
+        worker_transfer_sha,
         tuple(member.authorization_id for member in authorization_set.members), now,
     )
     if not a2 or a2_expiry is None or (

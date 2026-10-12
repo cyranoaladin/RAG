@@ -89,6 +89,9 @@ def test_public_lot42_real_schema_and_post_startup_invalidation(
     from ingestor import public_successor_db_guard as guard
 
     monkeypatch.setattr(guard, "_sealed_review_blob_sha", lambda *_: REVIEW_BINDING[2])
+    # This integration test exercises schema 020 and DB invalidation; the
+    # separately tested transfer V1/C bundle reader supplies its fixed digest.
+    monkeypatch.setattr(guard, "_worker_transfer_sha_from_bundle", lambda *_: TRANSFER)
 
     resource_id, artifact_id = ressource_reelle
     monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: (

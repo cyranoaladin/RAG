@@ -1162,9 +1162,11 @@ def _prepare_public_successor_batch(
     content = verify_content_anchor(
         args.content_anchor_path, args.content_anchor_sha256, args.release_root,
     )
+    plan_raw = args.transfer_plan_path.read_bytes()
+    receipt_v1_raw = args.transfer_v1_receipt_path.read_bytes()
     transfer_sha = verify_public_transfer_offline(
-        args.transfer_plan_path.read_bytes(),
-        args.transfer_v1_receipt_path.read_bytes(),
+        plan_raw,
+        receipt_v1_raw,
         args.target_pin_path.read_bytes(),
         args.transfer_v2_attestation_path.read_bytes(),
         args.release_root, content,
@@ -1172,12 +1174,18 @@ def _prepare_public_successor_batch(
         now_utc=now,
     )
     _verify_public_live_target(args, content)
+    from nexus_release_chain.public_successor_activation import (
+        derive_worker_transfer_manifest_sha256,
+    )
+    worker_transfer_sha = derive_worker_transfer_manifest_sha256(
+        plan_raw, receipt_v1_raw,
+    )
     source = load_public_successor_batch_source(
         release_root=args.release_root,
         anchor_path=args.content_anchor_path,
         anchor_sha256=args.content_anchor_sha256,
         a2_path=args.a2_authority_path,
-        transfer_manifest_sha256=transfer_sha,
+        transfer_manifest_sha256=worker_transfer_sha,
         now_utc=now,
     )
     if getattr(args, "release_id", source.release.release_id) != source.release.release_id:

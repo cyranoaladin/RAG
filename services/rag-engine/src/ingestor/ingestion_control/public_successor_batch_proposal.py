@@ -445,8 +445,8 @@ def build_public_successor_batch_review_artifact(
         transfer_v2_sha256, projection_digest,
     )) or not evaluator.strip():
         raise ReleaseBatchAttestationError("public review evidence digest/evaluator invalid")
-    if transfer_sha256 != facts.artifact_transfer_manifest_sha256:
-        raise ReleaseBatchAttestationError("public review transfer digest differs")
+    # A2 seals the source plan; Worker A persists the distinct observed-manifest
+    # SHA. The canonical review binds both identities in separate fields.
     base = build_release_batch_review_artifact(
         review_id=review_id, facts=facts,
         valid_from=valid_from, valid_until=valid_until,

@@ -12,12 +12,15 @@ import pytest
 from nexus_contracts.authority_artifacts import canonical_publication_review_path, git_blob_sha1
 from nexus_release_chain.public_successor_activation import verify_content_anchor
 
+from ingestor import public_successor_db_guard as guard
 from ingestor.public_successor_db_guard import (
     PublicSuccessorDBRefused,
     _sealed_review_blob_sha,
     require_public_successor_live_controls,
     require_public_successor_startup_lot42,
 )
+
+_real_worker_transfer_sha_from_bundle = guard._worker_transfer_sha_from_bundle
 
 AUTH_ID = "student-public-maths"
 COLLECTION = "rag_nexus_maths_premiere_gen_specialite"
@@ -37,6 +40,17 @@ REVIEW_BINDING = (
     "6" * 40, "7" * 40, "8" * 40, 123,
     "NEXUS-TRUSTED-REVIEW-V1:test", "reviewer-fixture",
 )
+
+
+@pytest.fixture(autouse=True)
+def _unit_db_guard_transfer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These DB-row unit fixtures use one synthetic transfer identity."""
+    monkeypatch.setattr(guard, "_worker_transfer_sha_from_bundle", lambda *_: TRANSFER_SHA)
+
+
+def test_startup_transfer_evidence_cannot_be_missing(tmp_path: Path) -> None:
+    with pytest.raises(PublicSuccessorDBRefused, match="evidence missing"):
+        _real_worker_transfer_sha_from_bundle(_verdict(), tmp_path)
 
 
 def test_sealed_lot42_review_blob_is_derived_from_bytes_not_git_tree(tmp_path: Path) -> None:

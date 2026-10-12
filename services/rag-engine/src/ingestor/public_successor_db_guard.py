@@ -134,6 +134,28 @@ def _expected_lot42_population(
     return expected, content.candidate_inventory_sha256
 
 
+def _worker_transfer_sha_from_bundle(
+    verdict: PublicSuccessorActivationVerdict, bundle_root: Path,
+) -> str:
+    """Compare the sealed plan with C, then derive Worker A's DB identity."""
+    from nexus_release_chain.public_successor_activation import (
+        derive_worker_transfer_manifest_sha256,
+    )
+
+    plan_sha = verdict.transfer_manifest_sha256
+    try:
+        plan_raw = (bundle_root / "authorities/artifact_transfer_manifest_sha256.bin").read_bytes()
+        receipt_v1_raw = (bundle_root / "authorities/observed-transfer-v1.json").read_bytes()
+    except OSError as error:
+        raise PublicSuccessorDBRefused("C transfer evidence missing from LOT42 bundle") from error
+    if hashlib.sha256(plan_raw).hexdigest() != plan_sha:
+        raise PublicSuccessorDBRefused("C transfer plan differs from LOT42 bundle")
+    try:
+        return derive_worker_transfer_manifest_sha256(plan_raw, receipt_v1_raw)
+    except ValueError as error:
+        raise PublicSuccessorDBRefused("C transfer V1 differs from LOT42 bundle") from error
+
+
 def require_public_successor_startup_lot42(
     conn: Any,
     verdict: PublicSuccessorActivationVerdict,
@@ -144,7 +166,7 @@ def require_public_successor_startup_lot42(
         raise PublicSuccessorDBRefused("C expired before LOT42 startup replay")
     authorities = _expected_authorizations(verdict)
     auth_by_collection = {collection: auth_id for collection, auth_id, _, _ in authorities}
-    transfer_sha = verdict.transfer_manifest_sha256
+    transfer_sha = _worker_transfer_sha_from_bundle(verdict, bundle_root)
     review_id = verdict.publication_batch_review_id
     review_digest = verdict.publication_batch_review_digest
     review_binding = verdict.publication_batch_review_binding
