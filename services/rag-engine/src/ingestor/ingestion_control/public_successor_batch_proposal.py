@@ -15,7 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from nexus_contracts.authority_artifacts import ReleaseBatchPublicationReviewArtifact
-from nexus_release_chain.public_successor_activation import verify_content_anchor
+from nexus_contracts.ingestion import ResourceScope
+from nexus_release_chain.public_successor_activation import (
+    derive_public_release_scope_placement,
+    verify_content_anchor,
+)
 from nexus_release_chain.public_successor_temporal import (
     verify_temporal_authority_preissuance,
 )
@@ -74,6 +78,8 @@ class PublicBatchSource:
     rights_by_sha: dict[str, dict[str, Any]]
     pii_by_sha: dict[str, dict[str, Any]]
     currentness_by_sha: dict[str, dict[str, Any]]
+    profiles_by_collection: dict[str, Any]
+    profile_manifest_digest: str
 
 
 def _bound_json(path: Path, sha: str) -> dict[str, Any]:
@@ -232,6 +238,21 @@ def load_public_successor_batch_source(
                                for row in expectation.artifacts},
         placements=placements,
     )
+    scope_projection = derive_public_release_scope_placement(release_root, content)
+    profiles: dict[str, Any] = {}
+    for entry in scope_projection.placements:
+        existing = profiles.get(entry.scope.collection)
+        if existing is not None and (
+            entry.profile_id, entry.profile_version, entry.profile_fingerprint,
+            entry.scope.model_dump(mode="json"),
+        ) != (
+            existing.profile_id, existing.profile_version,
+            existing.profile_fingerprint, existing.scope.model_dump(mode="json"),
+        ):
+            raise ReleaseBatchAttestationError("public profile differs within a collection")
+        profiles[entry.scope.collection] = entry
+    if set(profiles) != set(release.collections):
+        raise ReleaseBatchAttestationError("public profile population differs")
     return PublicBatchSource(
         release=release,
         a2_sha256=hashlib.sha256(a2_raw).hexdigest(),
@@ -243,7 +264,76 @@ def load_public_successor_batch_source(
         rights_by_sha=rights_by_sha,
         pii_by_sha=pii_by_sha,
         currentness_by_sha=current_by_sha,
+        profiles_by_collection=profiles,
+        profile_manifest_digest=scope_projection.profile_manifest_digest,
     )
+
+
+_SCOPE_FIELDS = (
+    "tenant", "collection", "niveau", "voie", "matiere", "candidat",
+    "audience", "visibility", "school_year", "programme_version",
+)
+
+
+def _normalized_scope(raw: Any) -> dict[str, Any]:
+    document = raw.model_dump(mode="json") if hasattr(raw, "model_dump") else raw
+    if not isinstance(document, dict) or set(document) != set(_SCOPE_FIELDS):
+        raise ReleaseBatchAttestationError("public scope has missing or extra dimensions")
+    try:
+        result = ResourceScope.model_validate(document).model_dump(mode="json")
+    except ValueError as exc:
+        raise ReleaseBatchAttestationError("public scope invalid") from exc
+    result["audience"] = sorted(result["audience"])
+    return result
+
+
+def measure_public_successor_resource_scopes(conn: Any, facts: Any) -> dict[Any, dict[str, Any]]:
+    """Measure all ten scope columns on the exact adopted resource IDs."""
+    rows = conn.execute(
+        "SELECT resource_id, tenant, collection, niveau, voie, matiere, "
+        "candidat, audience, visibility, school_year, programme_version "
+        "FROM ingestion_control.resources WHERE resource_id = ANY(%s)",
+        (list(facts.resource_ids),),
+    ).fetchall()
+    if len(rows) != facts.placements or {row[0] for row in rows} != set(facts.resource_ids):
+        raise ReleaseBatchAttestationError("public DB resource scope population differs")
+    return {
+        row[0]: dict(zip(_SCOPE_FIELDS, row[1:], strict=True)) for row in rows
+    }
+
+
+def require_public_successor_resource_scopes(
+    facts: Any, source: PublicBatchSource,
+    authorizations: dict[str, Any], resource_scopes: dict[Any, dict[str, Any]],
+) -> None:
+    """Compare each DB scope with its sealed A2 profile and live LOT41A authority."""
+    if (
+        set(source.profiles_by_collection) != set(facts.collections)
+        or set(authorizations) != set(facts.collections)
+        or set(resource_scopes) != set(facts.resource_ids)
+    ):
+        raise ReleaseBatchAttestationError("public scope population differs")
+    for collection, profile in source.profiles_by_collection.items():
+        authority = authorizations[collection]
+        if (
+            authority.profile_id != profile.profile_id
+            or authority.profile_version != profile.profile_version
+            or authority.profile_fingerprint != profile.profile_fingerprint
+            or authority.manifest_digest != source.profile_manifest_digest
+        ):
+            raise ReleaseBatchAttestationError(f"public profile differs for {collection}")
+        if tuple(authority.rights_categories) != ("public_allowed",):
+            raise ReleaseBatchAttestationError(f"public rights category differs for {collection}")
+        expected = _normalized_scope(profile.scope)
+        if expected["visibility"] != "public" or _normalized_scope(authority.scope) != expected:
+            raise ReleaseBatchAttestationError(f"public authorization scope differs for {collection}")
+    for resource_id, (_, _, collection, authorization_id) in facts.par_ressource.items():
+        if authorizations[collection].authorization_id != authorization_id:
+            raise ReleaseBatchAttestationError("public resource authorization differs")
+        if _normalized_scope(resource_scopes[resource_id]) != _normalized_scope(
+            source.profiles_by_collection[collection].scope
+        ):
+            raise ReleaseBatchAttestationError(f"public DB scope differs for {resource_id}")
 
 
 def build_public_successor_batch_projections(
@@ -339,7 +429,8 @@ def build_public_successor_batch_projections(
 
 def build_public_successor_batch_review_artifact(
     *, review_id: str, facts: Any, valid_from: datetime, valid_until: datetime,
-    a2_sha256: str, transfer_sha256: str, projection_digest: str, evaluator: str,
+    a2_sha256: str, transfer_sha256: str, target_pin_sha256: str,
+    transfer_v2_sha256: str, projection_digest: str, evaluator: str,
 ) -> ReleaseBatchPublicationReviewArtifact:
     """Bind the public evidence to the existing canonical LOT42 review contract.
 
@@ -347,7 +438,8 @@ def build_public_successor_batch_review_artifact(
     new contract field or weaker, out-of-band sidecar is needed for this mode.
     """
     if any(_SHA.fullmatch(value) is None for value in (
-        a2_sha256, transfer_sha256, projection_digest,
+        a2_sha256, transfer_sha256, target_pin_sha256,
+        transfer_v2_sha256, projection_digest,
     )) or not evaluator.strip():
         raise ReleaseBatchAttestationError("public review evidence digest/evaluator invalid")
     if transfer_sha256 != facts.artifact_transfer_manifest_sha256:
@@ -359,6 +451,7 @@ def build_public_successor_batch_review_artifact(
     note = (
         f"{base.provenance_note} Public successor evidence: "
         f"A2_SHA256={a2_sha256}; TRANSFER_SHA256={transfer_sha256}; "
+        f"TARGET_PIN_SHA256={target_pin_sha256}; TRANSFER_V2_SHA256={transfer_v2_sha256}; "
         f"PROJECTION_SHA256={projection_digest}; EVALUATOR={evaluator}."
     )
     return ReleaseBatchPublicationReviewArtifact.model_validate({
@@ -369,6 +462,7 @@ def build_public_successor_batch_review_artifact(
 def require_reviewed_public_successor_batch(
     artifact: ReleaseBatchPublicationReviewArtifact, *, facts: Any,
     a2_sha256: str, a2_valid_until: datetime, transfer_sha256: str,
+    target_pin_sha256: str, transfer_v2_sha256: str,
     projection_digest: str, evaluator: str, now_utc: datetime,
 ) -> None:
     """Rebuild reviewed bytes from live DB facts and bound A2/transfer evidence."""
@@ -380,6 +474,8 @@ def require_reviewed_public_successor_batch(
         review_id=artifact.review_id, facts=facts,
         valid_from=artifact.valid_from, valid_until=artifact.valid_until,
         a2_sha256=a2_sha256, transfer_sha256=transfer_sha256,
+        target_pin_sha256=target_pin_sha256,
+        transfer_v2_sha256=transfer_v2_sha256,
         projection_digest=projection_digest, evaluator=evaluator,
     )
     if artifact.canonical_bytes() != expected.canonical_bytes():
@@ -394,5 +490,7 @@ __all__ = [
     "build_public_successor_batch_review_artifact",
     "build_public_successor_batch_projections",
     "load_public_successor_batch_source",
+    "measure_public_successor_resource_scopes",
+    "require_public_successor_resource_scopes",
     "require_reviewed_public_successor_batch",
 ]

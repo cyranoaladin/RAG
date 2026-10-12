@@ -17,17 +17,23 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from public_text_transfer import (
-    ALLOWLIST_KIND,
-    INVENTORY_KIND,
-    TEXT_MIME,
-    TransferRefused,
-    _document,
-    _manifest,
-    _sha,
-    digest,
-    verify_observed_destination,
-)
+if __package__:
+    from .public_text_transfer import (
+        ALLOWLIST_KIND, INVENTORY_KIND, TEXT_MIME, TransferRefused,
+        _document, _manifest, _sha, digest, verify_observed_destination,
+    )
+else:  # lancement direct du script depuis scripts/go_live
+    from public_text_transfer import (
+        ALLOWLIST_KIND,
+        INVENTORY_KIND,
+        TEXT_MIME,
+        TransferRefused,
+        _document,
+        _manifest,
+        _sha,
+        digest,
+        verify_observed_destination,
+    )
 
 PIN_KIND = "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1"
 ATTESTATION_KIND = "NEXUS_STUDENT_PUBLIC_QUALIFIED_TRANSFER_TARGET_ATTESTATION_V2"

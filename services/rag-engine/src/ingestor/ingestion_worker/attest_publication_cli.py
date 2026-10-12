@@ -270,6 +270,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         propose_public.add_argument(f"--{name}", required=True, type=Path)
     propose_public.add_argument("--content-anchor-sha256", required=True)
     propose_public.add_argument("--target-pin-sha256", required=True)
+    propose_public.add_argument("--transfer-v2-sha256", required=True)
+    propose_public.add_argument("--destination-root", required=True, type=Path)
     propose_public.add_argument("--review-id", required=True, type=_non_blank)
     propose_public.add_argument("--evaluator", required=True, type=_non_blank)
     propose_public.add_argument("--valid-days", type=int, default=7)
@@ -287,6 +289,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         record_public.add_argument(f"--{name}", required=True, type=Path)
     record_public.add_argument("--content-anchor-sha256", required=True)
     record_public.add_argument("--target-pin-sha256", required=True)
+    record_public.add_argument("--transfer-v2-sha256", required=True)
+    record_public.add_argument("--destination-root", required=True, type=Path)
     record_public.add_argument("--release-id", required=True, type=_non_blank)
     record_public.add_argument("--review-id", required=True, type=_non_blank)
     record_public.add_argument("--evaluator", required=True, type=_non_blank)
@@ -1009,9 +1013,59 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _verify_public_live_target(args: argparse.Namespace, content: Any) -> Any:
+    """Replay canonical V2 against the actual isolated host/DB/destination.
+
+    This operator-only command must run from the clean checkout on the
+    qualification host. The runtime image has no repository or Docker socket
+    and deliberately cannot satisfy this precondition.
+    """
+    from ingestor.ingestion_control.release_batch_attestation import ReleaseBatchAttestationError
+
+    if not args.destination_root.is_absolute():
+        raise ReleaseBatchAttestationError("public destination_root must be absolute")
+    checkout_root = Path(__file__).resolve().parents[5]
+    expected_script = checkout_root / "scripts/go_live/qualified_public_text_transfer.py"
+    try:
+        sys.path.insert(0, str(checkout_root))
+        from scripts.go_live import qualified_public_text_transfer as target_module
+    except ImportError as exc:
+        raise ReleaseBatchAttestationError(
+            "canonical target verifier requires the clean operator checkout"
+        ) from exc
+    finally:
+        sys.path.remove(str(checkout_root))
+    if Path(target_module.__file__).resolve() != expected_script:
+        raise ReleaseBatchAttestationError("canonical target verifier comes from another checkout")
+    gate = args.release_root / "profile_gate"
+    attestation_raw = args.transfer_v2_attestation_path.read_bytes()
+    if hashlib.sha256(attestation_raw).hexdigest() != args.transfer_v2_sha256:
+        raise ReleaseBatchAttestationError("public transfer V2 digest differs")
+    allowlist_raw = (gate / "private_transfer_allowlist.json").read_bytes()
+    verdict = target_module.verify_qualified_transfer_target(
+        attestation_raw=attestation_raw,
+        expected_attestation_sha256=args.transfer_v2_sha256,
+        plan_raw=args.transfer_plan_path.read_bytes(),
+        receipt_v1_raw=args.transfer_v1_receipt_path.read_bytes(),
+        target_pin_raw=args.target_pin_path.read_bytes(),
+        expected_target_pin_sha256=args.target_pin_sha256,
+        expected_content_anchor_sha256=args.content_anchor_sha256,
+        candidate_inventory_raw=(gate / "candidate_inventory.json").read_bytes(),
+        expected_candidate_inventory_sha256=content.candidate_inventory_sha256,
+        allowlist_raw=allowlist_raw,
+        expected_allowlist_sha256=hashlib.sha256(allowlist_raw).hexdigest(),
+        expected_release_id=content.release_id,
+        destination_root=args.destination_root,
+        database_dsn=get_attestor_dsn(),
+    )
+    if verdict.file_count != content.expected_counts["unique_artifacts"]:
+        raise ReleaseBatchAttestationError("live target derivative file count differs")
+    return verdict
+
+
 def _prepare_public_successor_batch(
     args: argparse.Namespace, conn: psycopg.Connection[Any], now: Any,
-) -> tuple[Any, Any, tuple[Any, ...], str, str]:
+) -> tuple[Any, Any, tuple[Any, ...], str, str, dict[str, Any]]:
     """Rejoue toutes les sources et les faits DB dans la transaction appelante.
 
     Le même calcul sert à la proposition read-only et à l'enregistrement :
@@ -1026,6 +1080,8 @@ def _prepare_public_successor_batch(
     from ingestor.ingestion_control.public_successor_batch_proposal import (
         build_public_successor_batch_projections,
         load_public_successor_batch_source,
+        measure_public_successor_resource_scopes,
+        require_public_successor_resource_scopes,
     )
     from ingestor.ingestion_control.release_batch_attestation import (
         ReleaseBatchAttestationError,
@@ -1048,6 +1104,7 @@ def _prepare_public_successor_batch(
         expected_target_pin_sha256=args.target_pin_sha256,
         now_utc=now,
     )
+    _verify_public_live_target(args, content)
     source = load_public_successor_batch_source(
         release_root=args.release_root,
         anchor_path=args.content_anchor_path,
@@ -1078,6 +1135,10 @@ def _prepare_public_successor_batch(
     }
     if len(by_collection) != len(authorizations):
         raise ReleaseBatchAttestationError("public authorization collection duplicated")
+    resource_scopes = measure_public_successor_resource_scopes(conn, facts)
+    require_public_successor_resource_scopes(
+        facts, source, by_collection, resource_scopes,
+    )
     for placement in source.release.placements:
         authority = by_collection.get(placement.collection)
         if authority is None:
@@ -1102,7 +1163,7 @@ def _prepare_public_successor_batch(
     projections, projection_digest = build_public_successor_batch_projections(
         source, facts, evaluator=args.evaluator, now_utc=now,
     )
-    return source, facts, projections, projection_digest, transfer_sha
+    return source, facts, projections, projection_digest, transfer_sha, by_collection
 
 
 def _cmd_propose_public_successor_release_batch_review(args: argparse.Namespace) -> int:
@@ -1120,7 +1181,7 @@ def _cmd_propose_public_successor_release_batch_review(args: argparse.Namespace)
             raise ReleaseBatchAttestationError("public review validity must be positive")
         with psycopg.connect(get_attestor_dsn()) as conn:
             conn.execute("SET TRANSACTION READ ONLY")
-            source, facts, projections, projection_digest, transfer_sha = (
+            source, facts, projections, projection_digest, transfer_sha, _ = (
                 _prepare_public_successor_batch(args, conn, now)
             )
             conn.rollback()
@@ -1128,6 +1189,8 @@ def _cmd_propose_public_successor_release_batch_review(args: argparse.Namespace)
             review_id=args.review_id, facts=facts, valid_from=now,
             valid_until=min(now + timedelta(days=args.valid_days), source.a2_valid_until),
             a2_sha256=source.a2_sha256, transfer_sha256=transfer_sha,
+            target_pin_sha256=args.target_pin_sha256,
+            transfer_v2_sha256=args.transfer_v2_sha256,
             projection_digest=projection_digest, evaluator=args.evaluator,
         )
     except Exception as exc:  # noqa: BLE001 - fail-closed operator boundary
@@ -1368,17 +1431,21 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
         require_projection_authorises,
     )
 
+    public_mode = args.command == "record-public-successor-release-batch-attestation"
     live = _verified_approval(args)
     if live is None:
         return 1
+    if public_mode and live.head_pinned_status != "success":
+        print("PUBLIC_BATCH_RECORD_REFUSED: trusted-human-review/head-pinned is not success", file=sys.stderr)
+        return 1
 
-    public_mode = args.command == "record-public-successor-release-batch-attestation"
     with psycopg.connect(get_attestor_dsn()) as conn:
+        authorities: dict[str, Any] = {}
         try:
             if public_mode:
                 conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
                 now = datetime.now(UTC)
-                source, facts, projections, projection_digest, transfer_sha = (
+                source, facts, projections, projection_digest, transfer_sha, authorities = (
                     _prepare_public_successor_batch(args, conn, now)
                 )
             else:
@@ -1440,6 +1507,8 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
                     a2_sha256=source.a2_sha256,
                     a2_valid_until=source.a2_valid_until,
                     transfer_sha256=transfer_sha,
+                    target_pin_sha256=args.target_pin_sha256,
+                    transfer_v2_sha256=args.transfer_v2_sha256,
                     projection_digest=projection_digest,
                     evaluator=args.evaluator, now_utc=now,
                 )
@@ -1498,10 +1567,21 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
                     "canonical_url": None,
                     "collection": collection,
                     "scope_authorization_id": autorisation,
-                    "profile_id": collection,
-                    "profile_version": "v2-livraison-319",
-                    "profile_fingerprint": facts.artifacts_release_sha256,
-                    "manifest_digest": facts.release_manifest_sha256,
+                    "profile_id": (
+                        authorities[collection].profile_id if public_mode else collection
+                    ),
+                    "profile_version": (
+                        authorities[collection].profile_version
+                        if public_mode else "v2-livraison-319"
+                    ),
+                    "profile_fingerprint": (
+                        authorities[collection].profile_fingerprint
+                        if public_mode else facts.artifacts_release_sha256
+                    ),
+                    "manifest_digest": (
+                        authorities[collection].manifest_digest
+                        if public_mode else facts.release_manifest_sha256
+                    ),
                     "rights_status": projection["rights_status"],
                     "rights_assessed_at": projection["gate_evaluated_at"],
                     "quality_passed": projection["quality_passed"],
@@ -1536,6 +1616,18 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
                 },
             )
             ecrites += 1
+        if public_mode:
+            final_live = _verified_approval(args)
+            if (
+                final_live is None or final_live != live
+                or final_live.head_pinned_status != "success"
+            ):
+                conn.rollback()
+                print(
+                    "PUBLIC_BATCH_RECORD_REFUSED: exact live review or required status "
+                    "changed before commit", file=sys.stderr,
+                )
+                return 1
         conn.commit()
 
     print(
