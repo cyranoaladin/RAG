@@ -26,6 +26,7 @@ from nexus_release_chain.release_readiness import (
 from ingestor.embedding_provider import VerifiedE5EmbeddingProvider
 from ingestor.ingestion_control.attestation import attest_runtime_role
 from ingestor.ingestion_control.db import get_ingestion_control_dsn
+from ingestor.ingestion_control.github_authority import job_github_read_cache
 from ingestor.ingestion_control.release_batch_attestation import (
     measure_release_batch_facts,
     require_facts_match_catalog,
@@ -46,7 +47,10 @@ from ingestor.ingestion_profiles.staging_readiness_gate import (
     require_running_image_matches_declared,
     require_running_image_matches_manifest,
 )
-from ingestor.public_successor_db_guard import require_public_successor_pinned_db
+from ingestor.public_successor_db_guard import (
+    require_public_successor_live_controls,
+    require_public_successor_pinned_db,
+)
 
 from .multilevel_publication_resume_cli import (
     _finite_non_negative_float,
@@ -328,11 +332,21 @@ def main_public(argv: list[str]) -> int:
             claim_collections=collections,
             claim_release_id=verdict.release_id,
             claim_release_manifest_sha256=verdict.content_manifest_sha256,
+            batch_authority=verdict,
         )
     except Exception as exc:
         print(f"PUBLIC_TEXT_WORKER_STARTUP_FAILED: {exc}", file=sys.stderr)
         return 1
     from .multilevel_publication_resume_cli import _run_worker_loop
+    from .publication_resume import run_publication_resume_iteration
+
+    def iterate_with_job_evidence_cache(
+        conn: psycopg.Connection, *, deps: PublicationResumeDeps,
+    ):
+        # Scope every successful GitHub GET to a single claimed job. The
+        # publisher switches back to live GETs before the product commit.
+        with job_github_read_cache():
+            return run_publication_resume_iteration(conn, deps=deps)
 
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
         try:
@@ -364,12 +378,14 @@ def main_public(argv: list[str]) -> int:
                     conn, activation=fresh_verdict,
                     authorities=fresh_authorities, transfer_sha256=worker_transfer_sha,
                 )
+                require_public_successor_live_controls(conn, fresh_verdict)
+                conn.rollback()
 
             reverify()
             return _run_worker_loop(
                 conn, deps=deps, args=args,
                 max_iterations=1 if args.once else args.max_iterations,
-                pre_iteration=reverify,
+                pre_iteration=reverify, iterate=iterate_with_job_evidence_cache,
             )
         except Exception as exc:
             print(f"PUBLIC_TEXT_WORKER_AUTHORITY_FAILED: {exc}", file=sys.stderr)

@@ -105,6 +105,9 @@ class PublicSuccessorActivationVerdict:
     publication_batch_review_digest: str | None = None
     # Base/head/blob/review ID/challenge/reviewer vérifiés par la review LOT42.
     publication_batch_review_binding: tuple[str, str, str, int, str, str] | None = None
+    # Instant C déjà scellé dans la readiness ; permet au runtime de prouver
+    # que le reçu historique fut rejoué APRES la fusion de LOT42.
+    verified_at_utc: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -1462,6 +1465,7 @@ def _finalize_a2_live_evidence(
         publication_batch_review_id=batch_review.review_id,
         publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
         publication_batch_review_binding=binding,
+        verified_at_utc=live.verified_at_utc,
     )
 
 
@@ -1553,6 +1557,7 @@ def _finalize_a2_signed_readiness(
         publication_batch_review_id=batch_review.review_id,
         publication_batch_review_digest=authorities["publication_batch_review_receipt_sha256"],
         publication_batch_review_binding=binding,
+        verified_at_utc=readiness.public_successor_c_verified_at_utc,
     )
 
 

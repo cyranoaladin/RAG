@@ -233,7 +233,9 @@ def test_publisher_surface_requires_governance_objects_not_bare_text() -> None:
         "placements",
         "extract_text",
         "embedding_provider",
+        "batch_authority",
     )
+    assert parameters["batch_authority"].default is None
     assert "text" not in parameters
     assert "collection" not in parameters
 
@@ -476,8 +478,11 @@ def test_atomic_reverification_denial_rolls_back_before_product_cursor(
     assert calls == {"verify": 2, "transaction": 0, "cursor": 0}
 
 
+@pytest.mark.parametrize("with_public_c,deny_final", [
+    (False, False), (True, False), (True, True),
+])
 def test_external_authority_pin_commits_before_fenced_product_commit(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, with_public_c: bool, deny_final: bool,
 ) -> None:
     artifact = GovernedArtifact(
         content=CONTENT,
@@ -525,6 +530,8 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
         facts=facts,
     )
     events: list[str] = []
+    authority = object() if with_public_c else None
+    observed_authorities: list[object] = []
 
     class Transaction:
         def __init__(self, label: str) -> None:
@@ -533,7 +540,9 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
         def __enter__(self) -> None:
             events.append(f"{self.label}:enter")
 
-        def __exit__(self, *_args: object) -> None:
+        def __exit__(self, exc_type: object, *_args: object) -> None:
+            if exc_type is not None:
+                events.append(f"{self.label}:rollback")
             events.append(f"{self.label}:exit")
 
     class Cursor:
@@ -561,8 +570,11 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
         def cursor(self) -> Cursor:
             return Cursor()
 
-    def verify(*_args: object, **_kwargs: object) -> VerifiedAttestation:
+    def verify(*_args: object, **kwargs: object) -> VerifiedAttestation:
         events.append("verify")
+        observed_authorities.append(kwargs.get("batch_authority"))
+        if deny_final and events.count("verify") == 6:
+            raise RuntimeError("human review dismissed at final live check")
         return verified
 
     def fence(*_args: object, **_kwargs: object) -> None:
@@ -598,17 +610,31 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
         ),
     )
     monkeypatch.setattr(publisher_module, "_insert_placement", lambda *_args, **_kwargs: None)
+    from ingestor.ingestion_control import github_authority
 
-    result = publish_governed_artifact(
-        Connection("control"),
-        Connection("product"),
-        artifact,
-        (placement,),
-        lambda raw: raw.decode(),
-        lambda _chunks: (),
+    monkeypatch.setattr(
+        github_authority, "force_live_github_reads",
+        lambda: events.append("force-live"),
     )
 
-    assert result.artifact_created is False
+    def publish():  # type: ignore[no-untyped-def]
+        return publish_governed_artifact(
+            Connection("control"),
+            Connection("product"),
+            artifact,
+            (placement,),
+            lambda raw: raw.decode(),
+            lambda _chunks: (),
+            batch_authority=authority,  # type: ignore[arg-type]
+        )
+
+    if deny_final:
+        with pytest.raises(RuntimeError, match="dismissed at final live check"):
+            publish()
+    else:
+        result = publish()
+        assert result.artifact_created is False
+
     first_control_exit = events.index("control:exit")
     product_enter = events.index("product:enter")
     assert events.index("pin") < first_control_exit < product_enter
@@ -616,6 +642,14 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
     assert events.count("control:enter") == 2
     assert events[-1] == "control:exit"
     assert events.index("product:exit") < len(events) - 1
+    assert len(observed_authorities) >= 6
+    assert all(item is authority for item in observed_authorities)
+    assert events.count("force-live") == int(with_public_c)
+    if with_public_c:
+        assert events.index("force-live") < max(
+            index for index, event in enumerate(events) if event == "verify"
+        )
+    assert ("product:rollback" in events) is deny_final
 
 
 def test_external_pin_drift_refuses_before_the_product_transaction(

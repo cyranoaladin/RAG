@@ -31,6 +31,7 @@ from uuid import UUID
 
 import psycopg
 from nexus_contracts.ingestion import SealedReleaseArtifactRecord
+from nexus_release_chain.public_successor_activation import PublicSuccessorActivationVerdict
 
 try:
     from ingestor.embedding_provider import (
@@ -222,6 +223,9 @@ class PublicationResumeDeps:
     sealed_derivative_receipt_reader: Any = None
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
+    #: Autorité C recomposée depuis la readiness signée, jamais une option
+    #: booléenne du job. Absente pour tous les pipelines historiques.
+    batch_authority: PublicSuccessorActivationVerdict | None = None
     #: Lot DI : liste d'autorisation des collections réclamables. ``None`` :
     #: toute la file, comportement historique. Transmise telle quelle à
     #: ``claim_job`` — un job hors liste n'est jamais réclamé, donc jamais
@@ -609,6 +613,7 @@ def resume_publication(
             current_profile_fingerprint=artifact_record.release_manifest_sha256,
             current_manifest_digest=artifact_record.release_manifest_sha256,
             expected_attestation_id=expected_attestation_id,
+            batch_authority=deps.batch_authority,
         ).facts
     else:
         durable_facts = collect_publication_facts(
@@ -820,6 +825,7 @@ def resume_publication(
             or placements[0].current_manifest_digest,
             require_content_bound_authority=True,
             expected_attestation_id=expected_attestation_id,
+            batch_authority=deps.batch_authority,
         )
         # La revérification live ouvre une transaction de lecture ; le
         # publisher exige une connexion control IDLE à son entrée.
@@ -837,6 +843,7 @@ def resume_publication(
             or placements[0].current_manifest_digest,
             job_id=claim.job_id,
             expected_attestation_id=expected_attestation_id,
+            batch_authority=deps.batch_authority,
         )
         attestation = promotion.attestation
     if attestation.attestation_id != expected_attestation_id:
@@ -846,14 +853,16 @@ def resume_publication(
         )
 
     with psycopg.connect(deps.product_dsn) as product_conn:
-        result = publish_governed_artifact(
-            control_conn,
-            product_conn,
-            governed,
-            placements,
-            deps.extract_text,
-            deps.embedding_provider,
+        publication_args = (
+            control_conn, product_conn, governed, placements,
+            deps.extract_text, deps.embedding_provider,
         )
+        if deps.batch_authority is None:
+            result = publish_governed_artifact(*publication_args)
+        else:
+            result = publish_governed_artifact(
+                *publication_args, batch_authority=deps.batch_authority,
+            )
 
     return PublicationResumeOutcome(
         worked=True,
