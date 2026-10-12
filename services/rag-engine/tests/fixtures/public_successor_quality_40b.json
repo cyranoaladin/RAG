@@ -1,0 +1,870 @@
+{
+  "collections": {
+    "rag_nexus_dgemc_terminale_option": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "expected_anchor_sha256": "1b98da471d512c3969ea99d1288485f5aa47c3bb1ccce14ac1eae6020b70ce79",
+          "expected_chunk_id": "65d766932fd432897e1506534e6b9cbaef06f78467c5076a6059935bfc080144",
+          "expected_chunk_sha256": "e1f6edf31bd09d19c3e3b2c5c8642a4020458052d930723dc9b78d3cf7b64e78",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/la-place-de-l-europe-et-de-l-union-europeenne-ue-dans-les-programmes-d-enseignement-70242.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:03.529Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "La place de l’Europe et de l’Union européenne (UE) dans les programmes d’enseignement PDF - 258.18 Ko",
+            "source_updated_at": "2026-10-10T06:04:03.529Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/la-place-de-l-europe-et-de-l-union-europeenne-ue-dans-les-programmes-d-enseignement-70242.pdf"
+          },
+          "expected_content_sha256": "6b0ec5082ca6c9a9b8348df544720dced511e2bec891d073a9546ed7fb2d9cd1",
+          "expected_pages_any": [
+            6
+          ],
+          "expected_text_anchor": "Il est aussi fait mention de la Charte des droits fondamentaux de l’UE pour l’étude du droit à la vie privée.",
+          "id": "factual",
+          "query": "Comment l’Union européenne intervient-elle dans l’étude du droit à la vie privée en EMC ?"
+        },
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "expected_anchor_sha256": "dbdffeff2541ed0dd5218524bc1e9fb68e8bf964d88b262e05373a2919e2204b",
+          "expected_chunk_id": "d4b548bd74c20e8d1598ea66a2f84c18cbc99f2d045423cf6bf16e3f9ee02bfa",
+          "expected_chunk_sha256": "39a34d492bd8a18b9effb5b91e27eb63334882c52dda5f6a75ef00e8a70c25c0",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ficheconcoursdnccat4pdf-126128.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:01.003Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Propositions pédagogiques pour la catégorie 4 (lycée avec enseignement de droit) PDF - 465 Ko",
+            "source_updated_at": "2026-10-10T06:04:01.003Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ficheconcoursdnccat4pdf-126128.pdf"
+          },
+          "expected_content_sha256": "1fd37bd4d2c2c79c4b25faa4cec83a44d077f1e526067f0848575f82a097dcfe",
+          "expected_pages_any": [
+            4
+          ],
+          "expected_text_anchor": "Cette thématique comme les compétences travaillées peuvent entrainer un travail interdisciplinaire avec les enseignements de français, histoire-géographie et d’enseignement moral et civique (EMC).",
+          "id": "no_accent",
+          "query": "Comment la thematique de Etat de droit permet elle un travail interdisciplinaire ?"
+        },
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "expected_anchor_sha256": "83bc5d0592d8b160ade784973b21abab7394b1377a0ebbdc6d4bc314a9ecd873",
+          "expected_chunk_id": "7fe608f58e179974be70f3bc388f2724f54bbec629cb12cf319c03ebc1c9d3b2",
+          "expected_chunk_sha256": "ff582e85542ef11e9fa2ddc74017ed76b456fcb9f29f278c2d5fcd2afe401db3",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ficheconcoursdncpdf-126119.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:01.042Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Fiche de présentation du thème PDF - 1.01 Mo",
+            "source_updated_at": "2026-10-10T06:04:01.042Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ficheconcoursdncpdf-126119.pdf"
+          },
+          "expected_content_sha256": "d946d33672fd147f5a5e194589c16be68ef1ebbafb166a71be779501e824531d",
+          "expected_pages_any": [
+            4
+          ],
+          "expected_text_anchor": "Les textes règlementaires, la jurisprudence judiciaire ou administrative, les textes législatifs, les directives internationales intégrées au droit interne, aux décisions du Conseil constitutionnel.",
+          "id": "notion",
+          "query": "Quelles sources servent à enseigner l’État de droit ?"
+        }
+      ],
+      "scope_id": "student_public_dgemc_terminale_option_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "80413efb1651971502161ae3ab6b895e0a2e13595033e46d8cf57b92955e448d",
+      "signed_scope_sha256": "6d1c2fcb0de33683631854d679d7bde8de0c5731bc4a9f68181cbc8f31999263",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hggsp_premiere_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_hggsp_premiere_specialite",
+          "expected_anchor_sha256": "9b117904597f71e176bce497d481631c33913bc5ab01dcbd24136e282872e673",
+          "expected_chunk_id": "68b784c6549780caf0b06db996935534c7fe1b7e45e48614edc99b00fab77826",
+          "expected_chunk_sha256": "15cfcfd79e52964fda886017d4ae3523a225a87b2c4a166d12623e7d519bdd51",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspe1hggsptheme1democratie1169458pdf-83250.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:08.230Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Comprendre un régime politique : la démocratie PDF - 381.98 Ko",
+            "source_updated_at": "2026-10-10T06:04:08.230Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspe1hggsptheme1democratie1169458pdf-83250.pdf"
+          },
+          "expected_content_sha256": "3b93698643c497d64038be6954133853965c0ad6e7354b665a755589b1363c2d",
+          "expected_pages_any": [
+            11
+          ],
+          "expected_text_anchor": "Ces compétences relèvent des trois pouvoirs législatif, exécutif, judiciaire, ordinairement séparés dans les constitutions des États démocratiques, selon un système de poids et de contrepoids (checks and balances), et en vertu du principe de subsidiarité.",
+          "id": "factual",
+          "query": "Comment caractériser un régime politique démocratique ?"
+        },
+        {
+          "collection": "rag_nexus_hggsp_premiere_specialite",
+          "expected_anchor_sha256": "62b5d0565215e16f1f0f68dc9ce9fbf24cea51cc0edbeb94c9bf16bd9c09a870",
+          "expected_chunk_id": "37597f3fef58171ca2b6619c4e73e279017d1611b1dd566a97698da00726160b",
+          "expected_chunk_sha256": "44646ca7e337db5efd6c6fd7fed7f290aada874574eadb92821e133c2884d5aa",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeo1retheme4chinetechno1263905pdf-83070.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:17.235Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "La Chine : des recompositions spatiales multiples PDF - 592.16 Ko",
+            "source_updated_at": "2026-10-10T06:04:17.235Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeo1retheme4chinetechno1263905pdf-83070.pdf"
+          },
+          "expected_content_sha256": "0c997af8cfaf8a33cc3891df67642c1162404838fb7de31a059d638748e75314",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Les recompositions spatiales que connait la Chine sont liées à l’accélération de l’urbanisation et à la poursuite du processus de métropolisation. L’urbanisation s’est accélérée depuis la fin du XXe siècle.",
+          "id": "no_accent",
+          "query": "Comment les recompositions spatiales transforment elles la Chine ?"
+        },
+        {
+          "collection": "rag_nexus_hggsp_premiere_specialite",
+          "expected_anchor_sha256": "dd1b093503e4e62bc30febc02fa9902658a1252d61606093c0684f708f36b165",
+          "expected_chunk_id": "f5cf771d23f3ab77fd0298baf1955c31e0eb64d70a582768a901dbcccf471d86",
+          "expected_chunk_sha256": "69cc828e28c2dbc8a90e572be19be70da7aa74d552da386f2ef1fc990b212681",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg1histtheme4premiere-gmfin-emp-euro-70665.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:18.087Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "La Première Guerre mondiale : le « suicide de l'Europe » et la fin des empires européens PDF - 314.13 Ko",
+            "source_updated_at": "2026-10-10T06:04:18.087Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg1histtheme4premiere-gmfin-emp-euro-70665.pdf"
+          },
+          "expected_content_sha256": "1cdf8818adfca5d983722be598926201d8f90dfdf76c215a358260cffe0207b4",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Cet intitulé insiste donc à la fois sur le heurt entre les puissances européennes, qui met à bas la suprématie mondiale de l’Europe, et sur l’affirmation accrue des États-nations face aux États multinationaux qui en découle.",
+          "id": "notion",
+          "query": "Comment la Première Guerre mondiale contribue-t-elle à la fin des empires européens ?"
+        }
+      ],
+      "scope_id": "student_public_hggsp_premiere_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "f0330757ae583df4032b6db108f6e487b04d4b4fc59a5f3046b6066ca6904648",
+      "signed_scope_sha256": "3f509d61c4d8c690f0d3ce9ff903079bcc4da7401ab963433d0f9c12aae2268b",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hggsp_terminale_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_hggsp_terminale_specialite",
+          "expected_anchor_sha256": "1030b53cfd31ba6692f854ba01099fd81a84d053406c089d4c64fd6e881406ab",
+          "expected_chunk_id": "e7a2823ba320679bba37f177a89e58a64f6b1b166f5be3971411c31f29f1013a",
+          "expected_chunk_sha256": "d266fe19e83597f79dda36a0878bd43eb26f20806c1c7a8c8cea954ac88bd102",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra22lycee-gthggsptheme-2faire-la-guerre-et-faire-la-paix-93786.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:21.550Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Faire la guerre, faire la paix : formes de conflits et modes de résolution PDF - 458.47 Ko",
+            "source_updated_at": "2026-10-10T06:04:21.550Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lycee-gthggsptheme-2faire-la-guerre-et-faire-la-paix-93786.pdf"
+          },
+          "expected_content_sha256": "41db6652d852fb66031e89d27f077761b36d131cd93336cd0646424d9ed216d5",
+          "expected_pages_any": [
+            5
+          ],
+          "expected_text_anchor": "L’introduction doit montrer que la nature des conflits et la manière dont on essaie de les résoudre sont liées, et que ce lien est la source de toutes les difficultés et de toutes les lenteurs de la construction de la paix.",
+          "id": "factual",
+          "query": "Pourquoi la nature des conflits influence-t-elle la construction de la paix ?"
+        },
+        {
+          "collection": "rag_nexus_hggsp_terminale_specialite",
+          "expected_anchor_sha256": "bd1cf97746d83d003a2a10f357329801331eeb076ec44848a873975dd98eba0c",
+          "expected_chunk_id": "bf927898ffc0a26942d2c27a2b4cfc5ab99be3b632a2c4bc32d73c4ffee040f6",
+          "expected_chunk_sha256": "a72fc06eefc3502ac3eae73f13e2d92ef177da97aed5674728adf7286aee6ea9",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegthggspenvironnementexploitationprotectionenjeupdf-102786.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:23.778Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "L'environnement, entre exploitation et protection : un enjeu planétaire PDF - 610.13 Ko",
+            "source_updated_at": "2026-10-10T06:04:23.778Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegthggspenvironnementexploitationprotectionenjeupdf-102786.pdf"
+          },
+          "expected_content_sha256": "0e4ded1445e291bc8f3c7232789ee959b73031897fe0afa6a90a4ea56feb10f1",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "• L’axe 1 aborde les modalités et les objectifs de modification de l’environnement par les sociétés humaines, en insistant sur les relations, complémentaires comme conflictuelles, entre exploiter, préserver et protéger.",
+          "id": "no_accent",
+          "query": "Quels enjeux opposent exploitation et protection de environnement ?"
+        },
+        {
+          "collection": "rag_nexus_hggsp_terminale_specialite",
+          "expected_anchor_sha256": "a6b5acb96cf33b2968cf294ec4e8b70d8cd9fd023dbb9ef4eef063f83529a507",
+          "expected_chunk_id": "4a2d2779a1eeca27c6100b5482712df409a2e0894205a2b7d903d770566afddf",
+          "expected_chunk_sha256": "624f9c6b2538a97c240b9a0715d7dfb72e5b95ab521cbd6be49b8afaf20a62c9",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeggeotthemeconclusiffranceregionsunioneuforceetrecompositions1313446pdf-83079.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:13.041Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "La France et ses régions dans l'Union européenne et dans la mondialisation : lignes de force et recompositions PDF - 1.53 Mo",
+            "source_updated_at": "2026-10-10T06:04:13.041Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeggeotthemeconclusiffranceregionsunioneuforceetrecompositions1313446pdf-83079.pdf"
+          },
+          "expected_content_sha256": "284b557bd599f5a30cc78923af4d63efa7c9aa5e34e31078532b1ada98d65164",
+          "expected_pages_any": [
+            5
+          ],
+          "expected_text_anchor": "Les espaces portuaires, intégrés à des aires urbaines et à des espaces productifs, émetteurs et récepteurs de flux mondialisés, occupent une place singulière sur le territoire.",
+          "id": "notion",
+          "query": "Pourquoi le littoral français concentre-t-il des flux mondialisés ?"
+        }
+      ],
+      "scope_id": "student_public_hggsp_terminale_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "62578d7a3583e5670f39844d62cdc2ab325889d365caa747c192779a8eb6244e",
+      "signed_scope_sha256": "0e59a231d6b58f8c21dde98f947d72b69ff9e64ecb314d6d6326992ff33f2ea0",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hlp_premiere_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "expected_anchor_sha256": "c68daceb292f1c3a50a7b181e838a769372fdca1a3e0d806886d02136a14d582",
+          "expected_chunk_id": "09a7faeb12d44b12cc6b85a12aec8d1be8e22dfeb96e1e8a81ac579ebf88f0fc",
+          "expected_chunk_sha256": "87c43b66b776a50327ff70bd7eba418490dee2c151eb126bb0800926619cdeab",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche3pdf-112773.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:26.131Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "La ressource sur « la forme d'une pièce » : la manière dont Musset fait jouer ensemble le cœur et la parole (fiche 3) PDF - 130.94 Ko",
+            "source_updated_at": "2026-10-10T06:04:26.131Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche3pdf-112773.pdf"
+          },
+          "expected_content_sha256": "097db15dc3b6a8bc453d158e378faab1831d2be63c8c7d58ee896a6fe5be5afa",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Mesurer la variété des interférences qui touchent la parole et qui font obstacle à une communication authentique.",
+          "id": "factual",
+          "query": "Quel problème de communication la pièce de Musset invite-t-elle à étudier ?"
+        },
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "expected_anchor_sha256": "9151ab6fc0faa62f066a89a77f54b4d6b31e6cf94cc26079cac5b6f08ca09fa3",
+          "expected_chunk_id": "18853c5a1fa164b69980265c8499d5a064c01508bbba3a137f2f232f20b4aff6",
+          "expected_chunk_sha256": "e9d47b510a062903b747fe11e1b9ac1a258b893c591a42bc1bd7538fb0bdf92e",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyemancipationfemininepdf-113547.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:25.815Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "L’émancipation féminine dans Les Lettres d’une Péruvienne PDF - 170.54 Ko",
+            "source_updated_at": "2026-10-10T06:04:25.815Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyemancipationfemininepdf-113547.pdf"
+          },
+          "expected_content_sha256": "18cb060783120aee661279803683b91bebf04dc5f40402f0f335719ad8a283ad",
+          "expected_pages_any": [
+            8
+          ],
+          "expected_text_anchor": "Son expérience personnelle nourrit manifestement son propos, en particulier parce que son mariage se solde par un échec et parce qu’elle est totalement dépendante de ceux dont elle reçoit une pension (la cour ducale de Lunéville ou impériale de Vienne), mais sur lesquels elle ne peut compter sur la durée.",
+          "id": "no_accent",
+          "query": "Comment la vie de Mme de Graffigny nourrit elle sa defense des opprimes ?"
+        },
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "expected_anchor_sha256": "726f2c000f19ee661b9a7554c4ddaedda94c1f3b49f3fbe72641ba33bd71d04d",
+          "expected_chunk_id": "0abd6fcec446a2f8df4b80a9ba73b1d7f6e4138e4c0f685c236365356418fb9c",
+          "expected_chunk_sha256": "1ca34628d1ba04fbf26b6192a49dd8e0c2c15adc1e777a904ee84cd68fc16215",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpenseignement-humanite-litterature-philosophie1194699pdf-83925.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:04.825Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Introduction à l'enseignement « Humanités, Littérature et Philosophie » PDF - 126.03 Ko",
+            "source_updated_at": "2026-10-10T06:04:04.825Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpenseignement-humanite-litterature-philosophie1194699pdf-83925.pdf"
+          },
+          "expected_content_sha256": "0251e4ee6179995cdfb9aa571e283caf1dcc4401b59c6e187ee274e1b8c26382",
+          "expected_pages_any": [
+            1
+          ],
+          "expected_text_anchor": "Il associe les Lettres et la Philosophie au croisement de leurs identités intellectuelle et didactique respectives. Chaque élément du programme appelle cette approche plurielle.",
+          "id": "notion",
+          "query": "Comment la littérature et la philosophie s’associent-elles dans l’enseignement HLP ?"
+        }
+      ],
+      "scope_id": "student_public_hlp_premiere_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "89895d8eb5167fe370eb33ae649e27a364abdf4732dac59a2744ecb963426f55",
+      "signed_scope_sha256": "d8e632872b3e1eaea05b5fd40747f52cb94ccaa6111eda3b5a32182923743775",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hlp_terminale_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_hlp_terminale_specialite",
+          "expected_anchor_sha256": "32e83913632b96fc571a39f0ec6da1c2c3743e7ca80c2950c55695e36aa30b11",
+          "expected_chunk_id": "3b3dab5f796145a31e2d35cad0069c75fe99ff4595d3cfa9fe79839f982fbe86",
+          "expected_chunk_sha256": "cb2c987527f9b472784774a29700c4744088e0591729a3c6f953a12371238389",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelleoeuvreparcours-128667.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:26.664Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Les Entretiens sur la pluralité des mondes – Lire pour s’approprier l’œuvre et le parcours PDF - 294.64 Ko",
+            "source_updated_at": "2026-10-10T06:04:26.664Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelleoeuvreparcours-128667.pdf"
+          },
+          "expected_content_sha256": "1f05a8db0e101de25b60a5d45e3ed755aab8c26fe740d504c917abeae1c98f70",
+          "expected_pages_any": [
+            1
+          ],
+          "expected_text_anchor": "Le programme recommande la lecture cursive d’au moins une œuvre appartenant à un autre siècle que celui de l’œuvre au programme, ou d’une anthologie de textes relevant de la littérature d’idées.",
+          "id": "factual",
+          "query": "Quelle lecture cursive le programme recommande-t-il autour de l’œuvre étudiée ?"
+        },
+        {
+          "collection": "rag_nexus_hlp_terminale_specialite",
+          "expected_anchor_sha256": "43d83e62b08728f793c220055176a7dfd4f6f9289d591ad56c3c14c94ec0f05b",
+          "expected_chunk_id": "f647f96295420e9d1528664f8d46b207954cb8899a672f7fc2b130624acb3189",
+          "expected_chunk_sha256": "1c97f1ae4a7cb357acfd8df8952b319a2ac0b672d3be269c6cda8413416bae7d",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyromanepistolairepdf-113550.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:25.861Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Le roman épistolaire : l’affirmation d’une conscience PDF - 142.46 Ko",
+            "source_updated_at": "2026-10-10T06:04:25.861Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyromanepistolairepdf-113550.pdf"
+          },
+          "expected_content_sha256": "27f2d937d334b4df33a52aa5f4c034aa829a7733be4c412de43704615a628016",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Avec les Lettres d’une Péruvienne, l’espace épistolaire compose un réservoir de portraits, d’anecdotes, de dialogues rapportés qui servent de cadre ou de support à la réflexion critique sur les mœurs, les pratiques sociales et religieuses, etc.",
+          "id": "no_accent",
+          "query": "Comment le roman epistolaire soutient il une reflexion critique ?"
+        },
+        {
+          "collection": "rag_nexus_hlp_terminale_specialite",
+          "expected_anchor_sha256": "a8d49e1b1ff82fa5355f8ee2c69ee16f43b286e252350b87a29d2b0a450ce341",
+          "expected_chunk_id": "c201021c184fa76bebd8b4e8c2a208d5fd4cfaf7a4f8396fc4aec7acf80e9174",
+          "expected_chunk_sha256": "df9cbc6d38f1963e23bf43ab9cae8cf69f0fb881a3e5027019a3f935db15d3f4",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelle-entretiensastrespenseerecitpdf-126224.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:26.628Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Les Entretiens : des astres à la pensée, récit d’une révolution PDF - 154.01 Ko",
+            "source_updated_at": "2026-10-10T06:04:26.628Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelle-entretiensastrespenseerecitpdf-126224.pdf"
+          },
+          "expected_content_sha256": "0e72da346d8cf39923b0ba7d9c4bb8130f063b220b55f1a76cbb5ad1dae0d7ff",
+          "expected_pages_any": [
+            2
+          ],
+          "expected_text_anchor": "en mettant en scène les difficultés de la Marquise dans son cheminement vers le savoir, l’auteur tend un miroir aux lecteurs possiblement étourdis par cette écriture spiralaire.",
+          "id": "notion",
+          "query": "Comment Fontenelle met-il en scène le cheminement de la Marquise vers le savoir ?"
+        }
+      ],
+      "scope_id": "student_public_hlp_terminale_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "24576296a023410d2f410fe37f2d9647d4c5fc07a2d31d2cd6f9cd60ca5fd34f",
+      "signed_scope_sha256": "14e8a56fb1d668ea987d0b31223d378ca4d76dd0e277464608ce87b12cf2ee89",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_nsi_premiere_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "expected_anchor_sha256": "b3812c64b21727caf9d5c4f506efc02ba99f1c0707f66ab6347cc0da1c972a58",
+          "expected_chunk_id": "2729aa99457eda94f5295f218c92c3a8809f7e86405921b7b93eea807b84cc52",
+          "expected_chunk_sha256": "4200a8c27849cc3a3bb5b311057b0142e6620758d225255ed011bd44643f1165",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20nsigtplus-court-chemin1307008pdf-89577.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:17.799Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Plus court chemin dans un graphe PDF - 703.79 Ko",
+            "source_updated_at": "2026-10-10T06:04:17.799Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20nsigtplus-court-chemin1307008pdf-89577.pdf"
+          },
+          "expected_content_sha256": "330ed5fab25bc757fee19efaaf5803199f764e40b0cb57ba41dc165659edc714",
+          "expected_pages_any": [
+            1
+          ],
+          "expected_text_anchor": "On fixe un point de départ et un point d’arrivée parmi les sommets du graphe G et on cherche un chemin de poids minimal",
+          "id": "factual",
+          "query": "Comment définit-on un plus court chemin dans un graphe pondéré ?"
+        },
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "expected_anchor_sha256": "3daf8a9bbaca4ef64dfe8de4edcc48265ef4aa8da8a00a40bdc7554580ef883a",
+          "expected_chunk_id": "c4d59fc8386a0fe982563da80386000336ae257eb65c889351deb2ff239604a5",
+          "expected_chunk_sha256": "7ca1cd3c62f5160e82e57a9ead3986b935dae8ecf9cbc58404e13f0b6efe5415",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsialgo-gloutons1170764pdf-89559.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:27.124Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Algorithmes gloutons PDF - 207.89 Ko",
+            "source_updated_at": "2026-10-10T06:04:27.124Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsialgo-gloutons1170764pdf-89559.pdf"
+          },
+          "expected_content_sha256": "3a7fe16c7d753587ee3137529235ddf8171f67f0a8c6b828da01432260cc30ee",
+          "expected_pages_any": [
+            2
+          ],
+          "expected_text_anchor": "L’algorithme glouton ne répond alors pas de manière optimale. Par exemple, avec le système {1, 3, 6, 12, 24, 30}, l’algorithme glouton répond en proposant le",
+          "id": "no_accent",
+          "query": "Pourquoi algorithme glouton ne garantit il pas toujours une solution optimale ?"
+        },
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "expected_anchor_sha256": "46912bcb6119394f391f0a42a5b280006c7b94071e1391a5bde5ba99f65035fb",
+          "expected_chunk_id": "462a09ed21df2cd3191be496ced3781db297147bdc98d65ef3b8e64c54c8c4db",
+          "expected_chunk_sha256": "5bea6942f95ff0e4d9de83e3f37f024d3670508bb2f11ff27364dd90b01c280e",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsiihminteractionclientserveur1170771pdf-89535.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:27.445Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Interaction client-serveur PDF - 153.73 Ko",
+            "source_updated_at": "2026-10-10T06:04:27.445Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ralyceegnsiihminteractionclientserveur1170771pdf-89535.pdf"
+          },
+          "expected_content_sha256": "698773e11a57d9930d9a762d7901485349624f792df7069a509d9faeab570c91",
+          "expected_pages_any": [
+            1
+          ],
+          "expected_text_anchor": "Le protocole fonctionne par l’intermédiaire de requêtes émises par le client et de réponses fournies par le serveur.",
+          "id": "notion",
+          "query": "Comment le client et le serveur échangent-ils des requêtes ?"
+        }
+      ],
+      "scope_id": "student_public_nsi_premiere_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "c378261ba8c2410c1255d78003d6dff373896fd4b42b19bf20bc4b51c2d470d2",
+      "signed_scope_sha256": "681b8fb26bd6ca2e8ace31f823112e3af67d047dabc98aca5b01afa46d35fad1",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_nsi_terminale_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "expected_anchor_sha256": "0fc8b096bf6725b4a4690ec41f51d50c07d03d633424b78653858c16fd921fdc",
+          "expected_chunk_id": "3a57325c40dcc7062e7472ab44e1c5dc02ff7163797bcf965ef04d99f1f471f0",
+          "expected_chunk_sha256": "198f0f41fa9d564052221fafdb7abde3f66db437e5de2e8c9acd754f3f0afa64",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsiarbres-binaires-recherchepdf-70530.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:19.397Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Arbres binaires de recherche PDF - 239.28 Ko",
+            "source_updated_at": "2026-10-10T06:04:19.397Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsiarbres-binaires-recherchepdf-70530.pdf"
+          },
+          "expected_content_sha256": "053f09fecd53879288f88a44e2f63f4898d4ad8822f24ff239cc3dfcff440668",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Pour rechercher une clé particulière dans un ABR, la méthode est extrêmement simple : il suffit de parcourir l’arbre depuis la racine jusqu’à la clé",
+          "id": "factual",
+          "query": "Comment rechercher une valeur dans un arbre binaire de recherche ?"
+        },
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "expected_anchor_sha256": "f3c259d029c01e2b4fad70dfdd046987d5941c63a522d74f79bf54cbc9a9607c",
+          "expected_chunk_id": "2d052132ebf75bd2c1f5c81a7eff106a6d669ccc4e84bc5ec10c0b3409097e9a",
+          "expected_chunk_sha256": "711a12a1053c8558eda5fc77502e120c08dc1aac4b24694381aaf43eb1b24afa",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsirepresentation-graphespdf-70554.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:20.405Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Représentation des graphes PDF - 315.2 Ko",
+            "source_updated_at": "2026-10-10T06:04:20.405Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsirepresentation-graphespdf-70554.pdf"
+          },
+          "expected_content_sha256": "290925916410f9705fed57102c53712c4638e3b73d9732936a4fea1f2d943c2f",
+          "expected_pages_any": [
+            1
+          ],
+          "expected_text_anchor": "Cette ressource traite de la représentation des graphes dans un ordinateur. Il en existe de nombreuses, mais cette étude porte sur les deux plus courantes : celle par matrice d’adjacence et celle par listes d’adjacences.",
+          "id": "no_accent",
+          "query": "Quelles sont les deux representations courantes des graphes ?"
+        },
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "expected_anchor_sha256": "6f47538865bec462d490ec60f7af0174bcc34d55d0c4a6128b7b44ce4090a40f",
+          "expected_chunk_id": "24532e689024256cc1d8b75581ccc4d8dbad96e6fd188ed81d18bf9018b6646c",
+          "expected_chunk_sha256": "23875d1435a8bdc2b882e06ff9be7acff279f19f7256c582d96dbe94d5c6721c",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsivocabulaireprogrammationobjetpdf-70557.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:20.803Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Vocabulaire de la programmation objet PDF - 260.45 Ko",
+            "source_updated_at": "2026-10-10T06:04:20.803Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtnsivocabulaireprogrammationobjetpdf-70557.pdf"
+          },
+          "expected_content_sha256": "317974b21d1161e31f87fd218e3b437b464ad0f6f95403048121b48677e58f0c",
+          "expected_pages_any": [
+            9
+          ],
+          "expected_text_anchor": "Une question se pose quant à la présentation de l’encapsulation des données (c’est-à-dire le principe de ne rendre accessibles et modifiables les attributs d’instance uniquement à l’aide de méthodes).",
+          "id": "notion",
+          "query": "Quel est le principe de l’encapsulation en programmation objet ?"
+        }
+      ],
+      "scope_id": "student_public_nsi_terminale_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "5bcc6f19d2e178a20c1485d1af5f804bcea99a9f11e8fd06e29e865fc5229586",
+      "signed_scope_sha256": "f7b73f07eeb34efbabf8802bc1e8d4de2ac554608a546a321ff9c300faf49f37",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_ses_premiere_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "expected_anchor_sha256": "1db8cebf9caf3f6810cbb85610ba9e82a5fccb438d227d91010fc1a573b02798",
+          "expected_chunk_id": "ac520fc3dd80480c8a432de0375b2dc94c470281dfdbd386b669113eb96fe7b5",
+          "expected_chunk_sha256": "f092c0814db569bf3f4e81357103d390186ac91fa2ea60cda57ddfe2ee656ec5",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eremarcheconcurrentiel1166055pdf-82776.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:08.817Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Comment un marché concurrentiel fonctionne-t-il ? PDF - 1.23 Mo",
+            "source_updated_at": "2026-10-10T06:04:08.817Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eremarcheconcurrentiel1166055pdf-82776.pdf"
+          },
+          "expected_content_sha256": "222a6261c2ab3b183ebcaaf542c742ad48cad1f4a540466cb83788397a0b8b95",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Sur un marché concurrentiel, les agents, aussi bien les vendeurs que les acheteurs, sont très nombreux et aucun, à lui seul, n’a le pouvoir de faire varier le prix du marché : ils sont preneurs de prix.",
+          "id": "factual",
+          "query": "Comment se forme le prix sur un marché concurrentiel ?"
+        },
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "expected_anchor_sha256": "68c98dfc06745f3280977e1234ebec676ea1acc545bb6fb354c6ec81b3ad663e",
+          "expected_chunk_id": "60570fa53b89b99bbfd79e0d4f7bdc684d661f251af0eae14ad5fc20e2698cf5",
+          "expected_chunk_sha256": "bda03a631c47ab3a540518974f59d47af4a482b6caa1c7afbbf58278ecd35dc1",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1ereopinionpublique1172949pdf-82800.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:08.956Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Comment se forme et s'exprime l'opinion publique ? PDF - 267.5 Ko",
+            "source_updated_at": "2026-10-10T06:04:08.956Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1ereopinionpublique1172949pdf-82800.pdf"
+          },
+          "expected_content_sha256": "2eb8cbe6e674376dbb68d37458597274e3f3f26ac163c1559f186ecaff8e9603",
+          "expected_pages_any": [
+            2
+          ],
+          "expected_text_anchor": "Alors que les sondages existent depuis les années 1930, c’est au cours des années 1960 que leur précision croissante a permis aux sondeurs d’imposer leur définition de l’opinion publique : une définition qui se veut objective parce que évaluée sous une forme chiffrée.",
+          "id": "no_accent",
+          "query": "Comment les sondages definissent ils l opinion publique ?"
+        },
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "expected_anchor_sha256": "3150f4587c61c8e9fa5dc6f53e0a93266c4773e2459e23646392f95b3f3d6839",
+          "expected_chunk_id": "6dbef1c31850b3a956c0f665e21faf1f1d3410eaa2d60db5f28730a65fa44b53",
+          "expected_chunk_sha256": "1813ac145f9ea58597799bd9eae47b0eea1ae8d457d1fecee4d64d16c5e6e3f9",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1spesesentreprises1311919pdf-82809.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:12.468Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Comment les entreprises sont-elles organisées et gouvernées ? PDF - 176.44 Ko",
+            "source_updated_at": "2026-10-10T06:04:12.468Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1spesesentreprises1311919pdf-82809.pdf"
+          },
+          "expected_content_sha256": "5e3c088b2dc51c7ae3612c4b22d86a9d93c07f1de7b32fe3b3bc44232ec50abc",
+          "expected_pages_any": [
+            7
+          ],
+          "expected_text_anchor": "la financiarisation des entreprises et la montée en puissance des fonds de pension modifient les équilibres de pouvoir en assurant une plus grande place aux intérêts des actionnaires.",
+          "id": "notion",
+          "query": "Comment la financiarisation modifie-t-elle la gouvernance des entreprises ?"
+        }
+      ],
+      "scope_id": "student_public_ses_premiere_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "2e11fdff975401821b6eba6cc8b1f3af12e8fcb4c95af8cd05830fc95c2207dd",
+      "signed_scope_sha256": "f9327c81c945b27a27b5b251e71a9dc50282314d610e25da278247393bb41b01",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_ses_terminale_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "expected_anchor_sha256": "380b00a5e1e78ac1506e2afd6af5d2c08c154015544f804c55a9065c4238878b",
+          "expected_chunk_id": "f5460707aa5af1ad58289b7086683b785b62f06af0992c56a5aa21ddb93f24b4",
+          "expected_chunk_sha256": "31279454f61524dbfe156b3a182cbf089fa473bc251c65434b5e9cd7e3092e75",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesexpliquer-crises-financieres-reguler-systeme-70161.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:14.890Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Comment expliquer les crises financières et réguler le système financier ? PDF - 495.65 Ko",
+            "source_updated_at": "2026-10-10T06:04:14.890Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesexpliquer-crises-financieres-reguler-systeme-70161.pdf"
+          },
+          "expected_content_sha256": "088b74841762d24c8a4df1962c5284e141042124e0d04a9641efa03d21d2624a",
+          "expected_pages_any": [
+            2
+          ],
+          "expected_text_anchor": "Les crises financières peuvent donc concerner ces trois domaines (marchés financiers, banques, marché des changes) de façon simultanée ou se limiter à certains d’entre eux.",
+          "id": "factual",
+          "query": "Quels domaines les crises financières peuvent-elles toucher ?"
+        },
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "expected_anchor_sha256": "be902ee3643eeb0f50833fb9417c4e1ee0599a3c039aa9bdc116ace2f8ed788e",
+          "expected_chunk_id": "d7eb67fa21c0ce40943fa81fc2d16fad1d58346874ed8bac1859149acbe3b837",
+          "expected_chunk_sha256": "78f7a005e55f225adcfd899e351d80bc34a6d71ec2f7adc0f8565dd8d66b6a21",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesfondements-commerce-international-internationalisation-70155.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:14.900Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Quels sont les fondements du commerce international et de l'internationalisation de la production ? PDF - 443.17 Ko",
+            "source_updated_at": "2026-10-10T06:04:14.900Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesfondements-commerce-international-internationalisation-70155.pdf"
+          },
+          "expected_content_sha256": "354ec48b02f3c699fd08420daf6f8c32f9253ddbba6303375c372aa2f8e3dd62",
+          "expected_pages_any": [
+            2
+          ],
+          "expected_text_anchor": "En développant la théorie des avantages absolus, Adam Smith (1723-1790) rompt radicalement avec la position des mercantilistes qui concevaient le commerce international comme un jeu à somme nulle.",
+          "id": "no_accent",
+          "query": "Comment la theorie des avantages absolus explique le commerce international ?"
+        },
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "expected_anchor_sha256": "fefcd00eff7f398bac6bef6289c260f70a578ee40def046e5a33fb430a68cbff",
+          "expected_chunk_id": "ecf865fea15bbb6b2b950f7e422ace2fefa3540bc072516f09ce3d19a2949e12",
+          "expected_chunk_sha256": "fa5d04899e0862a4dca30888c446dfa157ea341e995a60af87925e50532ee7f7",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesmutations-travail-emploi1343961pdf-82824.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:15.010Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Quelles mutations du travail et de l'emploi ? PDF - 584.78 Ko",
+            "source_updated_at": "2026-10-10T06:04:15.010Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesmutations-travail-emploi1343961pdf-82824.pdf"
+          },
+          "expected_content_sha256": "3ace9507cce3c694cc782cacc820bf82c01fca5a1c770ba9454f26c543cb6a8f",
+          "expected_pages_any": [
+            13
+          ],
+          "expected_text_anchor": "les évolutions de l’organisation du travail (flexibilité, intensification, individualisation) fragilisent son rôle intégrateur. L’individualisation des carrières et des rémunérations favorise la mise en concurrence des travailleurs et affaiblit la solidarité sur les lieux de travail.",
+          "id": "notion",
+          "query": "Comment les évolutions de l’organisation du travail fragilisent-elles son rôle intégrateur ?"
+        }
+      ],
+      "scope_id": "student_public_ses_terminale_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "a85a849bcbf25cf28ee97bc1ab8c74c718c3fb33fd0fd5bc9f31279497af1c7f",
+      "signed_scope_sha256": "9ddcfdbc29845f97d469ccea43fb782e93f9371d038d5f6c38d07e452276608f",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_svt_premiere_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "expected_anchor_sha256": "c2593422c8f1f363232730676f00d850f7e6335e9c285f66c57f55aeddf71ee2",
+          "expected_chunk_id": "0f6ee05e6a91585278eaf7cb3ff003149bcf24f9477da534f286bd28625d8f0e",
+          "expected_chunk_sha256": "bf09478edc1c662cce857051738fda88a1127aa86ad1e51a06ed604ffd9ddeaf",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtinformation-genetique-transmission-expression-variation1218874pdf-82896.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:05.675Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "L'information génétique, sa transmission, son expression, sa variation PDF - 352.4 Ko",
+            "source_updated_at": "2026-10-10T06:04:05.675Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtinformation-genetique-transmission-expression-variation1218874pdf-82896.pdf"
+          },
+          "expected_content_sha256": "006325217e12996eeb315c4923ecec3db6658c1366e1034e3be26c2cf73f1a75",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "Les caractères d’un individu dépendent de l’information génétique transmise par les parents et de l’environnement (des exemples simples sont traités, comme l’influence de la température sur la couleur du pelage de certains animaux ou de l’influence de l’exposition au soleil sur la coloration de la peau).",
+          "id": "factual",
+          "query": "De quoi dépendent les caractères d’un individu ?"
+        },
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "expected_anchor_sha256": "d5981fe974576bc44378de22f6f24d49f66b0a9f166e9dba41eaea50d1fcb8cf",
+          "expected_chunk_id": "7637c95efd1e266743bb5b2a9fd55e03cdfe0cc12097576f3a419b1819e3b8c9",
+          "expected_chunk_sha256": "3927cec94ea11edef29ad85545fc6a894a5fd8244b0034c355e11c4df95936f2",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtdynamiqueinterne1179401pdf-82893.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:05.492Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "La dynamique interne de la Terre PDF - 548.76 Ko",
+            "source_updated_at": "2026-10-10T06:04:05.492Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtdynamiqueinterne1179401pdf-82893.pdf"
+          },
+          "expected_content_sha256": "481c571941c01ed06cf2f74615457876fe44aff7ef538dec4f1b9bfcc7011260",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "L’énergie interne de la Terre est à l’origine des mouvements de la lithosphère qui repose sur l’asthénosphère moins rigide. Les élèves mettent en relation les mouvements des plaques avec les séismes et le volcanisme.",
+          "id": "no_accent",
+          "query": "Quelle energie interne met en mouvement la lithosphere ?"
+        },
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "expected_anchor_sha256": "c123ca4aababddba84ce1fa976544f9e7d54351f6eb95931555dac05d9ae09e4",
+          "expected_chunk_id": "af4aeb4234215eee6125fdbc8cc5b8771228ad47bce4131b1f3d4393e40638e4",
+          "expected_chunk_sha256": "1f8cb23c1c3bc0859bf13f6147c510b2274b1b72bf4f09f06d5fb733ea82653f",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtsystemeimmunitaire1160682pdf-82977.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:05.768Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Le fonctionnement du système immunitaire humain PDF - 398.08 Ko",
+            "source_updated_at": "2026-10-10T06:04:05.768Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtsystemeimmunitaire1160682pdf-82977.pdf"
+          },
+          "expected_content_sha256": "f1d74515c405a47df3d387de3fe1503c752c50e8f814b86128d139109769b87a",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "un microbiote humain et le rôle de celui-ci dans notre santé, son importance dans les fonctions de nutrition et de défense de l’organisme. Ils identifient la nécessité d’un équilibre entre hygiène et maintien du microbiote pour le bon fonctionnement de l’organisme.",
+          "id": "notion",
+          "query": "Quel est le rôle du microbiote dans la santé humaine ?"
+        }
+      ],
+      "scope_id": "student_public_svt_premiere_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "2432762531da9321424f3c7c20891a8d86d0d0fe911f6e57c9923c124a354a40",
+      "signed_scope_sha256": "adccabf97320fb8974598f5b9ceeb017e2d6847a439fdc2dac90ae53707560ca",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_svt_terminale_specialite": {
+      "collection_mismatch_expected_http": 403,
+      "positive": [
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "expected_anchor_sha256": "6a5813057b8c0233f0e47330d2ee505caf4e70e8537dd446c0b8e702a689a046",
+          "expected_chunk_id": "0d908758693c2b2d0a200521328d1bd5e045bb72b7a18cfdc7c2912925c051dd",
+          "expected_chunk_sha256": "9346b30d9729b55008a3b9916bbe30608e407f72bb7cbf765625d6ab017ea411",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2simclimatmntpdf-68493.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:17.071Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Simclimat, un modèle numérique de climat PDF - 758.17 Ko",
+            "source_updated_at": "2026-10-10T06:04:17.071Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2simclimatmntpdf-68493.pdf"
+          },
+          "expected_content_sha256": "38e15ac09cb7f0800b24a3e917ad69e98eba6c783e7028fc5dd216db7b8feb07",
+          "expected_pages_any": [
+            8
+          ],
+          "expected_text_anchor": "Par rapport aux modèles utilisés par les climatologues, Simclimat présente donc de nombreuses simplifications permettant des calculs rapides. Le tableau ci-dessous présente certaines de ces simplifications.",
+          "id": "factual",
+          "query": "Pourquoi Simclimat utilise-t-il des simplifications par rapport aux modèles des climatologues ?"
+        },
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "expected_anchor_sha256": "343e117879ebb710088877ab022bc811bd508a330fd28d184b170d14d12d5709",
+          "expected_chunk_id": "bba9c44d3665d2670850a4c71c9dcfa483dde5f0cf254191ce981c030a24f6aa",
+          "expected_chunk_sha256": "f4dcc6d890db330a55f02bef0b5b42986ab3cc8bb8e665b0df765d6af387d45d",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2basedonneespaleontologique1313162pdf-82962.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:15.924Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Utiliser une base de données paléontologique pour reconstituer des variations climatiques passées (Paleobiology Database) PDF - 1.31 Mo",
+            "source_updated_at": "2026-10-10T06:04:15.924Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2basedonneespaleontologique1313162pdf-82962.pdf"
+          },
+          "expected_content_sha256": "1f9b1c431f07f91f7f9de35647bbaff37233fea752e4008b64751801b78ae322",
+          "expected_pages_any": [
+            12
+          ],
+          "expected_text_anchor": "Pour sélectionner des données exploitables afin de reconstituer des variations climatiques passées, il est nécessaire de réaliser les étapes suivantes dans le formulaire de la page « Download Data » de PBDB.",
+          "id": "no_accent",
+          "query": "Comment selectionner les donnees pour reconstituer les variations climatiques passees ?"
+        },
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "expected_anchor_sha256": "1ea6223e7545fba546b96aabbca87f18631da0e25dfa8f38187cba9342d731fd",
+          "expected_chunk_id": "d8798b9c542c51d5e49d01af05c6a548fc2c1f6708a78b3eb1e5e4fe54d9f700",
+          "expected_chunk_sha256": "34c6057e992d040c5f625cf574d8abf3e0258be9bf4ad973d343843ed7a9c015",
+          "expected_citation": {
+            "derivative_notice": "Source : Ministère de l’Éducation nationale – Dgesco / Éduscol. Dérivé textuel de https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvtloihardyweinberg1296958pdf-82917.pdf, sous Licence Ouverte 2.0 ; snapshot du 2026-10-10T06:04:15.427Z. PDF, images et OCR graphique non redistribués.",
+            "licence_id": "ETALAB-2.0",
+            "licensor": "Direction générale de l'enseignement scolaire",
+            "source_label": "Prédiction des génotypes dans deux populations touchées par la drépanocytose en utilisant la loi de Hardy-Weinberg PDF - 579.4 Ko",
+            "source_updated_at": "2026-10-10T06:04:15.427Z",
+            "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvtloihardyweinberg1296958pdf-82917.pdf"
+          },
+          "expected_content_sha256": "23555a51674f80d18c1c54e7cdf63a6fd9fcdd39792dcbb7c37ecd901ce472a9",
+          "expected_pages_any": [
+            3
+          ],
+          "expected_text_anchor": "• H1 : oui si les populations répondent aux conditions d’application de la loi de Hardy- Weinberg. Dans ce cas les fréquences génotypiques théoriques seront les mêmes que les fréquences génotypiques observées dans la population.",
+          "id": "notion",
+          "query": "Dans quelles conditions la loi de Hardy-Weinberg prévoit-elle les fréquences génotypiques ?"
+        }
+      ],
+      "scope_id": "student_public_svt_terminale_specialite_v1",
+      "scope_mismatch_expected_http": 403,
+      "server_filter_sha256": "02cd90b7727f6140e6b9751aaaf4607edf2d77cb301b5fbc0e6be867fcebff07",
+      "signed_scope_sha256": "acd2e78081f8fc088a4852cdb16896e54dee68b5244d7dfe416f2db1fcdb5e8f",
+      "student_expected_http": 200,
+      "teacher_expected_http": 403,
+      "unauthenticated_expected_http": 401,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    }
+  },
+  "expected_population": {
+    "artifacts": 253,
+    "chunks": 3975,
+    "collections": 11,
+    "placements": 377
+  },
+  "release_id": "student-public-successor-20261010-40b956c6f5ec0c60",
+  "release_manifest_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-40b956c6f5ec0c60/profile_gate/production-profile-gate.release.json",
+  "release_manifest_sha256": "efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85",
+  "schema_version": 1,
+  "scope_names_path": "packages/contracts/authorities/student-public-successor-scope-names-v1.yml",
+  "scope_names_sha256": "192c9fb4f591786aef3a0e90e92b75c17cb33a3a026e908c5133733a9256aacb",
+  "scope_policy_path": "governance/student_public_rights/student_public_successor_scope_policy_registry_v1.yml",
+  "scope_policy_sha256": "b1e204422e6e4b0c64aac981a55ed07f530b59e6ebc3af2462b345a57ce8e086",
+  "thresholds": {
+    "attribution_missing": 0,
+    "collection_mismatch_refusals": 11,
+    "dense_misses": 0,
+    "dense_tie_overflow": 0,
+    "expected_source_hits_min": 33,
+    "expected_source_hits_per_collection_min": 3,
+    "missing_citations": 0,
+    "out_of_scope_results": 0,
+    "positive_nonempty": 33,
+    "scope_mismatch_refusals": 11,
+    "student_positive_pass": 11,
+    "teacher_refusals": 11,
+    "unauthenticated_refusals": 11,
+    "zero_result_pass": 11
+  }
+}
