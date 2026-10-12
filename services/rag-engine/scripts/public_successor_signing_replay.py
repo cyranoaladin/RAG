@@ -372,7 +372,9 @@ def _verified_lot42_review_binding(
         raise PublicationSigningReplayRefused("LOT42 PR not merged or OPEN")
     if historical_path is None:
         raise PublicationSigningReplayRefused("LOT42 historical receipt absent")
-    from nexus_contracts.authority_artifacts import canonical_publication_review_path  # noqa: PLC0415
+    from nexus_contracts.authority_artifacts import (
+        canonical_publication_review_path,  # noqa: PLC0415
+    )
 
     path = canonical_publication_review_path(
         review_id=review.review_id, digest=expected_digest,  # type: ignore[attr-defined]
