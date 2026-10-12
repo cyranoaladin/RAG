@@ -330,15 +330,25 @@ def _verify_placements(
         if placement_id in placement_ids:
             raise GovernedPublicationError("duplicate canonical placement")
         placement_ids.add(placement_id)
-        attestation = verify_publication_attestation(
-            control_conn,
-            resource_id=placement.resource_id,
-            current_content_sha256=artifact.content_sha256,
-            current_profile_fingerprint=placement.current_profile_fingerprint,
-            current_manifest_digest=placement.current_manifest_digest,
-            require_content_bound_authority=True,
-            batch_authority=batch_authority,
-        )
+        if batch_authority is None:
+            attestation = verify_publication_attestation(
+                control_conn,
+                resource_id=placement.resource_id,
+                current_content_sha256=artifact.content_sha256,
+                current_profile_fingerprint=placement.current_profile_fingerprint,
+                current_manifest_digest=placement.current_manifest_digest,
+                require_content_bound_authority=True,
+            )
+        else:
+            attestation = verify_publication_attestation(
+                control_conn,
+                resource_id=placement.resource_id,
+                current_content_sha256=artifact.content_sha256,
+                current_profile_fingerprint=placement.current_profile_fingerprint,
+                current_manifest_digest=placement.current_manifest_digest,
+                require_content_bound_authority=True,
+                batch_authority=batch_authority,
+            )
         if not isinstance(attestation, VerifiedAttestation):
             raise GovernedPublicationError("LOT42 verifier returned an invalid object")
         # ADR-0035 : exigence **explicite** de LOT42-V2. Le vérificateur
