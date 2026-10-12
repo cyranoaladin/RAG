@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import shutil
 from dataclasses import replace
@@ -299,10 +300,13 @@ def test_worker_manifest_digest_is_derived_from_verified_plan_and_v1(
         derive_worker_transfer_manifest_sha256,
     )
 
-    from scripts.go_live import public_text_transfer as transfer
-
     plan_raw, receipt_raw, *_ = _transfer_offline_fixture()
     receipt = json.loads(receipt_raw)
+    script = ROOT / "scripts/go_live/public_text_transfer.py"
+    spec = importlib.util.spec_from_file_location("canonical_public_text_transfer", script)
+    assert spec is not None and spec.loader is not None
+    transfer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(transfer)
     # The producer's live re-hash is tested separately; this contract test
     # compares the exact producer serialization with the independent replay.
     monkeypatch.setattr(transfer, "verify_observed_destination", lambda *_: None)
