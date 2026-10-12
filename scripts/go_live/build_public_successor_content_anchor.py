@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from nexus_release_chain.release_readiness import (
+    _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS,
     _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS,
     ReleaseReadinessError,
     load_release_expectation,
@@ -201,6 +202,8 @@ def build_authority_envelope(
     anchor_path: Path,
     expected_anchor_sha256: str,
     evidence_paths: dict[str, Path],
+    *,
+    authority_version: str = "V1",
 ) -> dict[str, Any]:
     """Sceller des octets externes, sans en déduire leur valeur juridique.
 
@@ -211,8 +214,18 @@ def build_authority_envelope(
     if SHA256.fullmatch(expected_anchor_sha256) is None:
         raise ContentAnchorError("expected content anchor SHA invalid")
     anchor = _read(anchor_path, expected_anchor_sha256)
-    if set(evidence_paths) != _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS:
-        raise ContentAnchorError("authority envelope requires exactly 21 evidence files")
+    if authority_version == "V1":
+        required = _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS
+        kind = "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1"
+    elif authority_version == "A2":
+        required = _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS
+        kind = "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_A2_V1"
+    else:
+        raise ContentAnchorError("unknown authority envelope version")
+    if set(evidence_paths) != required:
+        raise ContentAnchorError(
+            f"authority envelope requires exactly {len(required)} evidence files"
+        )
     content_path = evidence_paths["source_preparation_release_manifest_sha256"]
     if build_content_anchor(content_path, anchor.get("content_manifest_sha256", "")) != anchor:
         raise ContentAnchorError("content anchor does not match immutable preparation")
@@ -234,7 +247,7 @@ def build_authority_envelope(
     ):
         raise ContentAnchorError("authority evidence differs from content anchor")
     return {
-        "kind": "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_V1",
+        "kind": kind,
         "status": "EVIDENCE_BYTES_ONLY_NOT_ACTIVABLE",
         "activation_allowed": False,
         "semantic_verification_complete": False,

@@ -165,6 +165,38 @@ def test_external_authority_envelope_is_bytes_only_and_never_activates(
     assert len(envelope["authorities"]) == 21
 
 
+def test_a2_authority_envelope_binds_exactly_26_evidence_files(tmp_path: Path) -> None:
+    from nexus_release_chain.release_readiness import (
+        _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS,
+    )
+
+    manifest = PREPARATION / "profile_gate/production-profile-gate.release.json"
+    anchor_path = tmp_path / "anchor.json"
+    write_content_anchor(anchor_path, build_content_anchor(manifest, _sha(manifest)))
+    evidence = {}
+    for field in _PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS:
+        path = tmp_path / field
+        path.write_bytes(canonical_bytes({"fixture_field": field}))
+        evidence[field] = path
+    evidence["source_preparation_release_manifest_sha256"] = manifest
+    evidence["source_preparation_index_sha256"] = PREPARATION / "preparation-index.json"
+    evidence["candidate_inventory_sha256"] = PREPARATION / "profile_gate/candidate_inventory.json"
+
+    envelope = build_authority_envelope(
+        anchor_path, _sha(anchor_path), evidence, authority_version="A2",
+    )
+    assert envelope["kind"] == "NEXUS_PUBLIC_SUCCESSOR_AUTHORITY_ENVELOPE_A2_V1"
+    assert len(envelope["authorities"]) == 26
+    assert envelope["activation_allowed"] is False
+    assert envelope["semantic_verification_complete"] is False
+    with pytest.raises(ContentAnchorError, match="26"):
+        build_authority_envelope(
+            anchor_path, _sha(anchor_path),
+            {key: value for key, value in evidence.items() if key != "temporal_c_attestation_sha256"},
+            authority_version="A2",
+        )
+
+
 def test_authority_envelope_refuses_missing_or_wrong_content_anchor(tmp_path: Path) -> None:
     manifest = PREPARATION / "profile_gate/production-profile-gate.release.json"
     anchor = build_content_anchor(manifest, _sha(manifest))
