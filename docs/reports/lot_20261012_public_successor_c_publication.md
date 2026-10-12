@@ -1,0 +1,31 @@
+# Lot 2026-10-12 — exécution gouvernée de la publication C A2
+
+Base : `origin/main=c046b65e43acea9b095078f1f2ea5e8543372231`, tree `4b1a1206fd1914cdc97f352e1ef7a2ed04c4fbfb`, worktrees isolés. Ce lot fournit le code nécessaire pour assembler et vérifier C puis publier le successeur public ; il n'effectue lui-même aucun transfert, job, déploiement ou écrit en base.
+
+`scripts/go_live/assemble_public_successor_c_a2.py` accepte l'ancre A, la release immuable, une carte explicite de 26 fichiers d'autorité, quatre fichiers compagnons et les onze scopes V3 exacts de B. Il refuse une preuve absente, vide ou liée symboliquement, une release contenant un fichier étranger, un dossier de sortie existant ou situé dans la release, et les clés JSON dupliquées. Les onze chemins et SHA de scopes sont dérivés du registre B ; toute absence, substitution ou entrée supplémentaire est refusée avant création de la sortie. Il copie les octets dans un nouveau dossier privé, sous `authorities/<champ>.bin` et `scopes/<id>.json`, et produit `authority-envelope.json` canonique avec `activation_allowed=false` et `semantic_verification_complete=false`. Les trois preuves directement liées à A sont comparées à la release recopiée. La fonction historique d'enveloppe V1 conserve son format à 21 champs ; l'appel `authority_version="A2"` exige exactement les 26 champs définis par le contrat.
+
+La carte JSON porte exactement trois objets : `authorities` contient les 26 noms de `_PUBLIC_SUCCESSOR_A2_AUTHORITY_FIELDS` associés à des chemins absolus ; `companions` contient `observed-transfer-v1.json`, `target-pin.json`, `scope-policy.yml` et `scope-names.yml` ; `scopes` associe les onze chemins `scopes/<id>.json` du registre B à leurs chemins absolus. L'invocation est :
+
+```text
+python3 scripts/go_live/assemble_public_successor_c_a2.py \
+  --anchor <ancre-A-approuvée> \
+  --release-root <release-40b956c6f5ec0c60> \
+  --evidence-map <carte-JSON-des-41-chemins-exacts> \
+  --output-root <nouveau-dossier-privé-C>
+```
+
+Cette sortie est **seulement un transport de preuves**. Le signer `sign_staging_readiness_manifest_cli.py --public-successor-phase PUBLICATION` doit encore rejouer sémantiquement le bundle avec `replay_public_successor_publication`, la revue GitHub, les sources privées, le pin, la cible de transfert et les 377 attestations LOT42. Le reçu initial A2 `f19ea43406a6eb3994be1620f9c31200e5963c3b395a92ad6e3d5f50058c8e84` doit être fourni depuis ses octets privés exacts ; le constat C doit être nouvellement généré après l'émission A2. Ni l'un ni l'autre n'est inventé par l'assembleur.
+
+## Readiness C signée et runtime
+
+Le défaut P0 du main était l'appel du Worker B à `verify_public_successor_activation` sans preuve live ni readiness signée. La readiness staging de phase `PUBLICATION` signe désormais l'heure et l'échéance de C et le binding exact de la revue LOT42 issus du rejeu live ; les autres phases refusent ces champs. Worker B relit les octets de readiness et l'ancre de confiance, contrôle le digest épinglé en staging, puis transmet cette preuve au vérificateur portable. Le chemin production garde son ancre gouvernée. L'ADR-0075 et `nexus-contracts` 0.29.0 portent ce changement de contrat ; les manifests historiques gardent leur canonicalisation. Au runtime, le contrôle de la base, des révocations et des attestations LOT42 reste requis.
+
+## Mise en file gouvernée
+
+`public_text_enqueue_cli.py` exige la readiness PUBLICATION et C valides, le rôle `ingestion_control_app`, les onze collections et chaque attestation LOT42 active. Il mesure le batch scellé dans la DB, vérifie les identités ressource/artefact/SHA/run et la couverture exacte avant le premier INSERT, puis exige 377 jobs nouveaux dans une transaction sérialisable. Un job préexistant ou une divergence entraîne un rollback. La nouvelle commande sera présente seulement dans une image Worker reconstruite depuis le SHA fusionné ; l'ancienne image d'ingestion n'est pas une preuve d'exécution de ce code.
+
+## État de la cible observé en lecture seule
+
+La cible isolée `ragdb_student_public_qual` montrait, au contrôle du 12 octobre, 11 autorisations A2 actives non révoquées, 377 attestations LOT42 valides, 253 dérivés textuels transférés et leurs 253 reçus, mais zéro job, artefact produit, placement produit ou chunk produit. Schémas de contrôle 020 et produit 006. Ce constat est un **preflight historique** à refaire immédiatement avant toute écriture. Le pulse source C privé post-A2 du 12 octobre à 11:35 UTC a attesté 253/253 PASS ; son SHA-256 est `150215a974789c299113bdf98c7d7f009be95dc920a22cc0d0f98e7b7d56c329`. Sa fenêtre d'une heure impose une nouvelle capture si le scellement intervient trop tard. L'archive privée vérifiée porte le SHA-256 `1a163b27898bf2be4e90b15ca1e47a0d0efe9bebac2771f9a85db420d79388f8` ; elle n'est pas une preuve de publication.
+
+TDD : le test A2 de l'enveloppe a échoué sur le paramètre absent, puis réussi ; l'assemblage a échoué sur l'implémentation absente, et le sabotage d'une sortie dans la release a reproduit une copie récursive avant correction. Le test de clé JSON dupliquée a échoué puis réussi après refus explicite. La lacune des scopes B a été couverte par un test rouge (argument manquant), puis par les sabotages d'un scope absent et d'octets remplacés. Les tests du contrat staging, du lecteur C, du signataire et du passage de preuve à Worker B ont aussi été rouges avant correctif ; les sabotages couvrent notamment signature altérée, expiration, mauvais pin, binding LOT42 et substitution du manifeste après gate. La suite contrats/release-chain/signer/Worker B a passé 1 330 tests ; les tests ciblés de l'assembleur et de l'enqueue sont verts, ainsi que Ruff, mypy ciblé et `git diff --check`. Aucun succès C live ni readiness signée n'est revendiqué pour ce code non fusionné.
