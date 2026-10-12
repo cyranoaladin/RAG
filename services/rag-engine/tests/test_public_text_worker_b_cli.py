@@ -133,6 +133,69 @@ def _public_args() -> list[str]:
     ]
 
 
+def test_public_worker_refuses_wrong_live_db_before_job_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import nexus_release_chain.public_successor_activation as activation
+
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    class Connection:
+        def __enter__(self) -> Connection:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    signed = public_cli._SignedPublication(
+        "rehearsal", "public-release", SHA, SHA, SHA, SHA, SHA,
+    )
+    verdict = SimpleNamespace(
+        release_id="public-release", content_manifest_sha256=SHA,
+        transfer_manifest_sha256=SHA,
+    )
+    authorities = SimpleNamespace(
+        placement_resolver=SimpleNamespace(
+            require_collections_governed=lambda _collections: None,
+            release_embedding_inventory_sha256=SHA,
+            release_profile_manifest_digest=SHA,
+        ),
+        pii_evidence_registry=object(), rights_evidence_registry=object(),
+        sealed_release_catalog=SimpleNamespace(artifacts=(), media_type_invariant="text"),
+    )
+    observed = tmp_path / "authorities/observed-transfer-v1.json"
+    observed.parent.mkdir()
+    observed.write_bytes(b"observed")
+    transfer = tmp_path / "transfer.json"
+    transfer.write_bytes(b"transfer")
+    monkeypatch.setenv("PG_RAG_DSN", "product-dsn")
+    monkeypatch.setattr(public_cli, "_verified_runtime", lambda _root: (signed, verdict, authorities))
+    monkeypatch.setattr(public_cli, "get_ingestion_control_dsn", lambda: "control-dsn")
+    monkeypatch.setattr(public_cli.VerifiedE5EmbeddingProvider, "from_artifact", lambda **_kwargs: object())
+    monkeypatch.setattr(public_cli, "make_filesystem_artifact_reader", lambda *_args: object())
+    monkeypatch.setattr(public_cli, "make_sealed_release_artifact_reader", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(public_cli, "make_sealed_derivative_receipt_reader", lambda *_args: object())
+    monkeypatch.setattr(public_cli, "PublicationResumeDeps", lambda **_kwargs: object())
+    monkeypatch.setattr(public_cli, "_transfer_authority", lambda *_args: (transfer, SHA))
+    monkeypatch.setattr(activation, "derive_worker_transfer_manifest_sha256", lambda *_args: SHA)
+    monkeypatch.setattr(public_cli.psycopg, "connect", lambda *_args: Connection())
+    monkeypatch.setattr(public_cli, "attest_runtime_role", lambda *_args, **_kwargs: None)
+    pin_checks: list[object] = []
+
+    def refuse_pin(*_args: object) -> None:
+        pin_checks.append(1)
+        raise ValueError("wrong live target")
+
+    monkeypatch.setattr(public_cli, "require_public_successor_pinned_db", refuse_pin)
+    monkeypatch.setattr(public_cli, "require_public_lot42_db", lambda *_args, **_kwargs: (
+        _ for _ in ()
+    ).throw(AssertionError("LOT42 must not run after pin refusal")))
+    args = _public_args()
+    args[1] = str(tmp_path)
+    assert public_cli.main_public(args) == 1
+    assert pin_checks == [1]
+
+
 def test_public_worker_refuses_missing_C_before_any_database_connection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

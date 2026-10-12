@@ -46,6 +46,7 @@ from ingestor.ingestion_profiles.staging_readiness_gate import (
     require_running_image_matches_declared,
     require_running_image_matches_manifest,
 )
+from ingestor.public_successor_db_guard import require_public_successor_pinned_db
 
 from .multilevel_publication_resume_cli import (
     _finite_non_negative_float,
@@ -355,6 +356,10 @@ def main_public(argv: list[str]) -> int:
                 )
                 if fresh_signed != signed or fresh_verdict != verdict:
                     raise ValueError("public readiness or C drifted during Worker B")
+                require_public_successor_pinned_db(
+                    conn, fresh_verdict, args.public_successor_bundle_root,
+                    fresh_signed.target_pin_sha256,
+                )
                 require_public_lot42_db(
                     conn, activation=fresh_verdict,
                     authorities=fresh_authorities, transfer_sha256=worker_transfer_sha,

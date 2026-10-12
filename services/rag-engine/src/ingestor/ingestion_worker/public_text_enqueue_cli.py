@@ -23,6 +23,7 @@ from ingestor.ingestion_control.release_batch_attestation import (
 )
 from ingestor.public_successor_db_guard import (
     require_public_successor_live_controls,
+    require_public_successor_pinned_db,
     require_public_successor_startup_lot42,
 )
 
@@ -124,6 +125,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             attest_runtime_role(conn, expected_role=args.expected_role)
             conn.rollback()
             conn.isolation_level = IsolationLevel.SERIALIZABLE
+            require_public_successor_pinned_db(conn, verdict, root, signed.target_pin_sha256)
             require_public_successor_startup_lot42(conn, verdict, root)
             require_public_successor_live_controls(conn, verdict)
             facts = measure_release_batch_facts(conn, release_id=verdict.release_id)

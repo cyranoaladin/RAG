@@ -59,6 +59,46 @@ def test_other_role_refuses_before_database_connection(monkeypatch: pytest.Monke
     assert opened == []
 
 
+def test_live_target_pin_refusal_prevents_enqueue(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Connection:
+        isolation_level = None
+
+        def __enter__(self) -> Connection:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def rollback(self) -> None:
+            return None
+
+    pin_checks: list[object] = []
+    monkeypatch.setattr(enqueue, "_verified_runtime", lambda _root: (
+        SimpleNamespace(release_id="release", manifest_sha256=SHA, target_pin_sha256=SHA),
+        SimpleNamespace(
+            release_id="release", content_manifest_sha256=SHA,
+            subject_sha256_by_collection={f"collection_{n}": SHA for n in range(11)},
+            expires_at_utc=datetime.now(UTC) + timedelta(hours=1),
+        ), object(),
+    ))
+    monkeypatch.setattr(enqueue, "get_ingestion_control_dsn", lambda: "private-dsn")
+    monkeypatch.setattr(enqueue.psycopg, "connect", lambda *_args: Connection())
+    monkeypatch.setattr(enqueue, "attest_runtime_role", lambda *_args, **_kwargs: None)
+    def refuse_pin(*_args: object) -> None:
+        pin_checks.append(1)
+        raise ValueError("wrong target pin")
+
+    monkeypatch.setattr(enqueue, "require_public_successor_pinned_db", refuse_pin)
+    monkeypatch.setattr(enqueue, "require_public_successor_startup_lot42", lambda *_args: (
+        _ for _ in ()
+    ).throw(AssertionError("LOT42 must not run after pin refusal")))
+    assert enqueue.main([
+        "--public-successor-bundle-root", "/private/bundle",
+        "--expected-role", "ingestion_control_app",
+    ]) == 1
+    assert pin_checks == [1]
+
+
 def test_exact_lot42_row_creates_one_publication_job() -> None:
     row = _row()
     created: list[dict[str, object]] = []
