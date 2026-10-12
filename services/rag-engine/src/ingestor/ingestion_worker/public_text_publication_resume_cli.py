@@ -30,13 +30,23 @@ from ingestor.ingestion_control.release_batch_attestation import (
     measure_release_batch_facts,
     require_facts_match_catalog,
 )
-from ingestor.ingestion_profiles.readiness_gate import enforce_readiness_gate
+from ingestor.ingestion_profiles.readiness_gate import (
+    MANIFEST_PATH_ENV,
+    _read_manifest_file,
+    _resolve_anchor_bytes,
+    enforce_readiness_gate,
+)
 from ingestor.ingestion_profiles.staging_readiness_gate import (
     EXPECTED_PROTOCOL_ENV,
+    MANIFEST_SHA256_ENV,
+    TRUST_ANCHOR_ENV,
+    _read_anchor,
+    _required_env,
     enforce_staging_readiness_gate,
     require_running_image_matches_declared,
     require_running_image_matches_manifest,
 )
+from ingestor.public_successor_db_guard import require_public_successor_pinned_db
 
 from .multilevel_publication_resume_cli import (
     _finite_non_negative_float,
@@ -174,12 +184,30 @@ def _transfer_authority(root: Path, envelope_sha256: str) -> tuple[Path, str]:
     return transfer, digest
 
 
+def _read_signed_proof(signed: _SignedPublication) -> tuple[bytes, bytes]:
+    """Relire la preuve déjà vérifiée par le gate, sans substitut C local."""
+    if signed.environment == "rehearsal":
+        path = Path(_required_env(MANIFEST_PATH_ENV))
+        raw = _read_manifest_file(path)
+        if hashlib.sha256(raw).hexdigest() != _required_sha_env(MANIFEST_SHA256_ENV):
+            raise ValueError("signed staging C readiness digest changed after gate")
+        _, anchor = _read_anchor(_required_env(TRUST_ANCHOR_ENV))
+        return raw, anchor
+    if signed.environment == "production":
+        raw_path = os.environ.get(MANIFEST_PATH_ENV, "").strip()
+        if not raw_path:
+            raise ValueError("signed production C readiness path absent")
+        return _read_manifest_file(Path(raw_path)), _resolve_anchor_bytes("production")
+    raise ValueError("public C runtime environment invalid")
+
+
 def _verified_runtime(
     root: Path,
 ) -> tuple[_SignedPublication, PublicSuccessorActivationVerdict, PublicTextRuntimeAuthorities]:
     signed = _signed_publication(root)
     registry_sha = signed.registry_sha256
     scope_sha = _required_sha_env("NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256")
+    proof = _read_signed_proof(signed)
     verdict = verify_public_successor_activation(
         root,
         expected_content_anchor_sha256=signed.anchor_sha256,
@@ -188,6 +216,8 @@ def _verified_runtime(
         expected_registry_sha256=registry_sha,
         expected_scope_authority_sha256=scope_sha,
         expected_target_pin_sha256=signed.target_pin_sha256,
+        signed_staging_readiness=proof if signed.environment == "rehearsal" else None,
+        signed_runtime_readiness=proof if signed.environment == "production" else None,
     )
     if not isinstance(verdict, PublicSuccessorActivationVerdict) or (
         verdict.release_id != signed.release_id
@@ -326,6 +356,10 @@ def main_public(argv: list[str]) -> int:
                 )
                 if fresh_signed != signed or fresh_verdict != verdict:
                     raise ValueError("public readiness or C drifted during Worker B")
+                require_public_successor_pinned_db(
+                    conn, fresh_verdict, args.public_successor_bundle_root,
+                    fresh_signed.target_pin_sha256,
+                )
                 require_public_lot42_db(
                     conn, activation=fresh_verdict,
                     authorities=fresh_authorities, transfer_sha256=worker_transfer_sha,

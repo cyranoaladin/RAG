@@ -69,6 +69,36 @@ def _json_under_digest(path: Path, expected_sha256: str) -> dict[str, Any]:
     return result
 
 
+def require_public_successor_pinned_db(
+    conn: Any, verdict: PublicSuccessorActivationVerdict,
+    bundle_root: Path, expected_pin_sha256: str,
+) -> None:
+    """Comparer la connexion de mutation au pin C, juste avant toute écriture."""
+    pin_path = bundle_root / "authorities/target-pin.json"
+    if pin_path.parent.is_symlink():
+        raise PublicSuccessorDBRefused("target pin directory linked")
+    try:
+        pin = _json_under_digest(pin_path, expected_pin_sha256)
+        expiry = datetime.fromisoformat(pin["expires_at_utc"])
+        row = conn.execute(
+            "SELECT current_database(), system_identifier FROM pg_control_system()"
+        ).fetchone()
+    except (PublicSuccessorDBRefused, OSError, ValueError, KeyError, TypeError) as error:
+        raise PublicSuccessorDBRefused("target pin or live DB identity unavailable") from error
+    if (
+        expiry.utcoffset() != datetime.now(UTC).utcoffset()
+        or datetime.now(UTC) >= expiry
+        or pin.get("release_id") != verdict.release_id
+        or pin.get("content_anchor_sha256") != verdict.content_anchor_sha256
+        or not isinstance(pin.get("database_name"), str)
+        or not isinstance(pin.get("postgres_system_identifier"), str)
+        or row is None or len(row) != 2
+        or row[0] != pin["database_name"]
+        or str(row[1]) != pin["postgres_system_identifier"]
+    ):
+        raise PublicSuccessorDBRefused("live DB differs from target pin")
+
+
 def _sealed_review_blob_sha(bundle_root: Path, review_digest: str) -> str:
     """Distinguer le blob de la revue du tree Git dans le binding C."""
     review_path = bundle_root / "authorities/publication_batch_review_receipt_sha256.bin"

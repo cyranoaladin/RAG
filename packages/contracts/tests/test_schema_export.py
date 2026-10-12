@@ -16,8 +16,10 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_28_0() -> None:
-    """0.28.0 lie le verdict C signé au runtime public (ADR-0074).
+def test_package_version_is_0_29_0() -> None:
+    """0.29.0 lie C signée à la readiness staging PUBLICATION (ADR-0075).
+
+    0.28.0 lie le verdict C signé au runtime public (ADR-0074).
 
     0.27.0 prépare les scopes étudiants V3 gouvernés (ADR-0071).
 
@@ -70,7 +72,7 @@ def test_package_version_is_0_28_0() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.28.0"
+    assert pyproject["project"]["version"] == "0.29.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -119,7 +121,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.28.0"
+    assert first_lock["packageVersion"] == "0.29.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {

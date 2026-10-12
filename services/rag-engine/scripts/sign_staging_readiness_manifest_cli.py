@@ -287,7 +287,7 @@ def _verify_public_successor_ingestion_replay(
 
 def _verify_public_successor_publication_replay(
     args: Any, release_digest: str, issued_at: datetime,
-) -> tuple[str, str, str, datetime]:
+) -> tuple[str, str, str, datetime, datetime, tuple[str, str, str, int, str, str]]:
     """Rejouer C et les preuves live avant la lecture de la clé staging."""
     required = (
         args.public_successor_bundle_root,
@@ -348,11 +348,15 @@ def _verify_public_successor_publication_replay(
         )
     except Exception as error:  # noqa: BLE001 - frontière de signature fail-closed
         raise SigningRefused("public successor PUBLICATION authority replay failed") from error
+    binding = verdict.activation.publication_batch_review_binding
+    _require(binding is not None, "public successor C replay lacks LOT42 review binding")
     return (
         verdict.activation.content_anchor_sha256,
         verdict.activation.authority_envelope_sha256,
         verdict.target_pin_sha256,
         verdict.expires_at_utc,
+        verdict.verified_at_utc,
+        binding,
     )
 
 
@@ -432,6 +436,7 @@ def main(argv: list[str] | None = None) -> int:
             _require(all(value is None for value in public_options),
                      "public successor inputs require an explicit phase")
             anchor_sha = phase_authority_sha = target_pin_sha = None
+            c_verified_at = c_expires_at = lot42_binding = None
             expires_at = issued_at + timedelta(days=args.valid_days)
         elif phase == "INGESTION":
             _require(all(value is None for value in public_options[5:]),
@@ -443,14 +448,17 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             target_pin_sha = None
+            c_verified_at = c_expires_at = lot42_binding = None
             expires_at = min(issued_at + timedelta(days=args.valid_days), evidence_expiry)
         else:
             _require_public_checkout_matches_merge(args.merge_sha)
-            anchor_sha, phase_authority_sha, target_pin_sha, evidence_expiry = (
+            (anchor_sha, phase_authority_sha, target_pin_sha, evidence_expiry,
+             c_verified_at, lot42_binding) = (
                 _verify_public_successor_publication_replay(
                     args, release_digest, issued_at,
                 )
             )
+            c_expires_at = evidence_expiry
             expires_at = min(issued_at + timedelta(days=args.valid_days), evidence_expiry)
         manifest = StagingReadinessManifestV1(
             protocol_version="NEXUS-STAGING-READINESS-V1",
@@ -468,6 +476,9 @@ def main(argv: list[str] | None = None) -> int:
             public_successor_content_anchor_digest=anchor_sha,
             public_successor_phase_authority_digest=phase_authority_sha,
             public_successor_target_pin_digest=target_pin_sha,
+            public_successor_c_verified_at_utc=c_verified_at,
+            public_successor_c_expires_at_utc=c_expires_at,
+            public_successor_lot42_review_binding=lot42_binding,
         )
 
         if phase is not None:

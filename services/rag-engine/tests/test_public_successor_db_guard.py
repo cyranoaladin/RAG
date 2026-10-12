@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -17,8 +18,53 @@ from ingestor.public_successor_db_guard import (
     PublicSuccessorDBRefused,
     _sealed_review_blob_sha,
     require_public_successor_live_controls,
+    require_public_successor_pinned_db,
     require_public_successor_startup_lot42,
 )
+
+
+class _PinnedIdentityConn:
+    def __init__(self, database: str, system: str) -> None:
+        self.database = database
+        self.system = system
+        self.queries: list[str] = []
+
+    def execute(self, query: str) -> _PinnedIdentityConn:
+        self.queries.append(query)
+        return self
+
+    def fetchone(self) -> tuple[str, str]:
+        return self.database, self.system
+
+
+def test_public_mutation_requires_exact_live_database_pin(tmp_path: Path) -> None:
+    pin = tmp_path / "authorities/target-pin.json"
+    pin.parent.mkdir()
+    document = {
+        "release_id": "release", "content_anchor_sha256": "a" * 64,
+        "database_name": "ragdb_student_public_qual",
+        "postgres_system_identifier": "7695463567278473254",
+        "expires_at_utc": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+    }
+    pin.write_text(json.dumps(document))
+    digest = hashlib.sha256(pin.read_bytes()).hexdigest()
+    verdict = SimpleNamespace(release_id="release", content_anchor_sha256="a" * 64)
+    conn = _PinnedIdentityConn("ragdb_student_public_qual", "7695463567278473254")
+    require_public_successor_pinned_db(conn, verdict, tmp_path, digest)
+    assert conn.queries == ["SELECT current_database(), system_identifier FROM pg_control_system()"]
+    for database, system in (("foreign", conn.system), (conn.database, "999")):
+        with pytest.raises(PublicSuccessorDBRefused, match="target pin"):
+            require_public_successor_pinned_db(
+                _PinnedIdentityConn(database, system), verdict, tmp_path, digest,
+            )
+    with pytest.raises(PublicSuccessorDBRefused, match="target pin"):
+        require_public_successor_pinned_db(conn, verdict, tmp_path, "b" * 64)
+    document["expires_at_utc"] = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
+    pin.write_text(json.dumps(document))
+    with pytest.raises(PublicSuccessorDBRefused, match="target pin"):
+        require_public_successor_pinned_db(
+            conn, verdict, tmp_path, hashlib.sha256(pin.read_bytes()).hexdigest(),
+        )
 
 _real_worker_transfer_sha_from_bundle = guard._worker_transfer_sha_from_bundle
 

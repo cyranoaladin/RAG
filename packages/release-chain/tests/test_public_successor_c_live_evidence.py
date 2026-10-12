@@ -12,6 +12,11 @@ from types import SimpleNamespace
 import pytest
 from nexus_contracts.authorization_set import VerifiedAuthorizationSetV1
 from nexus_contracts.production_readiness import ProductionReadinessManifestV2
+from nexus_contracts.staging_readiness import (
+    StagingReadinessManifestV1,
+    sign_staging_readiness_manifest,
+    staging_public_key_hex,
+)
 from nexus_release_chain import public_successor_activation as c
 
 NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
@@ -169,6 +174,99 @@ def test_signed_c_runtime_uses_exact_signed_binding_and_expiry() -> None:
     )
     assert verdict.expires_at_utc == live.expires_at_utc
     assert verdict.publication_batch_review_binding == live.publication_batch_review_binding
+
+
+def _staging_readiness(live: c.VerifiedPublicSuccessorLiveEvidence) -> StagingReadinessManifestV1:
+    return StagingReadinessManifestV1(
+        protocol_version="NEXUS-STAGING-READINESS-V1",
+        environment="rehearsal", repository="cyranoaladin/RAG",
+        merge_sha="a" * 40,
+        worker_image="ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + SHA,
+        allowed_release_id=live.release_id,
+        allowed_release_manifest_sha256=live.content_manifest_sha256,
+        public_successor_phase="PUBLICATION",
+        public_successor_content_anchor_digest=live.content_anchor_sha256,
+        public_successor_phase_authority_digest=live.authority_envelope_sha256,
+        public_successor_target_pin_digest=live.target_pin_sha256,
+        public_successor_c_verified_at_utc=NOW - timedelta(seconds=30),
+        public_successor_c_expires_at_utc=live.expires_at_utc,
+        public_successor_lot42_review_binding=live.publication_batch_review_binding,
+        control_dsn_differs_from_product=True, key_id="rehearsal-authority",
+        issued_at=NOW - timedelta(minutes=1),
+        expires_at=live.expires_at_utc,
+    )
+
+
+def test_signed_staging_c_runtime_uses_exact_binding_and_expiry() -> None:
+    live, kwargs = _case()
+    verdict = c._finalize_a2_signed_readiness(
+        readiness=_staging_readiness(live), **kwargs,
+    )
+    assert verdict.expires_at_utc == live.expires_at_utc
+    assert verdict.publication_batch_review_binding == live.publication_batch_review_binding
+
+
+def test_portable_c_verifies_staging_signature_before_opening_bundle(tmp_path: Path) -> None:
+    live, _ = _case()
+    seed = "12" * 32
+    signed = sign_staging_readiness_manifest(
+        _staging_readiness(live), private_key_hex=seed, key_id="rehearsal-authority",
+    ).canonical_bytes()
+    anchor = json.dumps({
+        "protocol_version": "NEXUS-STAGING-READINESS-V1",
+        "keys": [{
+            "key_id": "rehearsal-authority", "algorithm": "ed25519",
+            "public_key": staging_public_key_hex(seed), "environment": "rehearsal",
+        }],
+    }).encode()
+    kwargs = {
+        "expected_content_anchor_sha256": live.content_anchor_sha256,
+        "expected_authority_envelope_sha256": live.authority_envelope_sha256,
+        "expected_release_id": live.release_id,
+        "expected_registry_sha256": "e" * 64,
+        "expected_scope_authority_sha256": SHA,
+        "expected_target_pin_sha256": live.target_pin_sha256,
+        "now_utc": NOW,
+    }
+    with pytest.raises(c.PublicSuccessorActivationError, match="content.anchor"):
+        c.verify_public_successor_activation(
+            tmp_path, signed_staging_readiness=(signed, anchor), **kwargs,
+        )
+    altered = signed.replace(b"public-test", b"public-evil")
+    with pytest.raises(c.PublicSuccessorActivationError, match="signed staging"):
+        c.verify_public_successor_activation(
+            tmp_path, signed_staging_readiness=(altered, anchor), **kwargs,
+        )
+
+
+@pytest.mark.parametrize("mutation", [
+    "missing_c", "expired", "anchor", "envelope", "pin", "lot42", "ingestion",
+])
+def test_signed_staging_c_runtime_refuses_missing_expired_or_substituted_proof(
+    mutation: str,
+) -> None:
+    live, kwargs = _case()
+    readiness = _staging_readiness(live)
+    if mutation == "missing_c":
+        readiness = readiness.model_copy(update={"public_successor_c_verified_at_utc": None})
+    elif mutation == "expired":
+        kwargs["now_utc"] = live.expires_at_utc
+    elif mutation == "anchor":
+        kwargs["content"] = SimpleNamespace(**{
+            **vars(kwargs["content"]), "content_anchor_sha256": "0" * 64,
+        })
+    elif mutation == "envelope":
+        kwargs["authority_envelope_sha256"] = "0" * 64
+    elif mutation == "pin":
+        kwargs["expected_target_pin_sha256"] = "0" * 64
+    elif mutation == "lot42":
+        kwargs["authorities"] = {
+            **kwargs["authorities"], "publication_batch_review_receipt_sha256": "0" * 64,
+        }
+    else:
+        readiness = readiness.model_copy(update={"public_successor_phase": "INGESTION"})
+    with pytest.raises(c.PublicSuccessorActivationError):
+        c._finalize_a2_signed_readiness(readiness=readiness, **kwargs)
 
 
 @pytest.mark.parametrize("mutation", [
