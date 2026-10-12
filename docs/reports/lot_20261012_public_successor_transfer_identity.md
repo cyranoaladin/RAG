@@ -1,14 +1,39 @@
 # Lot 2026-10-12 — identités du plan et du transfert observé du successeur public
 
-## Déclencheur et état réel
+## Déclencheur et observation LIVE
 
-Sur `origin/main=62523de5dcf61063a3e058a21fc03fbb290e8287` (tree
-`32550e9743e89f143f4075b98e850763c7c9fd1b`), le transfert public isolé
-V1/V2 a été vérifié puis Worker A a ingéré les 377 placements du successeur
+Snapshot **LIVE au 12 octobre 2026 à 06:58:16–06:59:21 UTC**, non reconductible
+sans nouvelle lecture : `origin/main=62523de5dcf61063a3e058a21fc03fbb290e8287`
+(tree `32550e9743e89f143f4075b98e850763c7c9fd1b`), relu avec
+`git ls-remote origin refs/heads/main` ; base isolée interrogée en lecture
+seule par `ssh nexus-prod-direct` → conteneur
+`nexus-public-qual-20261011-pgvector-1` → DB
+`ragdb_student_public_qual`, `system_identifier=7695463567278473254`.
+Le transfert public isolé V1/V2 a été vérifié puis Worker A a ingéré les 377 placements du successeur
 `student-public-successor-20261010-40b956c6f5ec0c60`. Les 377 ressources sont
-`NEEDS_REVIEW` ; aucun job, aucune attestation LOT42, aucun artefact de produit,
-aucun placement et aucun chunk n'a été publié. La base historique et la
-production n'ont pas été modifiées par ce lot.
+`NEEDS_REVIEW` ; les 377 lignes d'artefacts représentent 253 SHA distincts ;
+la même lecture donne zéro job, zéro attestation LOT42 et zéro adoption. Les
+artefacts, placements et chunks de produit étaient absents au contrôle
+post-Worker A antérieur. La base historique et la production n'ont pas été
+modifiées par ce lot.
+
+Lecture exacte sur la cible, via `docker exec ... psql -U
+rag_public_qual_admin -d ragdb_student_public_qual -Atc` :
+
+```sql
+SELECT now() AT TIME ZONE 'UTC', current_database(),
+       (SELECT system_identifier FROM pg_control_system()),
+       (SELECT count(*) FROM ingestion_control.resources),
+       (SELECT count(*) FROM ingestion_control.resources
+        WHERE resource_state = 'NEEDS_REVIEW'),
+       (SELECT count(*) FROM ingestion_control.artifacts),
+       (SELECT count(DISTINCT sha256) FROM ingestion_control.artifacts),
+       (SELECT count(*) FROM ingestion_control.publication_attestations),
+       (SELECT count(*) FROM ingestion_control.sealed_release_adoptions);
+-- 2026-10-12 06:58:16.30623|ragdb_student_public_qual|7695463567278473254|377|377|377|253|0|0
+SELECT now() AT TIME ZONE 'UTC', count(*) FROM ingestion_control.jobs;
+-- 2026-10-12 06:59:09.231516|0
+```
 
 La proposition LOT42 en lecture seule a refusé avant toute écriture :
 `public batch transfer manifest differs from release`. Le plan A2 est scellé
@@ -41,12 +66,37 @@ présent rapport ou la réussite de ses tests comme une autorité de publication
 
 ## Vérification et limites
 
+Le code testé était le commit `9020fbafaa5d7d58d038cada3aade214841c8f2a`
+(tree `01ad4dec1dc34ae770f08be4ea8248456df5f658`). Commandes depuis la
+racine, dans un venv propre installé depuis **ce worktree**, sauf mention :
+
+```bash
+PYTHONPATH=services/rag-engine/src python -m pytest -q \
+  packages/release-chain/tests/test_public_successor_activation.py \
+  services/rag-engine/tests/test_public_successor_batch_proposal.py \
+  services/rag-engine/tests/test_public_successor_db_guard.py \
+  services/rag-engine/tests/test_public_successor_db_guard_pg.py \
+  services/rag-engine/tests/test_public_text_worker_b_cli.py \
+  services/rag-engine/tests/test_public_successor_signing_publication.py \
+  services/rag-engine/tests/test_sealed_release_ingestion.py \
+  scripts/tests/test_public_text_transfer.py
+# 221 tests ; exit 0
+(cd packages/release-chain && python -m pytest -q tests)
+# 186 tests ; exit 0
+(cd services/rag-engine && python -m ruff check .)
+# Ruff 0.6.4 ; exit 0
+(cd services/rag-engine && make typecheck \
+  VENVDIR=/home/alaeddine/.venvs/nexus-lot42-transfer-62523)
+# 153 fichiers ; exit 0
+git diff --check
+# exit 0
+```
+
 - TDD : le cas des deux SHA distincts et la dérivation du SHA Worker ont échoué
   avant correction, puis réussi ; la substitution d'un SHA de fichier V1 est
   refusée.
-- 221 tests ciblés de chaîne A/C, LOT42, Worker B, garde API, ingestion scellée
-  et transfert ont réussi, dont les deux tests PostgreSQL sur schéma 020 ; Ruff
-  ciblé, `git diff --check` et mypy ciblé ont réussi.
+- Les 221 tests ciblés comprennent les deux tests PostgreSQL sur schéma 020.
+  Le lint du service et le typecheck complet (153 fichiers) ont réussi.
 - La cible isolée reste au dernier gate valide `WORKER_A_PASS` jusqu'à la revue
   LOT42. `LOT42_PASS`, `WORKER_B_PASS`, `C_SEMANTIC_PASS` et go-live restent
   **faux**. Aucun rollback n'est requis pour les lignes `NEEDS_REVIEW`.
