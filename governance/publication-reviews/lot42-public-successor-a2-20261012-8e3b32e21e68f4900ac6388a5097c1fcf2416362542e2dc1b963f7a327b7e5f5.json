@@ -1,0 +1,51 @@
+{
+  "artifact_transfer_manifest_sha256": "61fc1d7199baf69fcac2da61013fe6b9903aee768e7576a5720934dcf379ac16",
+  "artifacts_release_sha256": "b82539e89b2b0ee4e0d57d1c6898be896ffd9bcc79738d771345517c2a5331da",
+  "candidate_inventory_sha256": "5c349975e2a327f8b855e82dc932ff8d7d7984537ae48cdf131f814858b6a4ac",
+  "collections": [
+    "rag_nexus_dgemc_terminale_option",
+    "rag_nexus_hggsp_premiere_specialite",
+    "rag_nexus_hggsp_terminale_specialite",
+    "rag_nexus_hlp_premiere_specialite",
+    "rag_nexus_hlp_terminale_specialite",
+    "rag_nexus_nsi_premiere_specialite",
+    "rag_nexus_nsi_terminale_specialite",
+    "rag_nexus_ses_premiere_specialite",
+    "rag_nexus_ses_terminale_specialite",
+    "rag_nexus_svt_premiere_specialite",
+    "rag_nexus_svt_terminale_specialite"
+  ],
+  "decision": "AUTHORIZE_SEALED_RELEASE_PUBLICATION",
+  "expected_counts": {
+    "placements": 377,
+    "subjects": 11,
+    "unique_artifacts": 253,
+    "unique_chunks": 3975
+  },
+  "placement_evidence": {
+    "currentness": "official_snapshot",
+    "placement_status": "active",
+    "review_status": "reviewed"
+  },
+  "protocol_version": "LOT42-RELEASE-BATCH-V1",
+  "provenance_note": "Provenance documentaire scellee : 253 URL(s) de provenance pour 253 artefacts. Ce champ dit d'ou le corpus vient ; il ne designe pas une ressource a recuperer et n'est pas une URL canonique. Public successor evidence: A2_SHA256=5beccf115b3d23473dd310f20fdd6ce31cc8bc38e0cc23918d936300c1fec9b4; TRANSFER_SHA256=212385841d6966875f8f20567378bbfeb9afa18f308da4faaf763bd0ee8ee19c; TARGET_PIN_SHA256=1bbbe72d0809e5cd77a7e53bba85d26ba286b74e799b055923d9c3a920517d72; TRANSFER_V2_SHA256=4345c1adfd1487139def640361907e3b58d5c67b35bd7d7ca04165a9fc0ffa80; PROJECTION_SHA256=b76be683bbc0a704b4ff8ad33285a9682af04cecd82e73e4d2b7c7882f6cada7; EVALUATOR=nexus-automated-lot42-v1.",
+  "provenance_source_url_count": 253,
+  "release_id": "student-public-successor-20261010-40b956c6f5ec0c60",
+  "release_manifest_sha256": "efc5c425189ec8ec83460aff2d3539401f3dbdba1dcde252187608276f65ec85",
+  "review_id": "lot42-public-successor-a2-20261012",
+  "scope_authorization_ids": [
+    "lot41a-student-public-dgemc-terminale-option-v2",
+    "lot41a-student-public-hggsp-premiere-specialite-v2",
+    "lot41a-student-public-hggsp-terminale-specialite-v2",
+    "lot41a-student-public-hlp-premiere-specialite-v2",
+    "lot41a-student-public-hlp-terminale-specialite-v2",
+    "lot41a-student-public-nsi-premiere-specialite-v2",
+    "lot41a-student-public-nsi-terminale-specialite-v2",
+    "lot41a-student-public-ses-premiere-specialite-v2",
+    "lot41a-student-public-ses-terminale-specialite-v2",
+    "lot41a-student-public-svt-premiere-specialite-v2",
+    "lot41a-student-public-svt-terminale-specialite-v2"
+  ],
+  "valid_from": "2026-10-12T09:33:23.178021Z",
+  "valid_until": "2026-10-18T21:54:37.014823Z"
+}
