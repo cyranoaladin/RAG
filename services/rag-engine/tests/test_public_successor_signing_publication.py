@@ -27,6 +27,13 @@ import public_successor_signing_replay as replay  # noqa: E402
 import sign_production_readiness_manifest_cli as production  # noqa: E402
 import sign_staging_readiness_manifest_cli as staging  # noqa: E402
 from nexus_contracts.authority_artifacts import git_blob_sha1  # noqa: E402
+from nexus_contracts.production_readiness import (  # noqa: E402
+    ProductionReadinessError,
+    ProductionReadinessTrustAnchor,
+    ProductionReadinessTrustAnchorKey,
+    public_readiness_key_hex,
+    verify_production_readiness_manifest_v2,
+)
 from nexus_release_chain.public_successor_activation import (  # noqa: E402
     PublicSuccessorActivationVerdict,
 )
@@ -38,6 +45,7 @@ from tests.test_sign_production_readiness_manifest_cli import (  # noqa: E402
     PR_NUMBER,
     REPOSITORY,
     TEST_KEY_ID,
+    TEST_SEED,
     TREE_SHA,
     UPSTREAM_IMAGE_REF,
     UPSTREAM_IMAGE_SERVICE,
@@ -66,6 +74,10 @@ def _activation() -> PublicSuccessorActivationVerdict:
         scope_sha256_by_id={},
         counts={"subjects": 11, "unique_artifacts": 253, "placements": 377, "unique_chunks": 3975},
         expires_at_utc=datetime.now(UTC) + timedelta(days=1),
+        publication_batch_review_binding=(
+            "a" * 40, "b" * 40, "c" * 40, 1,
+            "NEXUS-TRUSTED-REVIEW-V1:" + "d" * 64, "abenrhouma",
+        ),
     )
 
 
@@ -261,6 +273,7 @@ def test_staging_publication_replay_refusal_precedes_key_read(
 def test_production_v2_binds_only_typed_public_activation() -> None:
     material = _v2_material()
     verdict = _activation()
+    verified_at = datetime.now(UTC)
     manifest = production.assemble_and_sign_v2(
         material,
         repository=REPOSITORY,
@@ -275,12 +288,61 @@ def test_production_v2_binds_only_typed_public_activation() -> None:
         public_successor_publication=replay.PublicationSigningReplayVerdict(
             activation=verdict, target_pin_sha256=SHA,
             expires_at_utc=datetime.now(UTC) + timedelta(hours=1),
+            verified_at_utc=verified_at,
         ),
     )
     assert manifest.public_successor_content_manifest_digest == verdict.content_manifest_sha256
     assert manifest.public_successor_content_anchor_digest == verdict.content_anchor_sha256
     assert manifest.public_successor_authority_envelope_digest == verdict.authority_envelope_sha256
     assert manifest.public_successor_target_pin_digest == SHA
+    assert manifest.public_successor_c_verified_at_utc == verified_at
+    assert manifest.public_successor_lot42_review_binding == verdict.publication_batch_review_binding
+
+
+def test_public_c_readiness_signed_roundtrip_binds_final_expiry_and_lot42() -> None:
+    material = _v2_material()
+    activation = _activation()
+    verified_at = datetime.now(UTC)
+    expiry = verified_at + timedelta(minutes=35)
+    replay_verdict = replay.PublicationSigningReplayVerdict(
+        activation=activation, target_pin_sha256=SHA,
+        expires_at_utc=expiry, verified_at_utc=verified_at,
+    )
+    parameters = dict(
+        repository=REPOSITORY, pr_number=PR_NUMBER,
+        pr_head_sha=PR_HEAD_SHA, pr_head_tree_sha=TREE_SHA,
+        application_image_digests=APPLICATION_IMAGE_DIGESTS,
+        upstream_image_digests={UPSTREAM_IMAGE_SERVICE: UPSTREAM_IMAGE_REF},
+        compose_digest=SHA, key_id=TEST_KEY_ID, workflow_ref=WORKFLOW_REF,
+    )
+    manifest = production.assemble_and_sign_v2(
+        material, public_successor_publication=replay_verdict, **parameters,
+    )
+    signed = production.sign_production_readiness_manifest_v2(
+        manifest, private_key_hex=TEST_SEED, key_id=TEST_KEY_ID,
+    )
+    trust = ProductionReadinessTrustAnchor(
+        protocol_version="NEXUS-PRODUCTION-READINESS-V1",
+        keys=(ProductionReadinessTrustAnchorKey(
+            key_id=TEST_KEY_ID, algorithm="ed25519",
+            public_key=public_readiness_key_hex(TEST_SEED), environment="production",
+        ),),
+    )
+    observed = verify_production_readiness_manifest_v2(
+        signed.canonical_bytes(), trust_anchor=trust,
+    )
+    assert observed.public_successor_c_expires_at_utc == expiry
+    assert observed.public_successor_c_verified_at_utc == verified_at
+    assert observed.public_successor_lot42_review_binding == activation.publication_batch_review_binding
+    with pytest.raises((production.SigningToolError, ProductionReadinessError)):
+        production.assemble_and_sign_v2(
+            material,
+            public_successor_publication=replace(
+                replay_verdict,
+                activation=replace(activation, publication_batch_review_binding=None),
+            ),
+            **parameters,
+        )
 
 
 def test_production_v2_refuses_public_activation_without_independent_pin() -> None:
@@ -300,6 +362,7 @@ def test_production_public_pin_expired_before_key_is_refused() -> None:
     replay_verdict = replay.PublicationSigningReplayVerdict(
         activation=_activation(), target_pin_sha256=SHA,
         expires_at_utc=datetime(2026, 10, 10, 12, tzinfo=UTC),
+        verified_at_utc=datetime(2026, 10, 10, 11, tzinfo=UTC),
     )
     with pytest.raises(production.SigningToolError, match="expired before key"):
         production._require_public_publication_fresh_at_key(

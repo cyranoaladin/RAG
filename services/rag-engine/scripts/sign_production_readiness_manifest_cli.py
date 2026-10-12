@@ -1248,7 +1248,8 @@ def assemble_and_sign_v2(
         if (public_successor_activation is None
                 or not isinstance(public_successor_activation, PublicSuccessorActivationVerdict)
                 or not re.fullmatch(r"[0-9a-f]{64}", public_successor_publication.target_pin_sha256)
-                or material.now >= public_successor_publication.expires_at_utc):
+                or material.now >= public_successor_publication.expires_at_utc
+                or not material.now <= public_successor_publication.verified_at_utc <= datetime.now(UTC)):
             raise SigningToolError("public successor C and independent target pin must be typed and live")
         if (public_successor_activation.content_manifest_sha256
                 != hashlib.sha256(cast(Any, material).sealed_manifest_raw).hexdigest()):
@@ -1304,6 +1305,18 @@ def assemble_and_sign_v2(
             public_successor_target_pin_digest=(
                 public_successor_publication.target_pin_sha256
                 if public_successor_publication is not None else None
+            ),
+            public_successor_c_expires_at_utc=(
+                public_successor_publication.expires_at_utc
+                if public_successor_publication is not None else None
+            ),
+            public_successor_c_verified_at_utc=(
+                public_successor_publication.verified_at_utc
+                if public_successor_publication is not None else None
+            ),
+            public_successor_lot42_review_binding=(
+                public_successor_activation.publication_batch_review_binding
+                if public_successor_activation is not None else None
             ),
             workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
             workflow_ref=workflow_ref,

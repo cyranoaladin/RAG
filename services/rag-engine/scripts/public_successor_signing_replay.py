@@ -66,6 +66,7 @@ class PublicationSigningReplayVerdict:
     activation: PublicSuccessorActivationVerdict
     target_pin_sha256: str
     expires_at_utc: datetime
+    verified_at_utc: datetime
 
 
 def _bytes(path: Path) -> bytes:
@@ -777,4 +778,5 @@ def replay_public_successor_publication(
             verdict.expires_at_utc, target_verdict.expires_at_utc,
             preissuance_expiry, pin_expires_at,
         ),
+        verified_at_utc=datetime.now(UTC),
     )

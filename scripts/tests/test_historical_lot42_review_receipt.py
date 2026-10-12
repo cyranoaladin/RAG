@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import sys
+from pathlib import Path
 
 import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts/go_live"))
+
 from historical_lot42_review_receipt import (
     HistoricalLot42Refused,
     validate_historical_lot42_receipt,
@@ -94,6 +100,19 @@ def test_historical_lot42_receipt_requires_exact_merged_review_and_blob() -> Non
         ("merge", {"pull_request": {**evidence["pull_request"], "merged": False}}),
         ("ancestor", {"merge_is_ancestor": False}),
         ("challenge", {"review_decision": {**evidence["review_decision"], "challenge": "wrong"}}),
+        ("attempt", {"workflow_attempt": {**evidence["workflow_attempt"], "run_attempt": 2}}),
     ):
         with pytest.raises(HistoricalLot42Refused):
             validate_historical_lot42_receipt(receipt, **{**evidence, **change})
+
+
+def test_historical_lot42_ignores_later_failed_rerun_but_not_forged_attempt() -> None:
+    receipt, evidence = _case()
+    evidence["workflow_run"] = {
+        **evidence["workflow_run"], "run_attempt": 2,
+        "status": "completed", "conclusion": "failure",
+    }
+    assert validate_historical_lot42_receipt(receipt, **evidence)[3] == 123
+    receipt["workflow_run_attempt"] = 2
+    with pytest.raises(HistoricalLot42Refused):
+        validate_historical_lot42_receipt(receipt, **evidence)

@@ -151,10 +151,10 @@ def validate_historical_lot42_receipt(
             or status.get("target_url") != r["trusted_status_target_url"]
             or match is None or int(match.group(1)) != r["workflow_run_id"]
             or run.get("id") != r["workflow_run_id"]
-            or run.get("run_attempt") != r["workflow_run_attempt"]
+            or type(run.get("run_attempt")) is not int
+            or run["run_attempt"] < r["workflow_run_attempt"]
             or run.get("name") != "Trusted human review"
             or run.get("path") != TRUSTED_WORKFLOW_PATH
-            or run.get("status") != "completed" or run.get("conclusion") != "success"
             or run.get("head_sha") != expected_workflow_head
             or attempt.get("id") != r["workflow_run_id"]
             or attempt.get("run_attempt") != r["workflow_run_attempt"]
@@ -211,7 +211,10 @@ def _git_blob(root: Path, ref: str, relative: str) -> bytes:
     return result.stdout
 
 
-def _live_evidence(root: Path, pull_request: int, artifact_path: str) -> dict[str, Any]:
+def _live_evidence(
+    root: Path, pull_request: int, artifact_path: str,
+    *, expected_attempt: int | None = None,
+) -> dict[str, Any]:
     """Relire GitHub et Git sans jamais se fier à l'état du reçu."""
     from trusted_human_review_github import (
         DEFAULT_CONFIG_PATH,
@@ -238,11 +241,35 @@ def _live_evidence(root: Path, pull_request: int, artifact_path: str) -> dict[st
         raise HistoricalLot42Refused("LOT42 trusted run URL absent")
     run_id = run_match.group(1)
     run = _read_gh(f"repos/{REPOSITORY}/actions/runs/{run_id}")
-    if not isinstance(run, dict) or type(run.get("run_attempt")) is not int:
+    if (not isinstance(run, dict) or type(run.get("run_attempt")) is not int
+            or not 1 <= run["run_attempt"] <= 100):
         raise HistoricalLot42Refused("LOT42 trusted run invalid")
-    attempt = _read_gh(
-        f"repos/{REPOSITORY}/actions/runs/{run_id}/attempts/{run['run_attempt']}"
-    )
+    if expected_attempt is not None:
+        if (type(expected_attempt) is not int or not 1 <= expected_attempt <= run["run_attempt"]):
+            raise HistoricalLot42Refused("LOT42 historical attempt unavailable")
+        attempt = _read_gh(
+            f"repos/{REPOSITORY}/actions/runs/{run_id}/attempts/{expected_attempt}"
+        )
+    else:
+        # Le run global peut avoir été relancé après merge. Sélectionner
+        # uniquement l'attempt dont le statut trusted pré-merge témoigne.
+        status_at = _utc(trusted.get("created_at"))
+        merged_at = _utc(pr.get("merged_at"))
+        candidates = [
+            candidate
+            for index in range(1, run["run_attempt"] + 1)
+            if isinstance((candidate := _read_gh(
+                f"repos/{REPOSITORY}/actions/runs/{run_id}/attempts/{index}"
+            )), dict)
+            and candidate.get("run_attempt") == index
+            and candidate.get("status") == "completed"
+            and candidate.get("conclusion") == "success"
+            and _utc(candidate.get("run_started_at")) <= status_at
+                <= _utc(candidate.get("updated_at")) <= merged_at
+        ]
+        if len(candidates) != 1:
+            raise HistoricalLot42Refused("LOT42 pre-merge attempt not unique")
+        attempt = candidates[0]
     if not isinstance(attempt, dict) or not isinstance(pr.get("base"), dict):
         raise HistoricalLot42Refused("LOT42 trusted attempt/base invalid")
     merge_parent = _git(root, "rev-parse", f"{merge}^")
@@ -315,7 +342,7 @@ def build_historical_lot42_receipt(
         "trusted_status_created_at": status["created_at"],
         "trusted_status_target_url": status["target_url"],
         "workflow_run_id": run["id"],
-        "workflow_run_attempt": run["run_attempt"],
+        "workflow_run_attempt": evidence["workflow_attempt"]["run_attempt"],
         "review_artifact_path": artifact_path,
         "review_artifact_sha256": hashlib.sha256(raw).hexdigest(),
         "review_artifact_blob_sha1": git_blob_sha1(raw),
@@ -341,7 +368,10 @@ def check_historical_lot42_receipt(
             or receipt.get("review_artifact_path") != artifact_path
             or receipt.get("review_artifact_sha256") != hashlib.sha256(expected_raw).hexdigest()):
         raise HistoricalLot42Refused("LOT42 historical receipt differs from C")
-    evidence = _live_evidence(root, pull_request, artifact_path)
+    evidence = _live_evidence(
+        root, pull_request, artifact_path,
+        expected_attempt=receipt["workflow_run_attempt"],
+    )
     if evidence["reviewed_head_blob"] != expected_raw:
         raise HistoricalLot42Refused("LOT42 historical reviewed blob differs from C")
     return validate_historical_lot42_receipt(receipt, **evidence)
