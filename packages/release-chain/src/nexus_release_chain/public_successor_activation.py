@@ -726,7 +726,7 @@ def verify_public_lot41a_authorization_set(
     ):
         raise PublicSuccessorActivationError("LOT41A A identity, counts or validity differ")
     if temporal_authority_raw is not None:
-        from .public_successor_temporal import (  # noqa: PLC0415
+        from .public_successor_temporal import (
             PublicSuccessorTemporalError,
             verify_temporal_authority_preissuance,
         )
@@ -1137,11 +1137,11 @@ def _verify_a2_offline_c(
     La capture privée effective, les reviews et la DB restent des gates du
     signataire. Des seuls octets du bundle ne peuvent attester ces faits live.
     """
-    from .public_successor_a2_transfer_binding import (  # noqa: PLC0415
+    from .public_successor_a2_transfer_binding import (
         A2TransferBindingError,
         verify_a2_transfer_binding,
     )
-    from .public_successor_temporal import (  # noqa: PLC0415
+    from .public_successor_temporal import (
         PublicSuccessorTemporalError,
         verify_temporal_successor,
     )
@@ -1244,7 +1244,7 @@ def verify_public_successor_activation(
             )
         except PublicSuccessorActivationError as error:
             raise PublicSuccessorActivationError("A2 authority absent or divergent") from error
-        from .public_successor_temporal import (  # noqa: PLC0415
+        from .public_successor_temporal import (
             APPROVED_A2_AUTHORITY_SHA256,
         )
         if hashlib.sha256(authority_raw).hexdigest() != APPROVED_A2_AUTHORITY_SHA256:

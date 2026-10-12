@@ -535,7 +535,9 @@ def test_content_anchor_without_final_envelope_cannot_activate(tmp_path: Path) -
 
 
 def _a2_bundle(tmp_path: Path, *, include_authority: bool) -> tuple[object, str]:
-    from nexus_release_chain.release_readiness import _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS
+    from nexus_release_chain.release_readiness import (
+        _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS,
+    )
 
     anchor_path = ROOT / "docs/reports/go_live/student_public_successor_content_anchor_20261011.json"
     release = ROOT / (
