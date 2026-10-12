@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -103,7 +103,7 @@ def enqueue_public_successor_jobs(
     return len(rows)
 
 
-def main(argv: Iterable[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--public-successor-bundle-root", required=True, type=Path)
     parser.add_argument("--expected-role", required=True)
