@@ -22,6 +22,7 @@ from uuid import UUID
 
 import psycopg
 from nexus_contracts.resource_state import ResourceState
+from nexus_release_chain.public_successor_activation import PublicSuccessorActivationVerdict
 
 from .publication_attestation import (
     VerifiedAttestation,
@@ -97,6 +98,7 @@ def promote_reviewed_publication(
     current_manifest_digest: str,
     job_id: UUID | None = None,
     expected_attestation_id: UUID | None = None,
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> GovernedEligibilityPromotion:
     """Valider la revue humaine puis emprunter l'unique ancre LOT42.
 
@@ -114,6 +116,7 @@ def promote_reviewed_publication(
             current_manifest_digest=current_manifest_digest,
             require_content_bound_authority=True,
             expected_attestation_id=expected_attestation_id,
+            batch_authority=batch_authority,
         )
         reviewed = cas_transition(
             conn,
@@ -141,6 +144,7 @@ def promote_reviewed_publication(
             current_manifest_digest=current_manifest_digest,
             job_id=job_id,
             expected_attestation_id=expected_attestation_id,
+            batch_authority=batch_authority,
         )
     return GovernedEligibilityPromotion(
         attestation=attestation,

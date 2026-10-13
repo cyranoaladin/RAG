@@ -113,6 +113,7 @@ class LocalGitHub:
         #: connu : c'est l'etat nominal d'une PR approuvee. Un test qui
         #: veut le contraire le dit explicitement (``fail_head_pinned``).
         self.head_pinned_state: str = "success"
+        self.head_pinned_statuses: list[dict[str, Any]] | None = None
         self.delay_s: float = 0.0
         self.force_status: int | None = None
         self.require_token: str | None = VALID_TOKEN
@@ -264,9 +265,11 @@ def _make_handler(state: LocalGitHub) -> type[BaseHTTPRequestHandler]:
                 self._send(200, {
                     "sha": sha,
                     "state": state.head_pinned_state,
-                    "statuses": [{
+                    "statuses": state.head_pinned_statuses if state.head_pinned_statuses is not None else [{
                         "context": "trusted-human-review/head-pinned",
                         "state": state.head_pinned_state,
+                        "created_at": "2026-10-12T09:53:25Z",
+                        "id": 1,
                     }],
                 })
                 return

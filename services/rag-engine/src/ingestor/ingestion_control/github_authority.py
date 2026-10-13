@@ -40,12 +40,17 @@ Propriétés de sécurité imposées :
 from __future__ import annotations
 
 import base64
+import copy
 import importlib.util
 import os
 import re
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -86,6 +91,61 @@ _MAX_REVIEW_PAGES = 20
 #: mémoire sans borne.
 _MAX_BLOB_BYTES = 1_048_576
 _BLOB_SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+
+
+class _JobReadCache:
+    """HTTP snapshot confined to one Worker B job, never an authority.
+
+    The first verification is live. Intermediate checkpoints still execute
+    all parsers and DB/revocation checks against the same external snapshot.
+    The publisher disables this cache before its final live verification in
+    the product transaction. No response survives the job or a failed call.
+    """
+
+    def __init__(self) -> None:
+        self.responses: dict[str, Any] = {}
+        self.enabled = True
+        self.serve_cached = False
+
+    def activate(self) -> None:
+        # Only after the complete LOT42 and LOT41A proof has passed. During
+        # the first verification, duplicate GETs of the PR must remain live
+        # to preserve the existing head/base TOCTOU check.
+        if self.enabled:
+            self.serve_cached = True
+
+    def disable(self) -> None:
+        self.responses.clear()
+        self.enabled = False
+
+
+_JOB_READ_CACHE: ContextVar[_JobReadCache | None] = ContextVar(
+    "nexus_github_job_read_cache", default=None,
+)
+
+
+@contextmanager
+def job_github_read_cache() -> Iterator[None]:
+    """Keep successful GET responses only within one publication iteration."""
+    token = _JOB_READ_CACHE.set(_JobReadCache())
+    try:
+        yield
+    finally:
+        _JOB_READ_CACHE.reset(token)
+
+
+def force_live_github_reads() -> None:
+    """Make every subsequent GET live before the product commit."""
+    cache = _JOB_READ_CACHE.get()
+    if cache is not None:
+        cache.disable()
+
+
+def activate_job_github_read_cache() -> None:
+    """Reuse a fully verified first snapshot at intermediate checkpoints."""
+    cache = _JOB_READ_CACHE.get()
+    if cache is not None:
+        cache.activate()
 
 
 class GitHubAuthorityError(RuntimeError):
@@ -384,6 +444,10 @@ class _ReadOnlyGitHubClient:
     def get_json(self, path: str, *, deadline: _Deadline) -> Any:
         remaining = deadline.check(f"GET {path}")
         url = f"{self._api_base}/{path.lstrip('/')}"
+        cache = _JOB_READ_CACHE.get()
+        if (cache is not None and cache.enabled and cache.serve_cached
+                and url in cache.responses):
+            return copy.deepcopy(cache.responses[url])
         try:
             response = self._client.get(
                 url, timeout=httpx.Timeout(min(self._request_timeout_s, remaining))
@@ -419,9 +483,14 @@ class _ReadOnlyGitHubClient:
                 )
             raise GitHubAuthorityError(message)
         try:
-            return response.json()
+            payload = response.json()
         except ValueError:
             raise GitHubAuthorityError(f"GitHub returned malformed JSON for {path}") from None
+        if cache is not None and cache.enabled:
+            if len(cache.responses) >= 64 and url not in cache.responses:
+                raise GitHubAuthorityError("job GitHub read cache exceeded its bound")
+            cache.responses[url] = copy.deepcopy(payload)
+        return payload
 
 
 def _collect_reviews(
@@ -490,13 +559,17 @@ def load_trusted_reviewers() -> tuple[str, ...]:
 
 
 def verify_review(
-    *, repository: str, pull_request: int, expected_head: str
+    *, repository: str, pull_request: int, expected_head: str,
+    verified_merged_binding: tuple[str, str, str, int, str, str] | None = None,
+    verified_c_at_utc: datetime | None = None,
 ) -> ReviewVerification:
     """Vérifie en direct, en lecture seule et en temps borné, qu'une review
     humaine ``APPROVED`` d'ADR-0025 existe sur ``expected_head`` exact.
 
     La décision est rendue par la fonction pure partagée
-    ``evaluate_trusted_review`` — jamais par ce module."""
+    ``evaluate_trusted_review`` — jamais par ce module. Le mode historique
+    est réservé à un binding déjà recomposé par C depuis un reçu de PR
+    fusionnée ; sans ce binding, une PR fermée reste refusée."""
     trusted_review = _load_trusted_review_module()
     config = trusted_review.load_config(_trusted_reviewers_config_path())
 
@@ -514,6 +587,57 @@ def verify_review(
         pull_request_doc = client.get_json(
             f"repos/{repository}/pulls/{pull_request}", deadline=deadline
         )
+        reviewed_pr = pull_request_doc
+        if verified_merged_binding is not None:
+            binding = verified_merged_binding
+            head = pull_request_doc.get("head") if isinstance(pull_request_doc, dict) else None
+            base = pull_request_doc.get("base") if isinstance(pull_request_doc, dict) else None
+            if (
+                not isinstance(binding, tuple) or len(binding) != 6
+                or any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{40}", value) is None
+                       for value in binding[:3])
+                or type(binding[3]) is not int or binding[3] <= 0
+                or not isinstance(binding[4], str)
+                or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", binding[4]) is None
+                or not isinstance(binding[5], str) or not binding[5]
+                or not isinstance(head, dict) or not isinstance(base, dict)
+                or pull_request_doc.get("number") != pull_request
+                or head.get("sha") != expected_head or head.get("sha") != binding[1]
+                or base.get("ref") != config.base_ref
+            ):
+                raise GitHubAuthorityError("merged review PR differs from C binding")
+            if pull_request_doc.get("state") == "closed":
+                # The pinned REST API version may omit merge_commit_sha on
+                # an already merged PR. C independently verified and sealed
+                # that SHA in its historical receipt; the live state, merge
+                # time and C-after-merge ordering remain mandatory here.
+                merge_sha = pull_request_doc.get("merge_commit_sha")
+                try:
+                    merged_at = datetime.fromisoformat(
+                        str(pull_request_doc.get("merged_at")).replace("Z", "+00:00")
+                    )
+                except ValueError as exc:
+                    raise GitHubAuthorityError("historical LOT42 merge time invalid") from exc
+                if (
+                    pull_request_doc.get("merged") is not True
+                    or (merge_sha is not None and (
+                        not isinstance(merge_sha, str)
+                        or re.fullmatch(r"[0-9a-f]{40}", merge_sha) is None
+                    ))
+                    or verified_c_at_utc is None
+                    or verified_c_at_utc.tzinfo is None
+                    or merged_at.tzinfo is None
+                    or merged_at.utcoffset() != timedelta(0)
+                    or verified_c_at_utc.utcoffset() != timedelta(0)
+                    or verified_c_at_utc > datetime.now(UTC)
+                    or not merged_at.astimezone(UTC) <= verified_c_at_utc.astimezone(UTC)
+                ):
+                    raise GitHubAuthorityError("historical LOT42 merge was not covered by C")
+                reviewed_pr = {
+                    **pull_request_doc,
+                    "state": "open", "draft": False,
+                    "base": {**base, "sha": binding[0]},
+                }
         reviews, reviews_complete = _collect_reviews(
             client, repository=repository, pull_request=pull_request, deadline=deadline
         )
@@ -525,7 +649,7 @@ def verify_review(
             )
 
         decision = trusted_review.evaluate_trusted_review(
-            pull_request=pull_request_doc,
+            pull_request=reviewed_pr,
             reviews=reviews,
             permissions=permissions,
             config=config,
@@ -557,7 +681,15 @@ def verify_review(
         except GitHubAuthorityError:
             statut = {}
 
-    if _revision(final_doc) != _revision(pull_request_doc):
+    if (_revision(final_doc) != _revision(pull_request_doc)
+            or (verified_merged_binding is not None and isinstance(pull_request_doc, dict)
+                and isinstance(final_doc, dict) and any(
+                    final_doc.get(field) != pull_request_doc.get(field)
+                    for field in (
+                        "number", "state", "merged", "merged_at",
+                        "merge_commit_sha", "user",
+                    )
+                ))):
         return ReviewVerification(
             approved=False,
             reason="head_or_base_changed_during_evaluation",
@@ -571,10 +703,6 @@ def verify_review(
             challenge=None,
         )
 
-    etats = {
-        str(entree.get("context")): str(entree.get("state"))
-        for entree in (statut.get("statuses") or [])
-    }
     node_id = next(
         (
             str(review.get("node_id"))
@@ -600,7 +728,7 @@ def verify_review(
         author=str((pull_request_doc.get("user") or {}).get("login") or "") or None,
         base_ref=str((pull_request_doc.get("base") or {}).get("ref") or "") or None,
         review_node_id=node_id,
-        head_pinned_status=etats.get(HEAD_PINNED_CONTEXT),
+        head_pinned_status=_latest_head_pinned_status(statut),
     )
 
     # Liaison au head attendu : la décision d'ADR-0025 porte déjà sur le
@@ -619,6 +747,21 @@ def verify_review(
             submitted_at=None,
             challenge=None,
         )
+    if verified_merged_binding is not None and (
+        not verification.approved
+        or verification.base_sha != verified_merged_binding[0]
+        or verification.head_sha != verified_merged_binding[1]
+        or verification.review_id != verified_merged_binding[3]
+        or verification.challenge != verified_merged_binding[4]
+        or verification.reviewer != verified_merged_binding[5]
+        or verification.head_pinned_status != "success"
+    ):
+        return ReviewVerification(
+            approved=False, reason="merged_review_differs_from_c",
+            repository=repository, pull_request=pull_request,
+            base_sha=verification.base_sha, head_sha=verification.head_sha,
+            reviewer=None, review_id=None, submitted_at=None, challenge=None,
+        )
     return verification
 
 
@@ -634,6 +777,36 @@ def _revision(pull_request_doc: Any) -> tuple[str, str, str]:
     if not isinstance(head, dict) or not isinstance(base, dict):
         raise GitHubAuthorityError("pull request head/base is malformed")
     return (str(head.get("sha")), str(base.get("sha")), str(base.get("ref")))
+
+
+def _latest_head_pinned_status(status_document: Any) -> str | None:
+    """Select the newest matching status; ambiguous chronology refuses."""
+    rows = status_document.get("statuses") if isinstance(status_document, dict) else None
+    if not isinstance(rows, list):
+        return None
+    candidates: list[tuple[datetime, int, str]] = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("context") != HEAD_PINNED_CONTEXT:
+            continue
+        stamp = row.get("created_at")
+        identity = row.get("id")
+        state = row.get("state")
+        if (not isinstance(stamp, str) or type(identity) is not int
+                or identity <= 0 or not isinstance(state, str)):
+            return None
+        try:
+            moment = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if moment.tzinfo is None or moment.utcoffset() != timedelta(0):
+            return None
+        candidates.append((moment, identity, state))
+    if not candidates:
+        return None
+    newest = max((moment, identity) for moment, identity, _state in candidates)
+    states = {state for moment, identity, state in candidates
+              if (moment, identity) == newest}
+    return next(iter(states)) if len(states) == 1 else None
 
 
 @dataclass(frozen=True)
@@ -785,7 +958,10 @@ __all__ = [
     "GitHubResponseDiagnostics",
     "PullRequestActorContext",
     "ReviewVerification",
+    "activate_job_github_read_cache",
     "fetch_blob_at_ref",
+    "force_live_github_reads",
+    "job_github_read_cache",
     "pull_request_actor_context",
     "HEAD_PINNED_CONTEXT",
     "load_trusted_reviewers",

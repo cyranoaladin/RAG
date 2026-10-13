@@ -51,6 +51,7 @@ from nexus_contracts.authority_artifacts import (
 )
 from nexus_contracts.document import Rights
 from nexus_contracts.resource_state import ResourceState
+from nexus_release_chain.public_successor_activation import PublicSuccessorActivationVerdict
 
 from .artifact_attribution import (
     ArtifactAttributionError,
@@ -209,18 +210,53 @@ def _normalize_moment(value: Any) -> str:
     return moment.astimezone(UTC).isoformat()
 
 
-def _verify_human_review(row: dict[str, Any], invalidator: _Invalidator) -> ReviewVerification:
+def _verify_human_review(
+    row: dict[str, Any], invalidator: _Invalidator,
+    *, batch_authority: PublicSuccessorActivationVerdict | None = None,
+) -> ReviewVerification:
     """Même discipline champ par champ que LOT41A (item G) — jamais une
     simple appartenance du challenge à l'ensemble des challenges live."""
+    binding = None
+    if batch_authority is not None:
+        # C has already replayed the historical receipt and all 377 LOT42
+        # rows. Recheck its expiry and row identity at every publication
+        # checkpoint, including inside the product transaction.
+        binding = batch_authority.publication_batch_review_binding
+        if (
+            not isinstance(binding, tuple) or len(binding) != 6
+            or batch_authority.expires_at_utc.tzinfo is None
+            or datetime.now(UTC) >= batch_authority.expires_at_utc
+            or row["release_id"] != batch_authority.release_id
+            or row["review_id"] != batch_authority.publication_batch_review_id
+            or row["release_batch_review_digest"]
+                != batch_authority.publication_batch_review_digest
+            or row["attestation_digest"]
+                != batch_authority.publication_batch_review_digest
+            or row["human_review_repository"] != "cyranoaladin/RAG"
+            or row["human_review_base_sha"] != binding[0]
+            or row["human_review_head_sha"] != binding[1]
+            or row["human_review_review_id"] != binding[3]
+            or row["human_review_challenge"] != binding[4]
+            or row["human_review_reviewer"] != binding[5]
+        ):
+            raise invalidator.fail("LOT42 row differs from live signed C binding")
     try:
-        live = verify_review(
-            repository=row["human_review_repository"],
-            pull_request=row["human_review_pull_request"],
-            expected_head=row["human_review_head_sha"],
-        )
+        if batch_authority is None:
+            live = verify_review(
+                repository=row["human_review_repository"],
+                pull_request=row["human_review_pull_request"],
+                expected_head=row["human_review_head_sha"],
+            )
+        else:
+            live = verify_review(
+                repository=row["human_review_repository"],
+                pull_request=row["human_review_pull_request"],
+                expected_head=row["human_review_head_sha"],
+                verified_merged_binding=binding,
+                verified_c_at_utc=batch_authority.verified_at_utc,
+            )
     except GitHubAuthorityError as exc:
         raise invalidator.fail(f"human_review transport failure: {exc}") from exc
-
     if not live.approved:
         raise invalidator.fail(
             f"human_review is no longer approved (reason={live.reason}) — PR "
@@ -390,6 +426,7 @@ def _verify_release_batch_attestation(
     invalidator: _Invalidator,
     resource_id: UUID,
     current_content_sha256: str,
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> VerifiedAttestation:
     """Revérifie une attestation ``LOT42-RELEASE-BATCH-V1``.
 
@@ -424,7 +461,7 @@ def _verify_release_batch_attestation(
         "content_sha256", row["content_sha256"], current_content_sha256
     )
 
-    live = _verify_human_review(row, invalidator)
+    live = _verify_human_review(row, invalidator, batch_authority=batch_authority)
     # L'artefact est relu au head que la VERIFICATION rend, pas a celui que
     # la ligne declare : une ligne modifiee en base ne choisit pas son head.
     invalidator.require_equal(
@@ -650,6 +687,7 @@ def verify_publication_attestation(
     current_manifest_digest: str,
     require_content_bound_authority: bool = False,
     expected_attestation_id: UUID | None = None,
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> VerifiedAttestation:
     """Revérifie **intégralement** la chaîne LOT42 d'une ressource.
 
@@ -683,13 +721,21 @@ def verify_publication_attestation(
     # est absent serait la faute symétrique : la branche batch vérifie ses
     # propres liens d'intégrité, un par un.
     if row["protocol_version"] == LOT42_RELEASE_BATCH_PROTOCOL_VERSION:
-        return _verify_release_batch_attestation(
+        verified_batch = _verify_release_batch_attestation(
             conn,
             row=row,
             invalidator=invalidator,
             resource_id=resource_id,
             current_content_sha256=current_content_sha256,
+            batch_authority=batch_authority,
         )
+        if batch_authority is not None:
+            from ingestor.ingestion_control.github_authority import (
+                activate_job_github_read_cache,
+            )
+
+            activate_job_github_read_cache()
+        return verified_batch
 
     invalidator.require_equal("content_sha256", row["content_sha256"], current_content_sha256)
     invalidator.require_equal(
@@ -801,6 +847,7 @@ def attempt_retrieval_eligible_transition(
     current_manifest_digest: str,
     job_id: UUID | None = None,
     expected_attestation_id: UUID | None = None,
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> TransitionResult:
     """Point d'ancrage unique LOT42 (ADR-0033 § 6) : la SEULE fonction
     autorisée à faire transitionner une ressource ``REVIEWED ->
@@ -824,6 +871,7 @@ def attempt_retrieval_eligible_transition(
         current_manifest_digest=current_manifest_digest,
         require_content_bound_authority=True,
         expected_attestation_id=expected_attestation_id,
+        batch_authority=batch_authority,
     )
     return cas_transition(
         conn,

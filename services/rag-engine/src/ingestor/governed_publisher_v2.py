@@ -27,6 +27,7 @@ from nexus_contracts.authority_artifacts import (
 from nexus_contracts.embedding_utils import format_passage
 from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.resource_state import ResourceState
+from nexus_release_chain.public_successor_activation import PublicSuccessorActivationVerdict
 from nexus_release_chain.publication_chunking import chunk_verified_derivative
 from psycopg.pq import TransactionStatus
 
@@ -318,6 +319,7 @@ def _verify_placements(
     *,
     artifact: GovernedArtifact,
     placements: Sequence[EligiblePlacement],
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> tuple[_VerifiedPlacement, ...]:
     if not placements:
         raise GovernedPublicationError("at least one eligible placement is required")
@@ -328,14 +330,25 @@ def _verify_placements(
         if placement_id in placement_ids:
             raise GovernedPublicationError("duplicate canonical placement")
         placement_ids.add(placement_id)
-        attestation = verify_publication_attestation(
-            control_conn,
-            resource_id=placement.resource_id,
-            current_content_sha256=artifact.content_sha256,
-            current_profile_fingerprint=placement.current_profile_fingerprint,
-            current_manifest_digest=placement.current_manifest_digest,
-            require_content_bound_authority=True,
-        )
+        if batch_authority is None:
+            attestation = verify_publication_attestation(
+                control_conn,
+                resource_id=placement.resource_id,
+                current_content_sha256=artifact.content_sha256,
+                current_profile_fingerprint=placement.current_profile_fingerprint,
+                current_manifest_digest=placement.current_manifest_digest,
+                require_content_bound_authority=True,
+            )
+        else:
+            attestation = verify_publication_attestation(
+                control_conn,
+                resource_id=placement.resource_id,
+                current_content_sha256=artifact.content_sha256,
+                current_profile_fingerprint=placement.current_profile_fingerprint,
+                current_manifest_digest=placement.current_manifest_digest,
+                require_content_bound_authority=True,
+                batch_authority=batch_authority,
+            )
         if not isinstance(attestation, VerifiedAttestation):
             raise GovernedPublicationError("LOT42 verifier returned an invalid object")
         # ADR-0035 : exigence **explicite** de LOT42-V2. Le vérificateur
@@ -887,6 +900,7 @@ def _publish_under_governance_fence(
     verified: Sequence[_VerifiedPlacement],
     extract_text: ExtractText,
     embedding_provider: EmbeddingProvider,
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> GovernedPublicationResult:
     """Écrire le produit tandis que l'appelant conserve les verrous control."""
     ordered = tuple(
@@ -908,6 +922,7 @@ def _publish_under_governance_fence(
                     control_conn,
                     artifact=artifact,
                     placements=tuple(item.placement for item in ordered),
+                    batch_authority=batch_authority,
                 ),
                 key=lambda item: canonical_placement_id(
                     artifact.artifact_id, item.placement
@@ -1014,10 +1029,20 @@ def _publish_under_governance_fence(
             # La vérification précédente protège toute entrée dans le writer.
             # Celle-ci ferme la fenêtre extraction/embedding : aucune autorité
             # ou attestation révoquée entre-temps ne peut être validée.
+            if batch_authority is not None:
+                from ingestor.ingestion_control.github_authority import (
+                    force_live_github_reads,
+                )
+
+                # The public Worker B cache is limited to this job. All
+                # external facts must be fetched live again after embedding,
+                # while the product transaction and control fence are held.
+                force_live_github_reads()
             final_verified = _verify_placements(
                 control_conn,
                 artifact=artifact,
                 placements=placements,
+                batch_authority=batch_authority,
             )
             initial_bindings = {
                 (
@@ -1087,6 +1112,8 @@ def publish_governed_artifact(
     placements: Sequence[EligiblePlacement],
     extract_text: ExtractText,
     embedding_provider: object,
+    *,
+    batch_authority: PublicSuccessorActivationVerdict | None = None,
 ) -> GovernedPublicationResult:
     """Linéariser l'autorité externe puis publier sous les verrous locaux.
 
@@ -1121,6 +1148,7 @@ def publish_governed_artifact(
             control_conn,
             artifact=artifact,
             placements=placements,
+            batch_authority=batch_authority,
         )
 
         _lock_governance_commit_fence(
@@ -1133,6 +1161,7 @@ def publish_governed_artifact(
             control_conn,
             artifact=artifact,
             placements=placements,
+            batch_authority=batch_authority,
         )
         committed_pin_digests = _persist_external_authority_pins(
             control_conn,
@@ -1151,6 +1180,7 @@ def publish_governed_artifact(
             control_conn,
             artifact=artifact,
             placements=placements,
+            batch_authority=batch_authority,
         )
         _lock_governance_commit_fence(
             control_conn,
@@ -1162,6 +1192,7 @@ def publish_governed_artifact(
             control_conn,
             artifact=artifact,
             placements=placements,
+            batch_authority=batch_authority,
         )
         current_pin_digests = _persist_external_authority_pins(
             control_conn,
@@ -1177,6 +1208,7 @@ def publish_governed_artifact(
             fenced_verified,
             extract_text,
             provider,
+            batch_authority=batch_authority,
         )
 
 
