@@ -18,7 +18,12 @@ const mockedRequireBffAuth = vi.mocked(requireBffAuth)
 const MATHS_COLLECTION = 'rag_nexus_maths_terminale_gen_specialite'
 const NSI_COLLECTION = 'rag_nexus_nsi_terminale_specialite'
 const authIdentity = {
+  iss: 'nexus-issuer',
+  aud: 'nexus-cockpit',
   sub: 'psn_1234567890abcdef',
+  jti: 'jti-12345',
+  exp: 1800000600,
+  tenant: 'libre_terminale',
   role: 'student',
   niveau: 'terminale',
   school_year: '2026-2027',

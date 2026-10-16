@@ -2,11 +2,9 @@ import { SignJWT, decodeJwt, jwtVerify } from 'jose'
 
 import type { InternalIdentity, InternalIdentityEnvelope } from '@/generated/contracts'
 import {
-  PILOT_RETRIEVAL_SCOPE,
-  PILOT_RETRIEVAL_SCOPE_DIGEST,
-  assertEnvelopeMatchesPilotScope,
-  assertIdentityMatchesPilotScope,
-} from '@/server/pilot-scope'
+  assertEnvelopeMatchesConfiguredScope,
+  resolveConfiguredScope,
+} from '@/server/scope-selection'
 
 const DEFAULT_INTERNAL_TTL_SECONDS = 300
 
@@ -62,7 +60,7 @@ function assertExternalParties(identity: InternalIdentity): void {
 export async function mintInternalIdentityToken(
   identity: InternalIdentity,
 ): Promise<string> {
-  assertIdentityMatchesPilotScope(identity)
+  const scope = resolveConfiguredScope(identity)
   assertExternalParties(identity)
   const issuedAt = nowSeconds()
   const ttl = parseInternalTokenTtl()
@@ -71,8 +69,7 @@ export async function mintInternalIdentityToken(
     throw new Error('Identité interne expirée')
   }
 
-  const allowedCollections = PILOT_RETRIEVAL_SCOPE.subjects
-    .map((subject) => subject.collection) as InternalIdentityEnvelope['allowed_collections']
+  const allowedCollections = [...scope.allowedCollections] as InternalIdentityEnvelope['allowed_collections']
   const envelope: InternalIdentityEnvelope = {
     protocol_version: '1',
     iss: requireEnv('NEXUS_INTERNAL_TOKEN_ISSUER'),
@@ -82,11 +79,11 @@ export async function mintInternalIdentityToken(
     iat: issuedAt,
     exp,
     identity,
-    scope_id: PILOT_RETRIEVAL_SCOPE.scope_id,
-    scope_digest: PILOT_RETRIEVAL_SCOPE_DIGEST,
+    scope_id: scope.scopeId,
+    scope_digest: scope.scopeDigest,
     allowed_collections: allowedCollections,
   }
-  assertEnvelopeMatchesPilotScope(envelope)
+  assertEnvelopeMatchesConfiguredScope(envelope)
 
   return new SignJWT({ ...envelope })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -114,7 +111,7 @@ async function verifySignedEnvelope(
     throw new Error('Jeton interne invalide ou expiré', { cause: error })
   }
   const envelope = payload as InternalIdentityEnvelope
-  assertEnvelopeMatchesPilotScope(envelope)
+  assertEnvelopeMatchesConfiguredScope(envelope)
   assertExternalParties(envelope.identity)
   return envelope
 }
