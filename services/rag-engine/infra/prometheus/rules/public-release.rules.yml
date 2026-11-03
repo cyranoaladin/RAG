@@ -1,0 +1,139 @@
+# Alertes du stack PUBLIC FINAL (onze collections du successeur public).
+#
+# Pourquoi un fichier distinct de rag-alerts.yml
+# ----------------------------------------------
+# `rag-alerts.yml` porte RAGChromaDBDown, RAGOllamaDown et RAGUIDown : ces trois
+# cibles appartiennent a la pile V1 historique, qui tourne sur un AUTRE reseau
+# Docker. Les charger dans le Prometheus de la release publique produirait trois
+# criticals permanents et faux — exactement le bruit qui fait ignorer les vraies
+# alertes. Ce fichier ne contient que ce que la pile publique expose reellement.
+#
+# Seuils : ceux du budget de charge C0 GELE (8 clients, 240 requetes,
+# p50<=3000ms, p95<=6000ms, p99<=7500ms, erreurs=0, timeouts=0, connexions
+# DB<=10). Ils ne doivent pas etre relaxes pour faire taire une alerte.
+#
+# Ce que ce fichier NE couvre PAS, faute de metrique exposee
+# ---------------------------------------------------------
+# - sante de l'index vectoriel (aucune gauge `*_database_ready` n'est exportee ;
+#   `retrieval_database_ready()` est une fonction de readiness, pas une serie) ;
+# - echec d'un job Worker A/B (ce sont des CLI gouvernes, pas un service scrute).
+# Declarer une alerte sur une metrique absente ne protege rien : elle ne se
+# declenche jamais et donne une fausse assurance. Ces deux trous exigent du code,
+# pas une regle.
+groups:
+  - name: public-release-availability
+    rules:
+      - alert: PublicRetrievalScrapeFailed
+        expr: up{job="rag-engine-v2"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: API de recherche publique injoignable par Prometheus
+          description: "up{job=\"rag-engine-v2\"} vaut 0 depuis plus de 2 minutes sur {{ $labels.instance }}."
+
+      - alert: PublicRetrievalServiceUnavailable
+        expr: increase(retrieval_http_503_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: Reponses HTTP 503 sur POST /search/v2
+          description: "Le budget C0 exige erreurs=0. Toute 503 est un rouge, pas un avertissement."
+
+  - name: public-release-latency
+    rules:
+      - alert: PublicRetrievalP95AboveBudget
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(retrieval_total_search_latency_seconds_bucket[5m]))) > 6
+          and sum(increase(retrieval_requests_total[5m])) >= 20
+        for: 5m
+        labels:
+          severity: warning
+          surface: public-search
+        annotations:
+          summary: p95 de recherche au-dessus du budget C0 (6000 ms)
+          description: "Le garde de volume (>=20 requetes/5min) evite une alerte sur un echantillon vide."
+
+      - alert: PublicRetrievalP99AboveBudget
+        expr: |
+          histogram_quantile(0.99, sum by (le) (rate(retrieval_total_search_latency_seconds_bucket[5m]))) > 7.5
+          and sum(increase(retrieval_requests_total[5m])) >= 20
+        for: 5m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: p99 de recherche au-dessus du budget C0 (7500 ms)
+          description: "Depassement du plafond p99 gele. Ne pas relever le budget pour eteindre cette alerte."
+
+  - name: public-release-errors
+    rules:
+      - alert: PublicRetrievalErrorsByCause
+        expr: increase(retrieval_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: "Erreur de retrieval, cause {{ $labels.cause }}"
+          description: "Causes bornees : authentication, invalid_request, scope_refusal, timeout, pool_failure, ann_overflow, service_unavailable, internal_error. Le budget C0 exige zero erreur."
+
+      - alert: PublicRetrievalDbPoolSaturation
+        expr: increase(retrieval_errors_total{cause="pool_failure"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: Saturation du pool de connexions PostgreSQL
+          description: "Le budget C0 plafonne les connexions DB a 10. Un pool_failure signale que la cible a ete depassee."
+
+      - alert: PublicRetrievalTimeouts
+        expr: increase(retrieval_errors_total{cause="timeout"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: Timeouts de recherche
+          description: "Le budget C0 exige timeouts=0."
+
+      - alert: PublicRetrievalAnnTieOverflow
+        expr: increase(retrieval_tie_overflow_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          surface: public-search
+        annotations:
+          summary: Debordement d'egalite ANN dense
+          description: "Le classement peut devenir non deterministe. Diagnostiquer avant de toucher au seuil du reranker."
+
+  - name: public-release-quality
+    rules:
+      - alert: PublicRetrievalEmptyResultAnomaly
+        expr: |
+          (
+            sum(increase(retrieval_empty_results_total[15m]))
+            / clamp_min(sum(increase(retrieval_requests_total[15m])), 1)
+          ) > 0.5
+          and sum(increase(retrieval_requests_total[15m])) >= 20
+        for: 10m
+        labels:
+          severity: critical
+          surface: public-search
+        annotations:
+          summary: Plus de la moitie des recherches valides ne rendent aucun resultat
+          description: "Signature d'un corpus non publie, d'un scope serveur trop etroit ou d'un index vide. Une recherche qui rend HTTP 200 vide reste un echec produit."
+
+      - alert: PublicRetrievalScopeRefusalSpike
+        expr: increase(retrieval_scope_refusals_total[15m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          surface: public-search
+        annotations:
+          summary: Pic de refus de scope serveur
+          description: "Soit des identites mal emises, soit des tentatives d'acces hors scope. A correler avec les journaux d'identite, jamais a resoudre en elargissant un scope."
