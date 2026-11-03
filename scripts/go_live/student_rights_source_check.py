@@ -15,6 +15,7 @@ import secrets
 import sys
 import unicodedata
 import urllib.error
+import time
 import urllib.parse
 import urllib.request
 from collections import OrderedDict
@@ -37,6 +38,95 @@ SOURCE_CHECKPOINT_KIND = "NEXUS-STUDENT-SOURCE-CHECKPOINT-V1"
 HTTP_CACHE_MAX_BYTES = 32 * 1024 * 1024
 CHECKPOINT_MAX_AGE = timedelta(hours=24)
 
+# Debit des GET vers la source officielle.
+#
+# ADR-0004 et le verrou `network_allowed` exigent « rate limiting et
+# user-agent identifiable ». L'user-agent l'etait ; le debit, non. Une
+# campagne d'actualite reelle a emis 392 GET en environ quarante-cinq
+# secondes et a declenche un blocage Cloudflare sur eduscol, arretant le
+# rescellement. Un outil fail-closed qui martele reste un outil qui martele.
+#
+# Trois garde-fous, au seul endroit par lequel tout passe :
+#   - un intervalle minimum entre deux GET ;
+#   - `Retry-After` respecte, borne pour ne pas suspendre une campagne ;
+#   - un disjoncteur : apres une serie de refus de debit, on s'arrete au lieu
+#     de continuer des centaines d'appels inutiles.
+FETCH_MIN_INTERVAL_SECONDS = float(
+    os.environ.get("NEXUS_SOURCE_FETCH_MIN_INTERVAL_SECONDS", "0.75")
+)
+FETCH_RETRY_AFTER_MAX_SECONDS = float(
+    os.environ.get("NEXUS_SOURCE_FETCH_RETRY_AFTER_MAX_SECONDS", "30")
+)
+FETCH_RATE_LIMIT_STREAK_LIMIT = int(
+    os.environ.get("NEXUS_SOURCE_FETCH_RATE_LIMIT_STREAK_LIMIT", "5")
+)
+_RATE_LIMIT_STATUSES = frozenset({403, 429, 503})
+_FETCH_HEADERS = {
+    "User-Agent": "NexusSourceIdentityVerifier/1",
+    "Accept-Encoding": "identity",
+}
+_last_fetch_monotonic: float | None = None
+_rate_limit_streak = 0
+
+
+def reset_fetch_pacing() -> None:
+    """Remet le debit et le disjoncteur a zero. Pour les tests et un nouveau lot."""
+    global _last_fetch_monotonic, _rate_limit_streak
+    _last_fetch_monotonic = None
+    _rate_limit_streak = 0
+
+
+def _respect_fetch_interval() -> None:
+    global _last_fetch_monotonic
+    if _last_fetch_monotonic is not None and FETCH_MIN_INTERVAL_SECONDS > 0:
+        reste = FETCH_MIN_INTERVAL_SECONDS - (time.monotonic() - _last_fetch_monotonic)
+        if reste > 0:
+            time.sleep(reste)
+    _last_fetch_monotonic = time.monotonic()
+
+
+def _retry_after_seconds(headers: Mapping[str, str]) -> float:
+    brut = _header(headers, "Retry-After")
+    if brut is None or not brut.strip().isdecimal():
+        return 0.0
+    return min(float(brut.strip()), FETCH_RETRY_AFTER_MAX_SECONDS)
+
+
+def _note_rate_limit(response: "HTTPResponse") -> None:
+    """Compte les refus de debit et coupe la campagne au seuil."""
+    global _rate_limit_streak
+    if response.status not in _RATE_LIMIT_STATUSES:
+        _rate_limit_streak = 0
+        return
+    _rate_limit_streak += 1
+    attente = _retry_after_seconds(response.headers)
+    if attente > 0:
+        time.sleep(attente)
+    if _rate_limit_streak >= FETCH_RATE_LIMIT_STREAK_LIMIT:
+        raise SourceCheckFailure("SOURCE_RATE_LIMITED")
+
+
+def _open_url(url: str, max_bytes: int) -> "HTTPResponse":
+    """Le GET nu. Isole pour que le debit et les tests l'encadrent."""
+    opener = urllib.request.build_opener(_NoRedirect)
+    request = urllib.request.Request(url, headers=dict(_FETCH_HEADERS))
+    try:
+        response = opener.open(request, timeout=20)
+    except urllib.error.HTTPError as exc:
+        response = exc
+    headers = dict(response.headers.items())
+    content_length = _header(headers, "Content-Length")
+    if content_length is not None and content_length.isdecimal() and int(content_length) > max_bytes:
+        raise SourceCheckFailure("SOURCE_RESPONSE_TOO_LARGE")
+    if response.status in (301, 302, 303, 307, 308) or response.status >= 400:
+        body = b""
+    else:
+        body = response.read(max_bytes + 1)
+        if len(body) > max_bytes:
+            raise SourceCheckFailure("SOURCE_RESPONSE_TOO_LARGE")
+    return HTTPResponse(response.status, headers, body)
+
+
 
 @dataclass(frozen=True)
 class HTTPResponse:
@@ -57,29 +147,16 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _fetch_urllib(url: str, max_bytes: int) -> HTTPResponse:
-    opener = urllib.request.build_opener(_NoRedirect)
-    request = urllib.request.Request(
-        url,
-        headers={"User-Agent": "NexusSourceIdentityVerifier/1", "Accept-Encoding": "identity"},
-    )
-    try:
-        response = opener.open(request, timeout=20)
-    except urllib.error.HTTPError as exc:
-        response = exc
-    try:
-        headers = dict(response.headers.items())
-        content_length = _header(headers, "Content-Length")
-        if content_length is not None and content_length.isdecimal() and int(content_length) > max_bytes:
-            raise SourceCheckFailure("SOURCE_RESPONSE_TOO_LARGE")
-        if response.status in (301, 302, 303, 307, 308) or response.status >= 400:
-            body = b""
-        else:
-            body = response.read(max_bytes + 1)
-            if len(body) > max_bytes:
-                raise SourceCheckFailure("SOURCE_RESPONSE_TOO_LARGE")
-        return HTTPResponse(response.status, headers, body)
-    finally:
-        response.close()
+    """GET borne, cadence, avec disjoncteur sur les refus de debit.
+
+    Le debit s'applique ICI parce que tout passe ici : la verification de
+    source, l'observation des PDF et le suivi des redirections partagent ce
+    transport. Le placer plus haut en laisserait un appelant sans garde-fou.
+    """
+    _respect_fetch_interval()
+    response = _open_url(url, max_bytes)
+    _note_rate_limit(response)
+    return response
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:
