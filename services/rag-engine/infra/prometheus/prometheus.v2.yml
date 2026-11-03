@@ -4,6 +4,7 @@ global:
 
 rule_files:
   - /etc/prometheus/rules/retrieval.rules.yml
+  - /etc/prometheus/rules/public-release.rules.yml
 
 scrape_configs:
   - job_name: rag-engine-v2
