@@ -55,7 +55,7 @@
     "input-otp": "^1.4.2",
     "jose": "^6.0.0",
     "lucide-react": "^0.562.0",
-    "next": "16.3.8",
+    "next": "16.4.4",
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.6",
     "react": "^19.2.7",
@@ -97,7 +97,7 @@
       "sharp": "0.35.5"
     },
     "js-yaml": "4.3.2",
-    "fast-uri": "3.1.8",
+    "fast-uri": "3.1.9",
     "postcss-selector-parser": "7.1.6"
   }
 }
